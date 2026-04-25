@@ -24,7 +24,8 @@ import {
   Download,
   ArrowsClockwise,
   Pause,
-  Play
+  Play,
+  Sparkle
 } from '@phosphor-icons/react'
 import { useAnalytics } from '@/lib/analytics'
 import { MetricCard } from './MetricCard'
@@ -33,10 +34,25 @@ import { CategoryBreakdown } from './CategoryBreakdown'
 import { TimeSeriesChart } from './TimeSeriesChart'
 import { TopItemsList } from './TopItemsList'
 import { ModelUsageChart } from './ModelUsageChart'
-import type { AnalyticsMetrics, AnalyticsFilter } from '@/lib/types'
+import { AutoOptimizationPanel } from './AutoOptimizationPanel'
+import type { AnalyticsMetrics, AnalyticsFilter, ModelConfig, PerformanceProfile } from '@/lib/types'
 import { toast } from 'sonner'
 
-export function AnalyticsDashboard() {
+interface AnalyticsDashboardProps {
+  models?: ModelConfig[]
+  profiles?: PerformanceProfile[]
+  onApplyOptimization?: (insight: any) => void
+  onApplyAutoTune?: (recommendation: any, modelId: string) => void
+  onCreateProfile?: (taskType: string) => void
+}
+
+export function AnalyticsDashboard({
+  models = [],
+  profiles = [],
+  onApplyOptimization,
+  onApplyAutoTune,
+  onCreateProfile
+}: AnalyticsDashboardProps = {}) {
   const { getMetrics, events, sessions, clearData } = useAnalytics()
   const [metrics, setMetrics] = useState<AnalyticsMetrics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -328,8 +344,12 @@ export function AnalyticsDashboard() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <TabsList className="grid w-full max-w-3xl grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="optimization">
+            <Sparkle weight="fill" size={16} className="mr-2" />
+            Auto Optimize
+          </TabsTrigger>
           <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
           <TabsTrigger value="models">Models</TabsTrigger>
@@ -384,6 +404,16 @@ export function AnalyticsDashboard() {
               </ScrollArea>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="optimization" className="space-y-4">
+          <AutoOptimizationPanel
+            models={models}
+            profiles={profiles}
+            onApplyOptimization={onApplyOptimization || (() => {})}
+            onApplyAutoTune={onApplyAutoTune || (() => {})}
+            onCreateProfile={onCreateProfile || (() => {})}
+          />
         </TabsContent>
 
         <TabsContent value="chat" className="space-y-4">
