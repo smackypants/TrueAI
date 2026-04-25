@@ -12,7 +12,7 @@ import { MobileBottomNav } from '@/components/ui/mobile-bottom-nav'
 import { FloatingActionButton } from '@/components/ui/floating-action-button'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSwipeGesture } from '@/hooks/use-touch-gestures'
-import { ChatCircle, Robot, Lightning, Plus, Flask, Cube, Wrench, Download, HardDrives, ChartBar, Sparkle } from '@phosphor-icons/react'
+import { ChatCircle, Robot, Lightning, Plus, Flask, Cube, Wrench, Download, HardDrives, ChartBar, Sparkle, Cpu } from '@phosphor-icons/react'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { AgentCard } from '@/components/agent/AgentCard'
@@ -24,6 +24,7 @@ import { HarnessCreator } from '@/components/harness/HarnessCreator'
 import { HuggingFaceModelBrowser } from '@/components/models/HuggingFaceModelBrowser'
 import { GGUFLibrary } from '@/components/models/GGUFLibrary'
 import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard'
+import { HardwareOptimizer } from '@/components/models/HardwareOptimizer'
 import { QuickActionsMenu } from '@/components/models/QuickActionsMenu'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -784,9 +785,14 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           </TabsContent>
 
           <TabsContent value="models" className="space-y-3 sm:space-y-4">
-            <Tabs defaultValue="browse" className="w-full">
+            <Tabs defaultValue="optimize" className="w-full">
               <ScrollArea className="w-full pb-2">
                 <TabsList className="inline-flex w-full sm:w-auto min-w-full sm:min-w-0 justify-start sm:justify-center mb-4 sm:mb-6 h-auto p-1">
+                  <TabsTrigger value="optimize" className="gap-1.5 sm:gap-2 flex-1 sm:flex-initial text-xs sm:text-sm px-2 sm:px-4 py-2">
+                    <Cpu size={16} className="sm:w-[18px] sm:h-[18px]" />
+                    <span className="hidden sm:inline">Optimize</span>
+                    <span className="sm:hidden">Opt</span>
+                  </TabsTrigger>
                   <TabsTrigger value="browse" className="gap-1.5 sm:gap-2 flex-1 sm:flex-initial text-xs sm:text-sm px-2 sm:px-4 py-2">
                     <Download size={16} className="sm:w-[18px] sm:h-[18px]" />
                     <span className="hidden sm:inline">Browse</span>
@@ -819,6 +825,14 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                   </TabsTrigger>
                 </TabsList>
               </ScrollArea>
+
+              <TabsContent value="optimize">
+                <HardwareOptimizer 
+                  onSettingsApplied={(settings) => {
+                    toast.success(`Optimization applied: ${settings.tier.toUpperCase()} tier`)
+                  }}
+                />
+              </TabsContent>
 
               <TabsContent value="browse">
                 <HuggingFaceModelBrowser onDownload={handleHuggingFaceDownload} />

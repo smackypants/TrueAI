@@ -26,7 +26,14 @@ A browser-based AI assistant platform that enables local model integration, auto
 - **Progression**: Configure agent → Set goal → Select tools (calculator, datetime, memory) → Execute → View step-by-step execution → Review results
 - **Success criteria**: Agents complete multi-step tasks, show clear execution history, handle errors gracefully
 
-### 3. Model Management
+### 3. Hardware Optimization
+- **Functionality**: Automatically scan device hardware and generate optimized settings
+- **Purpose**: Adapt application performance to device capabilities
+- **Trigger**: Auto-scans on startup or manual scan from Models tab
+- **Progression**: Scan hardware → Detect CPU, GPU, RAM, battery, network → Calculate performance score → Generate optimal settings → Apply configuration → Display recommendations
+- **Success criteria**: Accurate device detection, appropriate settings for device tier, improved performance on low-end devices
+
+### 4. Model Management
 - **Functionality**: Configure and switch between different AI models with custom parameters
 - **Purpose**: Allow users to select optimal models for specific tasks
 - **Trigger**: User opens model configuration from settings or chat interface
