@@ -221,11 +221,48 @@ async function getCacheSize() {
 }
 
 self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-data') {
-    event.waitUntil(syncData())
+  console.log('[ServiceWorker] Sync event triggered:', event.tag)
+  
+  if (event.tag === 'background-sync') {
+    event.waitUntil(handleBackgroundSync())
   }
 })
 
-async function syncData() {
-  console.log('[ServiceWorker] Background sync triggered')
+async function handleBackgroundSync() {
+  console.log('[ServiceWorker] Processing background sync')
+  
+  try {
+    const clients = await self.clients.matchAll()
+    
+    for (const client of clients) {
+      client.postMessage({
+        type: 'BACKGROUND_SYNC',
+        timestamp: Date.now()
+      })
+    }
+    
+    console.log('[ServiceWorker] Background sync completed successfully')
+  } catch (error) {
+    console.error('[ServiceWorker] Background sync failed:', error)
+    throw error
+  }
+}
+
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'periodic-sync') {
+    event.waitUntil(handlePeriodicSync())
+  }
+})
+
+async function handlePeriodicSync() {
+  console.log('[ServiceWorker] Periodic sync triggered')
+  
+  const clients = await self.clients.matchAll()
+  
+  for (const client of clients) {
+    client.postMessage({
+      type: 'PERIODIC_SYNC',
+      timestamp: Date.now()
+    })
+  }
 }

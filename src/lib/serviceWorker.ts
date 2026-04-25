@@ -144,3 +144,85 @@ export async function preloadAssets(urls: string[]) {
     )
   }
 }
+
+export async function registerBackgroundSync(tag: string = 'background-sync'): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('sync' in ServiceWorkerRegistration.prototype)) {
+    console.warn('[ServiceWorker] Background Sync API not supported')
+    return false
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready
+    await registration.sync.register(tag)
+    console.log(`[ServiceWorker] Background sync registered: ${tag}`)
+    return true
+  } catch (error) {
+    console.error('[ServiceWorker] Failed to register background sync:', error)
+    return false
+  }
+}
+
+export async function registerPeriodicSync(tag: string = 'periodic-sync', minInterval: number = 12 * 60 * 60 * 1000): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('periodicSync' in ServiceWorkerRegistration.prototype)) {
+    console.warn('[ServiceWorker] Periodic Background Sync API not supported')
+    return false
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready
+    
+    const status = await navigator.permissions.query({
+      name: 'periodic-background-sync' as PermissionName
+    })
+    
+    if (status.state === 'granted') {
+      await (registration as any).periodicSync.register(tag, {
+        minInterval
+      })
+      console.log(`[ServiceWorker] Periodic sync registered: ${tag}`)
+      return true
+    } else {
+      console.warn('[ServiceWorker] Periodic sync permission not granted')
+      return false
+    }
+  } catch (error) {
+    console.error('[ServiceWorker] Failed to register periodic sync:', error)
+    return false
+  }
+}
+
+export function onBackgroundSync(callback: () => void) {
+  if ('serviceWorker' in navigator) {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'BACKGROUND_SYNC') {
+        callback()
+      }
+    }
+    
+    navigator.serviceWorker.addEventListener('message', handleMessage)
+    
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage)
+    }
+  }
+  
+  return () => {}
+}
+
+export function onPeriodicSync(callback: () => void) {
+  if ('serviceWorker' in navigator) {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'PERIODIC_SYNC') {
+        callback()
+      }
+    }
+    
+    navigator.serviceWorker.addEventListener('message', handleMessage)
+    
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage)
+    }
+  }
+  
+  return () => {}
+}

@@ -12,6 +12,7 @@ import { MobileBottomNav } from '@/components/ui/mobile-bottom-nav'
 import { FloatingActionButton } from '@/components/ui/floating-action-button'
 import { PullToRefreshIndicator } from '@/components/ui/pull-to-refresh-indicator'
 import { OfflineIndicator } from '@/components/notifications/OfflineIndicator'
+import { OfflineQueueIndicator } from '@/components/notifications/OfflineQueueIndicator'
 import { ServiceWorkerUpdate } from '@/components/notifications/ServiceWorkerUpdate'
 import { InstallPrompt } from '@/components/notifications/InstallPrompt'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -49,6 +50,7 @@ const LearningRateBenchmark = lazy(() => import('@/components/models/LearningRat
 const AppBuilder = lazy(() => import('@/components/builder/AppBuilder'))
 const LocalIDE = lazy(() => import('@/components/builder/LocalIDE'))
 const CacheManager = lazy(() => import('@/components/notifications/CacheManager'))
+const OfflineQueuePanel = lazy(() => import('@/components/notifications/OfflineQueuePanel'))
 
 const LoadingFallback = memo(() => (
   <div className="flex items-center justify-center p-8">
@@ -685,6 +687,8 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               </div>
               
               <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                <OfflineQueueIndicator />
+                
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-10 sm:w-10 active:scale-95 transition-transform">
@@ -1212,7 +1216,11 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 />
               </Suspense>
               
-              <div className="max-w-2xl mx-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Suspense fallback={<LoadingFallback />}>
+                  <OfflineQueuePanel />
+                </Suspense>
+                
                 <Suspense fallback={<LoadingFallback />}>
                   <CacheManager />
                 </Suspense>

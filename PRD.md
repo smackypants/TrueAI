@@ -82,14 +82,24 @@ A browser-based AI assistant platform that enables local model integration, auto
 - **Progression**: Enter app description/select template → AI generates complete code (HTML, JavaScript, CSS) → Automatic live preview renders in iframe instantly → View generated files in code editor → Edit code with live preview updates → Build project with validation → Run automated tests (HTML validation, JS syntax, CSS validation, responsive design) → Download standalone HTML file → Iterate by regenerating with refined prompts
 - **Success criteria**: Generated apps are functional and production-ready, live preview renders immediately without build step, preview updates when switching files, preview supports all frameworks (vanilla, React, Vue, Svelte), iframe sandbox ensures security, build process validates all files, tests accurately detect issues, downloaded files work independently, template library provides quick-start options (todo, calculator, timer, notes, games, dashboards), mobile-optimized interface supports on-device app creation with responsive preview
 
+### 10. Background Sync for Offline Actions
+- **Functionality**: Automatic queue system that captures all user actions when offline and syncs them when connection is restored, with retry logic and full queue management
+- **Purpose**: Ensure data integrity and seamless user experience regardless of network conditions, preventing data loss during connectivity issues
+- **Trigger**: Automatic when device goes offline OR manual sync from queue indicator/panel
+- **Progression**: Device goes offline → User performs action (create/update/delete) → Action queued with metadata → Visual indicator shows pending count → Connection restored → Background sync automatically triggered → Actions processed with retry logic (up to 3 attempts) → Success/failure feedback → Queue cleared of completed actions
+- **Success criteria**: All offline actions captured without data loss, automatic sync on reconnection, failed actions show clear errors, queue persists across sessions, visual indicators show real-time status, manual sync and retry available, queue management in Analytics tab allows clearing/retrying actions
+
 ## Edge Case Handling
 
 - **Empty States**: Show helpful onboarding messages when no conversations or agents exist
 - **Model Unavailable**: Graceful fallback with clear error messaging if selected model can't be reached
-- **Network Interruption**: Save draft messages locally, queue for retry when connection restored
+- **Network Interruption**: Background sync automatically queues all actions when offline and syncs when connection restored
 - **Long Response Times**: Show loading indicators with ability to cancel streaming
 - **Invalid Agent Configuration**: Validate tool selection and goals before execution with inline error messages
 - **Concurrent Agent Runs**: Queue executions and show status for each running agent
+- **Offline Operations**: All create, update, delete operations queued with retry logic (up to 3 attempts)
+- **Sync Failures**: Visual indicators for failed actions with manual retry and clear error messages
+- **Data Conflicts**: Optimistic UI updates with background sync reconciliation
 
 ## Design Direction
 
