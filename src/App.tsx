@@ -5,12 +5,15 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { ChatCircle, Robot, Lightning, Plus } from '@phosphor-icons/react'
+import { ChatCircle, Robot, Lightning, Plus, Flask, Cube, Wrench } from '@phosphor-icons/react'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { AgentCard } from '@/components/agent/AgentCard'
 import { AgentStepView } from '@/components/agent/AgentStepView'
 import { ModelConfigPanel } from '@/components/models/ModelConfigPanel'
+import { FineTuningUI } from '@/components/models/FineTuningUI'
+import { QuantizationTools } from '@/components/models/QuantizationTools'
+import { HarnessCreator } from '@/components/harness/HarnessCreator'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig } from '@/lib/types'
+import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig, FineTuningDataset, FineTuningJob, QuantizationJob, HarnessManifest } from '@/lib/types'
 
 function App() {
   const [conversations, setConversations] = useKV<Conversation[]>('conversations', [])
@@ -29,6 +32,11 @@ function App() {
     { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', temperature: 0.7, maxTokens: 2000, topP: 1, frequencyPenalty: 0, presencePenalty: 0 },
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', temperature: 0.7, maxTokens: 2000, topP: 1, frequencyPenalty: 0, presencePenalty: 0 },
   ])
+  
+  const [fineTuningDatasets, setFineTuningDatasets] = useKV<FineTuningDataset[]>('fine-tuning-datasets', [])
+  const [fineTuningJobs, setFineTuningJobs] = useKV<FineTuningJob[]>('fine-tuning-jobs', [])
+  const [quantizationJobs, setQuantizationJobs] = useKV<QuantizationJob[]>('quantization-jobs', [])
+  const [harnesses, setHarnesses] = useKV<HarnessManifest[]>('harnesses', [])
   
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [activeAgentRunId, setActiveAgentRunId] = useState<string | null>(null)
@@ -307,6 +315,96 @@ Describe what input you would give to the ${tool} tool (one sentence).`
     toast.success('Model configuration saved')
   }
 
+  const createFineTuningDataset = (dataset: FineTuningDataset) => {
+    setFineTuningDatasets(prev => [dataset, ...(prev || [])])
+  }
+
+  const deleteFineTuningDataset = (id: string) => {
+    setFineTuningDatasets(prev => (prev || []).filter(d => d.id !== id))
+  }
+
+  const startFineTuningJob = (job: FineTuningJob) => {
+    setFineTuningJobs(prev => [job, ...(prev || [])])
+    
+    setTimeout(() => {
+      setFineTuningJobs(prev => 
+        (prev || []).map(j => 
+          j.id === job.id 
+            ? { 
+                ...j, 
+                progress: 100, 
+                status: 'completed' as const, 
+                completedAt: Date.now(),
+                resultModelId: `${j.modelId}-finetuned-${Date.now()}`
+              } 
+            : j
+        )
+      )
+    }, 3000)
+  }
+
+  const deleteFineTuningJob = (id: string) => {
+    setFineTuningJobs(prev => (prev || []).filter(j => j.id !== id))
+  }
+
+  const startQuantizationJob = (job: QuantizationJob) => {
+    const model = (models || []).find(m => m.id === job.modelId)
+    const originalSize = model?.size || 7000000000
+    
+    setQuantizationJobs(prev => [{ ...job, originalSize }, ...(prev || [])])
+    
+    setTimeout(() => {
+      const compressionRatio = job.targetFormat.includes('Q4') ? 4 : job.targetFormat.includes('Q5') ? 3 : 2
+      const quantizedSize = originalSize / compressionRatio
+      
+      setQuantizationJobs(prev =>
+        (prev || []).map(j =>
+          j.id === job.id
+            ? {
+                ...j,
+                progress: 100,
+                status: 'completed' as const,
+                completedAt: Date.now(),
+                quantizedSize,
+                resultModelId: `${j.modelId}-${j.targetFormat.toLowerCase()}`
+              }
+            : j
+        )
+      )
+    }, 2500)
+  }
+
+  const deleteQuantizationJob = (id: string) => {
+    setQuantizationJobs(prev => (prev || []).filter(j => j.id !== id))
+  }
+
+  const downloadQuantizedModel = (modelId: string) => {
+    toast.success(`Downloading ${modelId}`)
+  }
+
+  const createHarness = (harness: HarnessManifest) => {
+    setHarnesses(prev => [harness, ...(prev || [])])
+  }
+
+  const deleteHarness = (id: string) => {
+    setHarnesses(prev => (prev || []).filter(h => h.id !== id))
+  }
+
+  const exportHarness = (id: string) => {
+    const harness = (harnesses || []).find(h => h.id === id)
+    if (harness) {
+      const dataStr = JSON.stringify(harness, null, 2)
+      const dataBlob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(dataBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${harness.name}-manifest.json`
+      link.click()
+      URL.revokeObjectURL(url)
+      toast.success('Harness exported')
+    }
+  }
+
   const editingModel = models.find(m => m.id === editingModelId)
 
   return (
@@ -484,50 +582,104 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           </TabsContent>
 
           <TabsContent value="models" className="space-y-4">
-            <h2 className="text-xl font-semibold">Model Configuration</h2>
-            
-            {editingModel ? (
-              <ModelConfigPanel
-                model={editingModel}
-                onSave={saveModelConfig}
-                onClose={() => setEditingModelId(null)}
-              />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {models.map(model => (
-                  <Card key={model.id} className="p-6">
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="text-lg font-semibold">{model.name}</h3>
-                        <p className="text-sm text-muted-foreground capitalize">Provider: {model.provider}</p>
-                      </div>
-                      <Separator />
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Temperature:</span>
-                          <span className="font-mono">{model.temperature}</span>
+            <Tabs defaultValue="config" className="w-full">
+              <TabsList className="grid w-full max-w-2xl mx-auto grid-cols-4 mb-6">
+                <TabsTrigger value="config" className="gap-2">
+                  <Lightning size={18} />
+                  Config
+                </TabsTrigger>
+                <TabsTrigger value="finetuning" className="gap-2">
+                  <Flask size={18} />
+                  Fine-Tuning
+                </TabsTrigger>
+                <TabsTrigger value="quantization" className="gap-2">
+                  <Cube size={18} />
+                  Quantization
+                </TabsTrigger>
+                <TabsTrigger value="harness" className="gap-2">
+                  <Wrench size={18} />
+                  Harness
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="config" className="space-y-4">
+                <h2 className="text-xl font-semibold">Model Configuration</h2>
+                
+                {editingModel ? (
+                  <ModelConfigPanel
+                    model={editingModel}
+                    onSave={saveModelConfig}
+                    onClose={() => setEditingModelId(null)}
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {models.map(model => (
+                      <Card key={model.id} className="p-6">
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="text-lg font-semibold">{model.name}</h3>
+                            <p className="text-sm text-muted-foreground capitalize">Provider: {model.provider}</p>
+                          </div>
+                          <Separator />
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Temperature:</span>
+                              <span className="font-mono">{model.temperature}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Max Tokens:</span>
+                              <span className="font-mono">{model.maxTokens}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Top P:</span>
+                              <span className="font-mono">{model.topP}</span>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setEditingModelId(model.id)}
+                          >
+                            Configure
+                          </Button>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Max Tokens:</span>
-                          <span className="font-mono">{model.maxTokens}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Top P:</span>
-                          <span className="font-mono">{model.topP}</span>
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => setEditingModelId(model.id)}
-                      >
-                        Configure
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="finetuning">
+                <FineTuningUI
+                  models={models || []}
+                  datasets={fineTuningDatasets || []}
+                  jobs={fineTuningJobs || []}
+                  onCreateDataset={createFineTuningDataset}
+                  onStartJob={startFineTuningJob}
+                  onDeleteDataset={deleteFineTuningDataset}
+                  onDeleteJob={deleteFineTuningJob}
+                />
+              </TabsContent>
+
+              <TabsContent value="quantization">
+                <QuantizationTools
+                  models={models || []}
+                  jobs={quantizationJobs || []}
+                  onStartJob={startQuantizationJob}
+                  onDeleteJob={deleteQuantizationJob}
+                  onDownloadModel={downloadQuantizedModel}
+                />
+              </TabsContent>
+
+              <TabsContent value="harness">
+                <HarnessCreator
+                  harnesses={harnesses || []}
+                  onCreateHarness={createHarness}
+                  onDeleteHarness={deleteHarness}
+                  onExportHarness={exportHarness}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </main>

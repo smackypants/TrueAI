@@ -179,3 +179,84 @@ export interface ChatSettings {
   voiceEnabled: boolean
   notificationsEnabled: boolean
 }
+
+export interface FineTuningDataset {
+  id: string
+  name: string
+  description: string
+  format: 'jsonl' | 'csv' | 'parquet'
+  samples: FineTuningSample[]
+  createdAt: number
+  size: number
+}
+
+export interface FineTuningSample {
+  id: string
+  prompt: string
+  completion: string
+  metadata?: Record<string, any>
+}
+
+export interface FineTuningJob {
+  id: string
+  modelId: string
+  datasetId: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  progress: number
+  epochs: number
+  learningRate: number
+  batchSize: number
+  startedAt?: number
+  completedAt?: number
+  resultModelId?: string
+  error?: string
+  metrics?: FineTuningMetrics
+}
+
+export interface FineTuningMetrics {
+  loss: number[]
+  accuracy: number[]
+  epoch: number
+  step: number
+}
+
+export interface QuantizationJob {
+  id: string
+  modelId: string
+  targetFormat: 'Q4_0' | 'Q4_1' | 'Q5_0' | 'Q5_1' | 'Q8_0' | 'F16' | 'F32'
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  progress: number
+  startedAt?: number
+  completedAt?: number
+  originalSize?: number
+  quantizedSize?: number
+  resultModelId?: string
+  error?: string
+}
+
+export interface HarnessManifest {
+  id: string
+  name: string
+  version: string
+  description: string
+  author: string
+  tools: HarnessTool[]
+  dependencies?: string[]
+  repository?: string
+  license?: string
+}
+
+export interface HarnessTool {
+  name: string
+  description: string
+  parameters: HarnessParameter[]
+  returns: string
+}
+
+export interface HarnessParameter {
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  description: string
+  required: boolean
+  default?: any
+}
