@@ -33,7 +33,11 @@
 
   --radius: 0.5rem;
 
-  --font-sans: "Roboto";
+  --font-sans: Roboto;
+
+  --font-serif: Roboto Slab;
+
+  --font-mono: "Roboto Mono";
 }
 
 @theme {
