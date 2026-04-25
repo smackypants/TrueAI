@@ -19,7 +19,7 @@ import { SettingsMenu } from '@/components/settings/SettingsMenu'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSwipeGesture } from '@/hooks/use-touch-gestures'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
-import { ChatCircle, Robot, Lightning, Plus, Flask, Cube, Wrench, Download, HardDrives, ChartBar, Sparkle, Cpu, Code, Gear } from '@phosphor-icons/react'
+import { ChatCircle, Robot, Lightning, Plus, Flask, Cube, Wrench, Download, HardDrives, ChartBar, Sparkle, Cpu, Code, Gear, Users } from '@phosphor-icons/react'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -39,6 +39,9 @@ import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig, Fi
 
 const AgentCard = lazy(() => import('@/components/agent/AgentCard'))
 const AgentStepView = lazy(() => import('@/components/agent/AgentStepView'))
+const AgentTemplates = lazy(() => import('@/components/agent/AgentTemplates'))
+const AgentPerformanceMonitor = lazy(() => import('@/components/agent/AgentPerformanceMonitor'))
+const CollaborativeAgentManager = lazy(() => import('@/components/agent/CollaborativeAgentManager'))
 const ModelConfigPanel = lazy(() => import('@/components/models/ModelConfigPanel'))
 const FineTuningUI = lazy(() => import('@/components/models/FineTuningUI'))
 const QuantizationTools = lazy(() => import('@/components/models/QuantizationTools'))
@@ -1072,73 +1075,132 @@ Describe what input you would give to the ${tool} tool (one sentence).`
 
           <TabsContent value="agents" className="space-y-3 sm:space-y-4">
             <TabErrorBoundary tabName="Agents">
-            <div className="flex justify-between items-center gap-2">
-              <h2 className="text-lg sm:text-xl font-semibold truncate">AI Agents</h2>
-              <Button onClick={() => setNewAgentDialog(true)} size="sm" className="lg:hidden shrink-0">
-                <Plus weight="bold" size={20} />
-              </Button>
-              <Button onClick={() => setNewAgentDialog(true)} className="hidden lg:flex">
-                <Plus weight="bold" size={20} className="mr-2" />
-                Create Agent
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-              <div className="lg:col-span-2 space-y-3 sm:space-y-4">
-                {(!agents || agents.length === 0) && (
-                  <Card className="p-6 sm:p-12">
-                    <EmptyState
-                      illustration={emptyStateAgents}
-                      title="No agents created yet"
-                      description="Create an autonomous AI agent to automate tasks and execute multi-step workflows"
-                      size="lg"
-                      action={
-                        <Button onClick={() => setNewAgentDialog(true)} className="w-full sm:w-auto">
-                          <Plus weight="bold" size={20} className="mr-2" />
-                          <span className="hidden sm:inline">Create Your First Agent</span>
-                          <span className="sm:hidden">Create Agent</span>
-                        </Button>
-                      }
-                    />
-                  </Card>
-                )}
-                {agents?.map(agent => (
-                  <Suspense key={agent.id} fallback={<LoadingFallback />}>
-                    <AgentCard
-                      agent={agent}
-                      onRun={runAgent}
-                      onDelete={deleteAgent}
-                      onView={(id) => {
-                        const run = agentRuns?.find(r => r.agentId === id)
-                        if (run) setActiveAgentRunId(run.id)
-                      }}
-                    />
-                  </Suspense>
-                ))}
+            <Tabs defaultValue="agents-list" className="w-full">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <TabsList>
+                  <TabsTrigger value="agents-list" className="gap-2">
+                    <Robot size={18} weight="fill" />
+                    My Agents
+                  </TabsTrigger>
+                  <TabsTrigger value="templates" className="gap-2">
+                    <Flask size={18} weight="fill" />
+                    Templates
+                  </TabsTrigger>
+                  <TabsTrigger value="collaborative" className="gap-2">
+                    <Users size={18} weight="fill" />
+                    <span className="hidden sm:inline">Collaborative</span>
+                    <span className="sm:hidden">Collab</span>
+                  </TabsTrigger>
+                </TabsList>
+                <Button onClick={() => setNewAgentDialog(true)} size="sm" className="lg:hidden shrink-0">
+                  <Plus weight="bold" size={20} />
+                </Button>
+                <Button onClick={() => setNewAgentDialog(true)} className="hidden lg:flex">
+                  <Plus weight="bold" size={20} className="mr-2" />
+                  Create Agent
+                </Button>
               </div>
 
-              <Card className="lg:col-span-1 p-3 sm:p-4">
-                <h3 className="font-semibold mb-3 sm:mb-4 text-sm sm:text-base">Execution History</h3>
-                <ScrollArea className="h-[300px] sm:h-[600px]">
-                  {activeAgentRun ? (
-                    <div className="space-y-2">
-                      {activeAgentRun.steps?.map((step, index) => (
-                        <Suspense key={step.id} fallback={<LoadingFallback />}>
-                          <AgentStepView step={step} index={index} />
-                        </Suspense>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState
-                      illustration={emptyStateWorkflow}
-                      title="No execution history"
-                      description="Run an agent to see detailed execution steps"
-                      size="sm"
-                    />
-                  )}
-                </ScrollArea>
-              </Card>
-            </div>
+              <TabsContent value="agents-list">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+                  <div className="lg:col-span-2 space-y-3 sm:space-y-4">
+                    {(!agents || agents.length === 0) && (
+                      <Card className="p-6 sm:p-12">
+                        <EmptyState
+                          illustration={emptyStateAgents}
+                          title="No agents created yet"
+                          description="Create an autonomous AI agent to automate tasks and execute multi-step workflows"
+                          size="lg"
+                          action={
+                            <Button onClick={() => setNewAgentDialog(true)} className="w-full sm:w-auto">
+                              <Plus weight="bold" size={20} className="mr-2" />
+                              <span className="hidden sm:inline">Create Your First Agent</span>
+                              <span className="sm:hidden">Create Agent</span>
+                            </Button>
+                          }
+                        />
+                      </Card>
+                    )}
+                    {agents?.map(agent => (
+                      <Suspense key={agent.id} fallback={<LoadingFallback />}>
+                        <AgentCard
+                          agent={agent}
+                          onRun={runAgent}
+                          onDelete={deleteAgent}
+                          onView={(id) => {
+                            const run = agentRuns?.find(r => r.agentId === id)
+                            if (run) setActiveAgentRunId(run.id)
+                          }}
+                        />
+                      </Suspense>
+                    ))}
+                  </div>
+
+                  <div className="lg:col-span-1 space-y-3 sm:space-y-4">
+                    <Card className="p-3 sm:p-4">
+                      <h3 className="font-semibold mb-3 sm:mb-4 text-sm sm:text-base">Execution History</h3>
+                      <ScrollArea className="h-[250px] sm:h-[300px]">
+                        {activeAgentRun ? (
+                          <div className="space-y-2">
+                            {activeAgentRun.steps?.map((step, index) => (
+                              <Suspense key={step.id} fallback={<LoadingFallback />}>
+                                <AgentStepView step={step} index={index} />
+                              </Suspense>
+                            ))}
+                          </div>
+                        ) : (
+                          <EmptyState
+                            illustration={emptyStateWorkflow}
+                            title="No execution history"
+                            description="Run an agent to see detailed execution steps"
+                            size="sm"
+                          />
+                        )}
+                      </ScrollArea>
+                    </Card>
+
+                    {agents && agents.length > 0 && (
+                      <Suspense fallback={<LoadingFallback />}>
+                        <AgentPerformanceMonitor 
+                          agent={agents[0]} 
+                          runs={agentRuns || []} 
+                        />
+                      </Suspense>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="templates">
+                <Suspense fallback={<LoadingFallback />}>
+                  <AgentTemplates 
+                    onSelectTemplate={(template) => {
+                      setNewAgentForm({
+                        name: template.name,
+                        goal: template.goal,
+                        model: 'gpt-4o-mini',
+                        tools: template.tools
+                      })
+                      setNewAgentDialog(true)
+                    }}
+                  />
+                </Suspense>
+              </TabsContent>
+
+              <TabsContent value="collaborative">
+                <Suspense fallback={<LoadingFallback />}>
+                  <CollaborativeAgentManager 
+                    agents={agents || []}
+                    onRunCollaboration={async (agentIds, objective) => {
+                      for (const agentId of agentIds) {
+                        await runAgent(agentId)
+                        await new Promise(resolve => setTimeout(resolve, 1000))
+                      }
+                    }}
+                  />
+                </Suspense>
+              </TabsContent>
+            </Tabs>
             </TabErrorBoundary>
           </TabsContent>
 
