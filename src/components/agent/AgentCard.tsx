@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Play, Trash, Robot, Eye, Pause, Warning } from '@phosphor-icons/react'
+import { Play, Trash, Robot, Eye, Pause, Warning, ChatCircle } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +14,8 @@ interface AgentCardProps {
   onRun: (agentId: string) => void
   onDelete: (agentId: string) => void
   onView: (agentId: string) => void
+  onFeedback?: (agentId: string) => void
+  hasRecentRun?: boolean
 }
 
 const getStatusColor = (status: Agent['status']) => {
@@ -42,7 +44,7 @@ const getStatusIcon = (status: Agent['status']) => {
   }
 }
 
-export function AgentCard({ agent, onRun, onDelete, onView }: AgentCardProps) {
+export function AgentCard({ agent, onRun, onDelete, onView, onFeedback, hasRecentRun }: AgentCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -156,6 +158,26 @@ export function AgentCard({ agent, onRun, onDelete, onView }: AgentCardProps) {
                     <p>View execution history</p>
                   </TooltipContent>
                 </Tooltip>
+
+                {onFeedback && hasRecentRun && agent.status === 'completed' && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onFeedback(agent.id)}
+                          className="gap-1 border-accent text-accent hover:bg-accent/10"
+                        >
+                          <ChatCircle weight="fill" size={16} />
+                        </Button>
+                      </motion.div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Provide feedback to help agent learn</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
 
                 <Tooltip>
                   <TooltipTrigger asChild>

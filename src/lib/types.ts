@@ -77,6 +77,9 @@ export interface AgentRun {
   costEstimate?: number
   iterations?: number
   memorySnapshot?: Record<string, any>
+  feedback?: AgentFeedback
+  qualityScore?: number
+  improvementSuggestions?: string[]
 }
 
 export interface AgentStep {
@@ -508,6 +511,91 @@ export interface TaskTypeMetrics {
   avgTokensPerSecond: number
   mostUsedProfile?: string
   successRate: number
+}
+
+export interface AgentFeedback {
+  id: string
+  runId: string
+  agentId: string
+  rating: 1 | 2 | 3 | 4 | 5
+  accuracy: number
+  efficiency: number
+  relevance: number
+  comment?: string
+  issues?: FeedbackIssue[]
+  timestamp: number
+  userId?: string
+}
+
+export interface FeedbackIssue {
+  type: 'incorrect_result' | 'missing_information' | 'wrong_tool' | 'poor_reasoning' | 'timeout' | 'other'
+  description: string
+  severity: 'low' | 'medium' | 'high'
+  step?: string
+}
+
+export interface AgentLearningMetrics {
+  agentId: string
+  totalRuns: number
+  averageRating: number
+  improvementRate: number
+  commonIssues: { issue: string; count: number }[]
+  toolEffectiveness: { tool: string; successRate: number; avgTime: number }[]
+  parameterTrends: {
+    temperature: { value: number; trend: 'improving' | 'stable' | 'declining' }
+    maxIterations: { value: number; trend: 'improving' | 'stable' | 'declining' }
+  }
+  learningInsights: LearningInsight[]
+  lastUpdated: number
+}
+
+export interface LearningInsight {
+  id: string
+  type: 'pattern' | 'improvement' | 'regression' | 'recommendation'
+  title: string
+  description: string
+  confidence: number
+  actionable: boolean
+  action?: {
+    type: 'adjust_parameter' | 'change_tool' | 'modify_prompt' | 'add_capability'
+    details: Record<string, any>
+  }
+  createdAt: number
+  applied?: boolean
+}
+
+export interface AgentVersion {
+  id: string
+  agentId: string
+  version: number
+  changes: VersionChange[]
+  performanceSnapshot: {
+    avgRating: number
+    successRate: number
+    avgExecutionTime: number
+  }
+  createdAt: number
+  createdBy: 'user' | 'auto_learning'
+}
+
+export interface VersionChange {
+  field: string
+  oldValue: any
+  newValue: any
+  reason: string
+}
+
+export interface LearningSession {
+  id: string
+  agentId: string
+  startedAt: number
+  endedAt?: number
+  runsAnalyzed: number
+  feedbackProcessed: number
+  insightsGenerated: number
+  changesApplied: number
+  status: 'analyzing' | 'generating_insights' | 'applying_changes' | 'completed' | 'failed'
+  summary?: string
 }
 
 export interface AppSettings {

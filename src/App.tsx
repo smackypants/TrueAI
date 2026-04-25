@@ -35,13 +35,17 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { emptyStateChat, emptyStateAgents, emptyStateWorkflow } from '@/assets'
 import { analytics } from '@/lib/analytics'
 import { defaultProfilesByTaskType } from '@/lib/performance-profiles'
-import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig, FineTuningDataset, FineTuningJob, QuantizationJob, HarnessManifest, HuggingFaceModel, GGUFModel, PerformanceProfile, TaskType, ModelParameters, AppSettings } from '@/lib/types'
+import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig, FineTuningDataset, FineTuningJob, QuantizationJob, HarnessManifest, HuggingFaceModel, GGUFModel, PerformanceProfile, TaskType, ModelParameters, AppSettings, AgentFeedback, AgentLearningMetrics, LearningInsight, AgentVersion, LearningSession } from '@/lib/types'
+import { AgentLearningEngine } from '@/lib/agent-learning'
 
 const AgentCard = lazy(() => import('@/components/agent/AgentCard'))
 const AgentStepView = lazy(() => import('@/components/agent/AgentStepView'))
 const AgentTemplates = lazy(() => import('@/components/agent/AgentTemplates'))
 const AgentPerformanceMonitor = lazy(() => import('@/components/agent/AgentPerformanceMonitor'))
 const CollaborativeAgentManager = lazy(() => import('@/components/agent/CollaborativeAgentManager'))
+const FeedbackDialog = lazy(() => import('@/components/agent/FeedbackDialog').then(m => ({ default: m.FeedbackDialog })))
+const LearningInsightsPanel = lazy(() => import('@/components/agent/LearningInsightsPanel').then(m => ({ default: m.LearningInsightsPanel })))
+const AgentVersionHistory = lazy(() => import('@/components/agent/AgentVersionHistory').then(m => ({ default: m.AgentVersionHistory })))
 const ModelConfigPanel = lazy(() => import('@/components/models/ModelConfigPanel'))
 const FineTuningUI = lazy(() => import('@/components/models/FineTuningUI'))
 const QuantizationTools = lazy(() => import('@/components/models/QuantizationTools'))
@@ -126,6 +130,10 @@ function App() {
   const [harnesses, setHarnesses] = useKV<HarnessManifest[]>('harnesses', [])
   const [ggufModels, setGgufModels] = useKV<GGUFModel[]>('gguf-models', [])
   const [performanceProfiles, setPerformanceProfiles] = useKV<PerformanceProfile[]>('performance-profiles', [])
+  const [agentFeedbacks, setAgentFeedbacks] = useKV<AgentFeedback[]>('agent-feedbacks', [])
+  const [agentLearningMetrics, setAgentLearningMetrics] = useKV<Record<string, AgentLearningMetrics>>('agent-learning-metrics', {})
+  const [agentVersions, setAgentVersions] = useKV<AgentVersion[]>('agent-versions', [])
+  const [learningSessions, setLearningSessions] = useKV<LearningSession[]>('learning-sessions', [])
   
   const [appSettings, setAppSettings] = useKV<AppSettings>('app-settings', {
     autoSave: true,
@@ -185,6 +193,10 @@ function App() {
   
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [activeAgentRunId, setActiveAgentRunId] = useState<string | null>(null)
+  const [activeLearningAgentId, setActiveLearningAgentId] = useState<string | null>(null)
+  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false)
+  const [selectedRunForFeedback, setSelectedRunForFeedback] = useState<AgentRun | null>(null)
+  const [isLearning, setIsLearning] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [newAgentDialog, setNewAgentDialog] = useState(false)
   const [newConversationDialog, setNewConversationDialog] = useState(false)
@@ -568,6 +580,169 @@ Describe what input you would give to the ${tool} tool (one sentence).`
       })
     }
   }, [agents, setAgents, setAgentRuns])
+
+  const handleProvideFeedback = useCallback((agentId: string) => {
+    const recentRun = agentRuns?.filter(r => r.agentId === agentId && r.status === 'completed')
+      .sort((a, b) => b.startedAt - a.startedAt)[0]
+    
+    if (recentRun) {
+      setSelectedRunForFeedback(recentRun)
+      setFeedbackDialogOpen(true)
+    } else {
+      toast.error('No completed runs found for feedback')
+    }
+  }, [agentRuns])
+
+  const submitFeedback = useCallback((feedback: Omit<AgentFeedback, 'id' | 'timestamp'>) => {
+    const newFeedback: AgentFeedback = {
+      ...feedback,
+      id: `feedback-${Date.now()}`,
+      timestamp: Date.now()
+    }
+
+    setAgentFeedbacks(prev => [newFeedback, ...(prev || [])])
+
+    const qualityScore = AgentLearningEngine.calculateQualityScore(newFeedback)
+    
+    setAgentRuns(prev => (prev || []).map(r => 
+      r.id === feedback.runId
+        ? { ...r, feedback: newFeedback, qualityScore }
+        : r
+    ))
+
+    toast.success('Feedback submitted successfully')
+    analytics.track('agent_feedback_submitted', 'agent', 'submit_feedback', {
+      metadata: { agentId: feedback.agentId, rating: feedback.rating, qualityScore }
+    })
+  }, [setAgentFeedbacks, setAgentRuns])
+
+  const triggerLearning = useCallback(async (agentId: string) => {
+    const agent = agents?.find(a => a.id === agentId)
+    if (!agent) {
+      toast.error('Agent not found')
+      return
+    }
+
+    const agentRunsFiltered = agentRuns?.filter(r => r.agentId === agentId) || []
+    const agentFeedbacksFiltered = agentFeedbacks?.filter(f => f.agentId === agentId) || []
+
+    if (agentRunsFiltered.length < 3) {
+      toast.error('Need at least 3 runs to analyze for learning')
+      return
+    }
+
+    setIsLearning(true)
+    setActiveLearningAgentId(agentId)
+
+    const sessionId = `session-${Date.now()}`
+    const newSession: LearningSession = {
+      id: sessionId,
+      agentId,
+      startedAt: Date.now(),
+      runsAnalyzed: 0,
+      feedbackProcessed: 0,
+      insightsGenerated: 0,
+      changesApplied: 0,
+      status: 'analyzing'
+    }
+
+    setLearningSessions(prev => [newSession, ...(prev || [])])
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      const metrics = AgentLearningEngine.analyzeFeedback(agentRunsFiltered, agentFeedbacksFiltered)
+      
+      setAgentLearningMetrics(prev => ({
+        ...prev,
+        [agentId]: metrics
+      }))
+
+      setLearningSessions(prev => (prev || []).map(s =>
+        s.id === sessionId
+          ? {
+              ...s,
+              runsAnalyzed: agentRunsFiltered.length,
+              feedbackProcessed: agentFeedbacksFiltered.length,
+              insightsGenerated: metrics.learningInsights.length,
+              status: 'completed' as const,
+              endedAt: Date.now(),
+              summary: `Generated ${metrics.learningInsights.length} insights from ${agentRunsFiltered.length} runs`
+            }
+          : s
+      ))
+
+      toast.success(`Learning complete: ${metrics.learningInsights.length} insights generated`)
+      analytics.track('agent_learning_completed', 'agent', 'trigger_learning', {
+        metadata: { 
+          agentId, 
+          runsAnalyzed: agentRunsFiltered.length,
+          insightsGenerated: metrics.learningInsights.length
+        }
+      })
+    } catch (error) {
+      setLearningSessions(prev => (prev || []).map(s =>
+        s.id === sessionId
+          ? { ...s, status: 'failed' as const, endedAt: Date.now() }
+          : s
+      ))
+      toast.error('Learning process failed')
+      console.error(error)
+    } finally {
+      setIsLearning(false)
+      setActiveLearningAgentId(null)
+    }
+  }, [agents, agentRuns, agentFeedbacks, setAgentLearningMetrics, setLearningSessions])
+
+  const applyInsight = useCallback((agentId: string, insight: LearningInsight) => {
+    const agent = agents?.find(a => a.id === agentId)
+    if (!agent) return
+
+    const metrics = agentLearningMetrics[agentId]
+    if (!metrics) return
+
+    const { agent: updatedAgent, changes } = AgentLearningEngine.applyLearning(
+      agent,
+      [insight],
+      false
+    )
+
+    if (changes.length > 0) {
+      const agentRunsFiltered = agentRuns?.filter(r => r.agentId === agentId) || []
+      const completedRuns = agentRunsFiltered.filter(r => r.status === 'completed')
+      const avgExecutionTime = completedRuns.reduce((sum, r) => 
+        sum + (r.completedAt! - r.startedAt), 0
+      ) / Math.max(completedRuns.length, 1)
+
+      const version = AgentLearningEngine.createVersion(
+        agent,
+        changes,
+        {
+          avgRating: metrics.averageRating,
+          successRate: completedRuns.length / Math.max(agentRunsFiltered.length, 1),
+          avgExecutionTime
+        }
+      )
+
+      setAgentVersions(prev => [version, ...(prev || [])])
+      setAgents(prev => (prev || []).map(a => a.id === agentId ? updatedAgent : a))
+      
+      setAgentLearningMetrics(prev => ({
+        ...prev,
+        [agentId]: {
+          ...metrics,
+          learningInsights: metrics.learningInsights.map(i =>
+            i.id === insight.id ? { ...i, applied: true } : i
+          )
+        }
+      }))
+
+      toast.success(`Applied: ${insight.title}`)
+      analytics.track('learning_insight_applied', 'agent', 'apply_insight', {
+        metadata: { agentId, insightId: insight.id, changesCount: changes.length }
+      })
+    }
+  }, [agents, agentLearningMetrics, agentRuns, setAgents, setAgentVersions, setAgentLearningMetrics])
 
   const deleteAgent = useCallback((agentId: string) => {
     setAgents(prev => (prev || []).filter(a => a.id !== agentId))
@@ -1086,6 +1261,10 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                     <Flask size={18} weight="fill" />
                     Templates
                   </TabsTrigger>
+                  <TabsTrigger value="learning" className="gap-2">
+                    <Brain size={18} weight="fill" />
+                    Learning
+                  </TabsTrigger>
                   <TabsTrigger value="collaborative" className="gap-2">
                     <Users size={18} weight="fill" />
                     <span className="hidden sm:inline">Collaborative</span>
@@ -1121,19 +1300,28 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                         />
                       </Card>
                     )}
-                    {agents?.map(agent => (
-                      <Suspense key={agent.id} fallback={<LoadingFallback />}>
-                        <AgentCard
-                          agent={agent}
-                          onRun={runAgent}
-                          onDelete={deleteAgent}
-                          onView={(id) => {
-                            const run = agentRuns?.find(r => r.agentId === id)
-                            if (run) setActiveAgentRunId(run.id)
-                          }}
-                        />
-                      </Suspense>
-                    ))}
+                    {agents?.map(agent => {
+                      const hasRecentRun = agentRuns?.some(r => 
+                        r.agentId === agent.id && 
+                        r.status === 'completed' &&
+                        !r.feedback
+                      )
+                      return (
+                        <Suspense key={agent.id} fallback={<LoadingFallback />}>
+                          <AgentCard
+                            agent={agent}
+                            onRun={runAgent}
+                            onDelete={deleteAgent}
+                            onView={(id) => {
+                              const run = agentRuns?.find(r => r.agentId === id)
+                              if (run) setActiveAgentRunId(run.id)
+                            }}
+                            onFeedback={handleProvideFeedback}
+                            hasRecentRun={hasRecentRun}
+                          />
+                        </Suspense>
+                      )
+                    })}
                   </div>
 
                   <div className="lg:col-span-1 space-y-3 sm:space-y-4">
@@ -1185,6 +1373,105 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                     }}
                   />
                 </Suspense>
+              </TabsContent>
+
+              <TabsContent value="learning">
+                {agents && agents.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-lg font-semibold">Agent Learning & Improvement</h3>
+                        <p className="text-sm text-muted-foreground">Track performance, analyze feedback, and continuously improve agents</p>
+                      </div>
+                      <Select
+                        value={activeLearningAgentId || agents[0].id}
+                        onValueChange={setActiveLearningAgentId}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Select agent" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {agents.map(agent => (
+                            <SelectItem key={agent.id} value={agent.id}>
+                              {agent.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {(() => {
+                        const selectedAgentId = activeLearningAgentId || agents[0].id
+                        const selectedAgent = agents.find(a => a.id === selectedAgentId)
+                        const metrics = agentLearningMetrics[selectedAgentId]
+                        const versions = agentVersions.filter(v => v.agentId === selectedAgentId)
+
+                        return (
+                          <>
+                            <div className="space-y-4">
+                              {selectedAgent && metrics ? (
+                                <Suspense fallback={<LoadingFallback />}>
+                                  <LearningInsightsPanel
+                                    agent={selectedAgent}
+                                    metrics={metrics}
+                                    onApplyInsight={(insight) => applyInsight(selectedAgentId, insight)}
+                                    onTriggerLearning={() => triggerLearning(selectedAgentId)}
+                                    isLearning={isLearning && activeLearningAgentId === selectedAgentId}
+                                  />
+                                </Suspense>
+                              ) : (
+                                <Card className="p-12 text-center">
+                                  <Brain size={48} className="mx-auto text-muted-foreground mb-4" />
+                                  <h4 className="text-lg font-semibold mb-2">No Learning Data Yet</h4>
+                                  <p className="text-sm text-muted-foreground mb-4">
+                                    Run the agent at least 3 times and provide feedback to enable learning
+                                  </p>
+                                  {selectedAgent && (
+                                    <Button onClick={() => runAgent(selectedAgentId)} className="gap-2">
+                                      <Play weight="fill" size={18} />
+                                      Run Agent
+                                    </Button>
+                                  )}
+                                </Card>
+                              )}
+                            </div>
+
+                            <div className="space-y-4">
+                              <Suspense fallback={<LoadingFallback />}>
+                                <AgentVersionHistory
+                                  versions={versions}
+                                  onRestore={(version) => {
+                                    if (selectedAgent) {
+                                      setAgents(prev => (prev || []).map(a =>
+                                        a.id === selectedAgentId
+                                          ? { ...a, ...version.changes.reduce((acc, change) => ({ ...acc, [change.field]: change.newValue }), {}) }
+                                          : a
+                                      ))
+                                      toast.success(`Restored to version ${version.version}`)
+                                    }
+                                  }}
+                                />
+                              </Suspense>
+                            </div>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                ) : (
+                  <Card className="p-12 text-center">
+                    <Robot size={48} className="mx-auto text-muted-foreground mb-4" />
+                    <h4 className="text-lg font-semibold mb-2">No Agents to Learn</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Create an agent first to start tracking learning and improvements
+                    </p>
+                    <Button onClick={() => setNewAgentDialog(true)} className="gap-2">
+                      <Plus weight="bold" size={18} />
+                      Create Agent
+                    </Button>
+                  </Card>
+                )}
               </TabsContent>
 
               <TabsContent value="collaborative">
@@ -1697,6 +1984,21 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {selectedRunForFeedback && (
+        <Suspense fallback={null}>
+          <FeedbackDialog
+            open={feedbackDialogOpen}
+            onOpenChange={setFeedbackDialogOpen}
+            agentRun={selectedRunForFeedback}
+            onSubmit={(feedback) => {
+              submitFeedback(feedback)
+              setFeedbackDialogOpen(false)
+              setSelectedRunForFeedback(null)
+            }}
+          />
+        </Suspense>
+      )}
       
       <KeyboardShortcutsHelper />
       
