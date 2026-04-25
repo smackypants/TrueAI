@@ -85,9 +85,12 @@ export function AppBuilder({ models }: AppBuilderProps) {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [newProjectDialog, setNewProjectDialog] = useState(false)
   const [frameworkInfoDialog, setFrameworkInfoDialog] = useState(false)
+  const [templatePreviewDialog, setTemplatePreviewDialog] = useState(false)
+  const [selectedTemplateForPreview, setSelectedTemplateForPreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const templateIframeRef = useRef<HTMLIFrameElement>(null)
   
   const [newProjectForm, setNewProjectForm] = useState({
     name: '',
@@ -647,6 +650,1102 @@ Return ONLY valid JSON in this exact format:
     }
   }
 
+  const generateTemplatePreview = (templateId: string): string => {
+    const templates: Record<string, string> = {
+      todo: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo List</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .container { 
+      background: white; 
+      border-radius: 16px; 
+      padding: 30px; 
+      width: 100%; 
+      max-width: 500px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { 
+      color: #667eea; 
+      margin-bottom: 24px; 
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .input-group { 
+      display: flex; 
+      gap: 10px; 
+      margin-bottom: 24px; 
+    }
+    input { 
+      flex: 1; 
+      padding: 14px; 
+      border: 2px solid #e0e0e0; 
+      border-radius: 8px; 
+      font-size: 15px;
+      transition: border-color 0.2s;
+    }
+    input:focus { 
+      outline: none; 
+      border-color: #667eea; 
+    }
+    button { 
+      padding: 14px 24px; 
+      background: #667eea; 
+      color: white; 
+      border: none; 
+      border-radius: 8px; 
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover { 
+      background: #5568d3; 
+    }
+    .todos { 
+      display: flex; 
+      flex-direction: column; 
+      gap: 10px; 
+    }
+    .todo { 
+      display: flex; 
+      align-items: center; 
+      padding: 14px; 
+      background: #f7f7f7; 
+      border-radius: 8px;
+      gap: 12px;
+      transition: all 0.2s;
+    }
+    .todo:hover {
+      background: #eeeeee;
+    }
+    .todo.completed {
+      opacity: 0.6;
+    }
+    .todo.completed span {
+      text-decoration: line-through;
+    }
+    .todo input[type="checkbox"] { 
+      width: 20px; 
+      height: 20px; 
+      cursor: pointer;
+      accent-color: #667eea;
+    }
+    .todo span { 
+      flex: 1; 
+      font-size: 15px;
+    }
+    .todo button { 
+      padding: 6px 12px; 
+      background: #dc3545; 
+      font-size: 13px;
+    }
+    .todo button:hover {
+      background: #c82333;
+    }
+    .empty {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1><span>✓</span> Todo List</h1>
+    <div class="input-group">
+      <input type="text" id="todoInput" placeholder="Add a new task..." />
+      <button onclick="addTodo()">Add</button>
+    </div>
+    <div class="todos" id="todos">
+      <div class="empty">No tasks yet. Add one above!</div>
+    </div>
+  </div>
+  <script>
+    let todos = [];
+    
+    function addTodo() {
+      const input = document.getElementById('todoInput');
+      const text = input.value.trim();
+      if (!text) return;
+      
+      todos.push({ id: Date.now(), text, completed: false });
+      input.value = '';
+      render();
+    }
+    
+    function toggleTodo(id) {
+      todos = todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
+      render();
+    }
+    
+    function deleteTodo(id) {
+      todos = todos.filter(t => t.id !== id);
+      render();
+    }
+    
+    function render() {
+      const container = document.getElementById('todos');
+      if (todos.length === 0) {
+        container.innerHTML = '<div class="empty">No tasks yet. Add one above!</div>';
+        return;
+      }
+      
+      container.innerHTML = todos.map(todo => \`
+        <div class="todo \${todo.completed ? 'completed' : ''}">
+          <input type="checkbox" \${todo.completed ? 'checked' : ''} onchange="toggleTodo(\${todo.id})" />
+          <span>\${todo.text}</span>
+          <button onclick="deleteTodo(\${todo.id})">Delete</button>
+        </div>
+      \`).join('');
+    }
+    
+    document.getElementById('todoInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') addTodo();
+    });
+  </script>
+</body>
+</html>`,
+      calculator: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .calculator { 
+      background: #1a1a2e; 
+      border-radius: 20px; 
+      padding: 24px; 
+      width: 100%; 
+      max-width: 360px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .display { 
+      background: #16213e; 
+      color: white; 
+      padding: 24px; 
+      border-radius: 12px; 
+      text-align: right;
+      font-size: 36px;
+      margin-bottom: 20px;
+      min-height: 80px;
+      word-wrap: break-word;
+      font-weight: 300;
+    }
+    .buttons { 
+      display: grid; 
+      grid-template-columns: repeat(4, 1fr); 
+      gap: 12px; 
+    }
+    button { 
+      padding: 24px; 
+      font-size: 20px; 
+      border: none; 
+      border-radius: 12px; 
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    button:active { 
+      transform: scale(0.95); 
+    }
+    .btn-number { 
+      background: #2d3561; 
+      color: white; 
+    }
+    .btn-number:hover { 
+      background: #3d4571; 
+    }
+    .btn-operator { 
+      background: #0f3460; 
+      color: #4fc3f7; 
+    }
+    .btn-operator:hover { 
+      background: #1a4d7a; 
+    }
+    .btn-equals { 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+      color: white; 
+      grid-column: span 2;
+    }
+    .btn-equals:hover { 
+      opacity: 0.9; 
+    }
+    .btn-clear { 
+      background: #e53935; 
+      color: white; 
+    }
+    .btn-clear:hover { 
+      background: #c62828; 
+    }
+  </style>
+</head>
+<body>
+  <div class="calculator">
+    <div class="display" id="display">0</div>
+    <div class="buttons">
+      <button class="btn-clear" onclick="clearDisplay()">C</button>
+      <button class="btn-operator" onclick="appendOperator('/')">/</button>
+      <button class="btn-operator" onclick="appendOperator('*')">×</button>
+      <button class="btn-operator" onclick="appendOperator('-')">-</button>
+      
+      <button class="btn-number" onclick="appendNumber('7')">7</button>
+      <button class="btn-number" onclick="appendNumber('8')">8</button>
+      <button class="btn-number" onclick="appendNumber('9')">9</button>
+      <button class="btn-operator" onclick="appendOperator('+')">+</button>
+      
+      <button class="btn-number" onclick="appendNumber('4')">4</button>
+      <button class="btn-number" onclick="appendNumber('5')">5</button>
+      <button class="btn-number" onclick="appendNumber('6')">6</button>
+      <button class="btn-operator" onclick="appendOperator('%')">%</button>
+      
+      <button class="btn-number" onclick="appendNumber('1')">1</button>
+      <button class="btn-number" onclick="appendNumber('2')">2</button>
+      <button class="btn-number" onclick="appendNumber('3')">3</button>
+      <button class="btn-operator" onclick="backspace()">←</button>
+      
+      <button class="btn-number" onclick="appendNumber('0')">0</button>
+      <button class="btn-number" onclick="appendNumber('.')">.</button>
+      <button class="btn-equals" onclick="calculate()">=</button>
+    </div>
+  </div>
+  <script>
+    let display = '0';
+    
+    function updateDisplay() {
+      document.getElementById('display').textContent = display;
+    }
+    
+    function clearDisplay() {
+      display = '0';
+      updateDisplay();
+    }
+    
+    function appendNumber(num) {
+      if (display === '0') {
+        display = num;
+      } else {
+        display += num;
+      }
+      updateDisplay();
+    }
+    
+    function appendOperator(op) {
+      const lastChar = display[display.length - 1];
+      if (['+', '-', '*', '/', '%'].includes(lastChar)) {
+        display = display.slice(0, -1) + op;
+      } else {
+        display += op;
+      }
+      updateDisplay();
+    }
+    
+    function backspace() {
+      display = display.length > 1 ? display.slice(0, -1) : '0';
+      updateDisplay();
+    }
+    
+    function calculate() {
+      try {
+        const result = eval(display);
+        display = String(result);
+        updateDisplay();
+      } catch {
+        display = 'Error';
+        updateDisplay();
+        setTimeout(() => {
+          display = '0';
+          updateDisplay();
+        }, 1500);
+      }
+    }
+  </script>
+</body>
+</html>`,
+      timer: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timer & Stopwatch</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .container { 
+      background: rgba(255, 255, 255, 0.1); 
+      backdrop-filter: blur(10px);
+      border-radius: 24px; 
+      padding: 40px; 
+      width: 100%; 
+      max-width: 500px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 30px;
+    }
+    .tab {
+      flex: 1;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 12px;
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .tab.active {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+    }
+    .display { 
+      color: white; 
+      font-size: 64px;
+      text-align: center;
+      margin: 40px 0;
+      font-weight: 300;
+      letter-spacing: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .controls { 
+      display: flex; 
+      gap: 12px; 
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    button { 
+      padding: 16px 32px; 
+      font-size: 16px; 
+      border: none; 
+      border-radius: 12px; 
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    button:active { 
+      transform: scale(0.95); 
+    }
+    .btn-start { 
+      background: #4caf50; 
+      color: white; 
+    }
+    .btn-start:hover { 
+      background: #45a049; 
+    }
+    .btn-stop { 
+      background: #f44336; 
+      color: white; 
+    }
+    .btn-stop:hover { 
+      background: #da190b; 
+    }
+    .btn-reset { 
+      background: rgba(255, 255, 255, 0.2); 
+      color: white; 
+    }
+    .btn-reset:hover { 
+      background: rgba(255, 255, 255, 0.3); 
+    }
+    .laps {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    .lap {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      color: white;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="tabs">
+      <button class="tab active" onclick="switchMode('stopwatch')">⏱️ Stopwatch</button>
+      <button class="tab" onclick="switchMode('timer')">⏲️ Timer</button>
+    </div>
+    
+    <div id="stopwatch-mode">
+      <div class="display" id="stopwatch-display">00:00:00</div>
+      <div class="controls">
+        <button class="btn-start" onclick="startStopwatch()">Start</button>
+        <button class="btn-stop" onclick="stopStopwatch()">Stop</button>
+        <button class="btn-reset" onclick="resetStopwatch()">Reset</button>
+      </div>
+      <div class="laps" id="laps"></div>
+    </div>
+    
+    <div id="timer-mode" class="hidden">
+      <div class="display" id="timer-display">05:00</div>
+      <div class="controls">
+        <button class="btn-start" onclick="startTimer()">Start</button>
+        <button class="btn-stop" onclick="stopTimer()">Stop</button>
+        <button class="btn-reset" onclick="resetTimer()">Reset</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    let stopwatchTime = 0;
+    let timerTime = 300;
+    let stopwatchInterval = null;
+    let timerInterval = null;
+    let laps = [];
+    
+    function switchMode(mode) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      
+      if (mode === 'stopwatch') {
+        document.getElementById('stopwatch-mode').classList.remove('hidden');
+        document.getElementById('timer-mode').classList.add('hidden');
+      } else {
+        document.getElementById('timer-mode').classList.remove('hidden');
+        document.getElementById('stopwatch-mode').classList.add('hidden');
+      }
+    }
+    
+    function formatTime(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      return \`\${h.toString().padStart(2, '0')}:\${m.toString().padStart(2, '0')}:\${s.toString().padStart(2, '0')}\`;
+    }
+    
+    function formatTimerTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return \`\${m.toString().padStart(2, '0')}:\${s.toString().padStart(2, '0')}\`;
+    }
+    
+    function startStopwatch() {
+      if (stopwatchInterval) return;
+      stopwatchInterval = setInterval(() => {
+        stopwatchTime++;
+        document.getElementById('stopwatch-display').textContent = formatTime(stopwatchTime);
+      }, 1000);
+    }
+    
+    function stopStopwatch() {
+      if (stopwatchInterval) {
+        clearInterval(stopwatchInterval);
+        stopwatchInterval = null;
+        laps.push(stopwatchTime);
+        renderLaps();
+      }
+    }
+    
+    function resetStopwatch() {
+      clearInterval(stopwatchInterval);
+      stopwatchInterval = null;
+      stopwatchTime = 0;
+      laps = [];
+      document.getElementById('stopwatch-display').textContent = '00:00:00';
+      document.getElementById('laps').innerHTML = '';
+    }
+    
+    function renderLaps() {
+      const container = document.getElementById('laps');
+      container.innerHTML = laps.map((lap, i) => \`
+        <div class="lap">
+          <span>Lap \${i + 1}</span>
+          <span>\${formatTime(lap)}</span>
+        </div>
+      \`).join('');
+    }
+    
+    function startTimer() {
+      if (timerInterval) return;
+      timerInterval = setInterval(() => {
+        if (timerTime > 0) {
+          timerTime--;
+          document.getElementById('timer-display').textContent = formatTimerTime(timerTime);
+        } else {
+          stopTimer();
+        }
+      }, 1000);
+    }
+    
+    function stopTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+    
+    function resetTimer() {
+      stopTimer();
+      timerTime = 300;
+      document.getElementById('timer-display').textContent = '05:00';
+    }
+  </script>
+</body>
+</html>`,
+      notes: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notes App</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { 
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      height: calc(100vh - 40px);
+    }
+    .sidebar {
+      background: #f8f9fa;
+      padding: 20px;
+      border-right: 1px solid #e0e0e0;
+      overflow-y: auto;
+    }
+    .sidebar h2 {
+      margin-bottom: 16px;
+      font-size: 20px;
+    }
+    .new-note {
+      width: 100%;
+      padding: 12px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .note-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .note-item {
+      padding: 12px;
+      background: white;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+    }
+    .note-item:hover {
+      border-color: #667eea;
+    }
+    .note-item.active {
+      background: #667eea;
+      color: white;
+    }
+    .note-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .note-preview {
+      font-size: 13px;
+      opacity: 0.7;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .editor {
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+    }
+    .editor input {
+      font-size: 32px;
+      border: none;
+      outline: none;
+      margin-bottom: 20px;
+      font-weight: 700;
+    }
+    .editor textarea {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 16px;
+      line-height: 1.6;
+      resize: none;
+      font-family: inherit;
+    }
+    .empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #999;
+      flex-direction: column;
+      gap: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="sidebar">
+      <h2>📝 Notes</h2>
+      <button class="new-note" onclick="createNote()">+ New Note</button>
+      <div class="note-list" id="noteList">
+        <div class="empty">No notes yet</div>
+      </div>
+    </div>
+    <div class="editor" id="editor">
+      <div class="empty">
+        <span style="font-size: 64px">📝</span>
+        <p>Select a note or create a new one</p>
+      </div>
+    </div>
+  </div>
+  <script>
+    let notes = [];
+    let activeNoteId = null;
+    
+    function createNote() {
+      const note = {
+        id: Date.now(),
+        title: 'Untitled Note',
+        content: '',
+        createdAt: Date.now()
+      };
+      notes.unshift(note);
+      selectNote(note.id);
+      renderNotes();
+    }
+    
+    function selectNote(id) {
+      activeNoteId = id;
+      const note = notes.find(n => n.id === id);
+      if (!note) return;
+      
+      document.getElementById('editor').innerHTML = \`
+        <input type="text" value="\${note.title}" oninput="updateNoteTitle(event.target.value)" placeholder="Note title..." />
+        <textarea oninput="updateNoteContent(event.target.value)" placeholder="Start writing...">\${note.content}</textarea>
+      \`;
+      renderNotes();
+    }
+    
+    function updateNoteTitle(title) {
+      const note = notes.find(n => n.id === activeNoteId);
+      if (note) {
+        note.title = title || 'Untitled Note';
+        renderNotes();
+      }
+    }
+    
+    function updateNoteContent(content) {
+      const note = notes.find(n => n.id === activeNoteId);
+      if (note) {
+        note.content = content;
+        renderNotes();
+      }
+    }
+    
+    function renderNotes() {
+      const container = document.getElementById('noteList');
+      if (notes.length === 0) {
+        container.innerHTML = '<div class="empty">No notes yet</div>';
+        return;
+      }
+      
+      container.innerHTML = notes.map(note => \`
+        <div class="note-item \${note.id === activeNoteId ? 'active' : ''}" onclick="selectNote(\${note.id})">
+          <div class="note-title">\${note.title}</div>
+          <div class="note-preview">\${note.content || 'Empty note'}</div>
+        </div>
+      \`).join('');
+    }
+  </script>
+</body>
+</html>`,
+      snake: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .container { 
+      text-align: center;
+    }
+    h1 {
+      color: white;
+      margin-bottom: 20px;
+      font-size: 36px;
+    }
+    .score {
+      color: white;
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+    canvas { 
+      background: #1a1a2e;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .controls {
+      margin-top: 20px;
+      color: white;
+      font-size: 14px;
+    }
+    button {
+      margin-top: 12px;
+      padding: 12px 24px;
+      background: white;
+      color: #667eea;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🐍 Snake Game</h1>
+    <div class="score">Score: <span id="score">0</span></div>
+    <canvas id="game" width="400" height="400"></canvas>
+    <div class="controls">Use arrow keys to move</div>
+    <button id="restart" style="display: none;">Play Again</button>
+  </div>
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const restartBtn = document.getElementById('restart');
+    
+    const gridSize = 20;
+    const tileCount = canvas.width / gridSize;
+    
+    let snake = [{x: 10, y: 10}];
+    let food = {x: 15, y: 15};
+    let dx = 0;
+    let dy = 0;
+    let score = 0;
+    let gameLoop = null;
+    
+    function draw() {
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#ff6b6b';
+      ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+      
+      snake.forEach((segment, index) => {
+        ctx.fillStyle = index === 0 ? '#51cf66' : '#37b24d';
+        ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 2, gridSize - 2);
+      });
+    }
+    
+    function update() {
+      const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+      
+      if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+        gameOver();
+        return;
+      }
+      
+      if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+        gameOver();
+        return;
+      }
+      
+      snake.unshift(head);
+      
+      if (head.x === food.x && head.y === food.y) {
+        score++;
+        scoreEl.textContent = score;
+        placeFood();
+      } else {
+        snake.pop();
+      }
+      
+      draw();
+    }
+    
+    function placeFood() {
+      food = {
+        x: Math.floor(Math.random() * tileCount),
+        y: Math.floor(Math.random() * tileCount)
+      };
+    }
+    
+    function gameOver() {
+      clearInterval(gameLoop);
+      restartBtn.style.display = 'block';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'white';
+      ctx.font = '30px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2);
+    }
+    
+    function restart() {
+      snake = [{x: 10, y: 10}];
+      dx = 0;
+      dy = 0;
+      score = 0;
+      scoreEl.textContent = score;
+      placeFood();
+      restartBtn.style.display = 'none';
+      gameLoop = setInterval(update, 100);
+    }
+    
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowUp' && dy === 0) { dx = 0; dy = -1; }
+      if (e.key === 'ArrowDown' && dy === 0) { dx = 0; dy = 1; }
+      if (e.key === 'ArrowLeft' && dx === 0) { dx = -1; dy = 0; }
+      if (e.key === 'ArrowRight' && dx === 0) { dx = 1; dy = 0; }
+    });
+    
+    restartBtn.addEventListener('click', restart);
+    
+    draw();
+    gameLoop = setInterval(update, 100);
+  </script>
+</body>
+</html>`,
+      weather: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { 
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .current {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border-radius: 24px;
+      padding: 40px;
+      color: white;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .location {
+      font-size: 32px;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    .date {
+      font-size: 16px;
+      opacity: 0.8;
+      margin-bottom: 32px;
+    }
+    .temp-container {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    .icon {
+      font-size: 96px;
+    }
+    .temp {
+      font-size: 72px;
+      font-weight: 300;
+    }
+    .condition {
+      font-size: 24px;
+      opacity: 0.9;
+    }
+    .details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+    }
+    .detail {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 16px;
+      border-radius: 12px;
+    }
+    .detail-label {
+      font-size: 13px;
+      opacity: 0.7;
+      margin-bottom: 4px;
+    }
+    .detail-value {
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .forecast {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+    }
+    .forecast-day {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .forecast-date {
+      font-size: 14px;
+      margin-bottom: 12px;
+      opacity: 0.8;
+    }
+    .forecast-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    .forecast-temp {
+      font-size: 20px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="current">
+      <div class="location">San Francisco, CA</div>
+      <div class="date" id="currentDate"></div>
+      
+      <div class="temp-container">
+        <div class="icon">☀️</div>
+        <div>
+          <div class="temp">72°F</div>
+          <div class="condition">Sunny</div>
+        </div>
+      </div>
+      
+      <div class="details">
+        <div class="detail">
+          <div class="detail-label">Feels Like</div>
+          <div class="detail-value">70°F</div>
+        </div>
+        <div class="detail">
+          <div class="detail-label">Humidity</div>
+          <div class="detail-value">45%</div>
+        </div>
+        <div class="detail">
+          <div class="detail-label">Wind Speed</div>
+          <div class="detail-value">12 mph</div>
+        </div>
+        <div class="detail">
+          <div class="detail-label">UV Index</div>
+          <div class="detail-value">6</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="forecast">
+      <div class="forecast-day">
+        <div class="forecast-date">Monday</div>
+        <div class="forecast-icon">🌤️</div>
+        <div class="forecast-temp">75° / 62°</div>
+      </div>
+      <div class="forecast-day">
+        <div class="forecast-date">Tuesday</div>
+        <div class="forecast-icon">☁️</div>
+        <div class="forecast-temp">68° / 58°</div>
+      </div>
+      <div class="forecast-day">
+        <div class="forecast-date">Wednesday</div>
+        <div class="forecast-icon">🌧️</div>
+        <div class="forecast-temp">64° / 55°</div>
+      </div>
+      <div class="forecast-day">
+        <div class="forecast-date">Thursday</div>
+        <div class="forecast-icon">⛈️</div>
+        <div class="forecast-temp">62° / 54°</div>
+      </div>
+      <div class="forecast-day">
+        <div class="forecast-date">Friday</div>
+        <div class="forecast-icon">🌤️</div>
+        <div class="forecast-temp">70° / 60°</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const dateEl = document.getElementById('currentDate');
+    const now = new Date();
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    dateEl.textContent = now.toLocaleDateString('en-US', options);
+  </script>
+</body>
+</html>`
+    };
+    
+    return templates[templateId] || '';
+  }
+
+  const openTemplatePreview = (templateId: string) => {
+    setSelectedTemplateForPreview(templateId)
+    setTemplatePreviewDialog(true)
+    
+    const template = APP_TEMPLATES.find(t => t.id === templateId)
+    analytics.track('template_preview_opened', 'builder', 'view_template_preview', {
+      label: template?.name || templateId,
+      metadata: { templateId, templateCategory: template?.category }
+    })
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -665,6 +1764,45 @@ Return ONLY valid JSON in this exact format:
           </Button>
         </div>
       </div>
+
+      {projects.length === 0 && (
+        <Card className="p-6 mb-4">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+              <Sparkle weight="fill" size={20} className="text-accent" />
+              Quick Start Templates
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Browse sample apps or create your own from scratch
+            </p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {APP_TEMPLATES.map(template => (
+              <motion.div
+                key={template.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Card 
+                  className="p-4 cursor-pointer transition-all hover:shadow-md hover:border-primary/50 relative group"
+                  onClick={() => openTemplatePreview(template.id)}
+                >
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="bg-primary text-primary-foreground rounded-full p-1">
+                      <Eye size={14} />
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-4xl mb-2">{template.preview}</div>
+                    <h4 className="font-semibold text-xs mb-1">{template.name}</h4>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <Card className="lg:col-span-1 p-4">
@@ -1037,24 +2175,38 @@ Return ONLY valid JSON in this exact format:
 
             <div className="space-y-2">
               <Label htmlFor="app-template">Quick Start Template (optional)</Label>
-              <Select
-                value={newProjectForm.template}
-                onValueChange={(value) => setNewProjectForm(prev => ({ ...prev, template: value }))}
-              >
-                <SelectTrigger id="app-template">
-                  <SelectValue placeholder="Choose a template..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {APP_TEMPLATES.map(template => (
-                    <SelectItem key={template.id} value={template.id}>
-                      <span className="flex items-center gap-2">
-                        <span>{template.preview}</span>
-                        <span>{template.name}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-xs text-muted-foreground mb-2">
+                Choose a pre-built template or describe your own custom app below
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {APP_TEMPLATES.map(template => {
+                  const isSelected = newProjectForm.template === template.id
+                  return (
+                    <Card 
+                      key={template.id}
+                      className={`p-4 cursor-pointer transition-all hover:shadow-md ${isSelected ? 'ring-2 ring-primary' : ''}`}
+                      onClick={() => setNewProjectForm(prev => ({ ...prev, template: template.id }))}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <span className="text-3xl">{template.preview}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openTemplatePreview(template.id)
+                          }}
+                        >
+                          <Eye size={16} />
+                        </Button>
+                      </div>
+                      <h4 className="font-semibold text-sm mb-1">{template.name}</h4>
+                      <p className="text-xs text-muted-foreground">{template.description}</p>
+                    </Card>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -1137,6 +2289,57 @@ Return ONLY valid JSON in this exact format:
               </Card>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={templatePreviewDialog} onOpenChange={setTemplatePreviewDialog}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-2xl">
+                {selectedTemplateForPreview && APP_TEMPLATES.find(t => t.id === selectedTemplateForPreview)?.preview}
+              </span>
+              {selectedTemplateForPreview && APP_TEMPLATES.find(t => t.id === selectedTemplateForPreview)?.name} - Live Preview
+            </DialogTitle>
+            <DialogDescription>
+              Interactive preview of the {selectedTemplateForPreview && APP_TEMPLATES.find(t => t.id === selectedTemplateForPreview)?.name.toLowerCase()} template
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 min-h-0 border border-border rounded-lg overflow-hidden bg-background">
+            {selectedTemplateForPreview && (
+              <iframe
+                ref={templateIframeRef}
+                srcDoc={generateTemplatePreview(selectedTemplateForPreview)}
+                className="w-full h-full"
+                title={`Preview of ${APP_TEMPLATES.find(t => t.id === selectedTemplateForPreview)?.name}`}
+                sandbox="allow-scripts allow-same-origin allow-forms"
+              />
+            )}
+          </div>
+
+          <DialogFooter className="sm:justify-between">
+            <div className="text-sm text-muted-foreground hidden sm:block">
+              This is a sample implementation. Generated apps may vary based on your prompt.
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setTemplatePreviewDialog(false)}>
+                Close
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedTemplateForPreview) {
+                    setNewProjectForm(prev => ({ ...prev, template: selectedTemplateForPreview }))
+                    setTemplatePreviewDialog(false)
+                    setNewProjectDialog(true)
+                  }
+                }}
+              >
+                <Sparkle size={16} className="mr-2" />
+                Use This Template
+              </Button>
+            </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
