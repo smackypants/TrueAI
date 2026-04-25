@@ -94,7 +94,11 @@ export function LocalIDE() {
     language: 'javascript' as IDEFile['language']
   })
 
-  const activeProject = projects.find(p => p.id === activeProjectId)
+  const safeProjects = projects || []
+  const safeEditorTheme = editorTheme || 'tomorrow'
+  const safeAutoSaveEnabled = autoSaveEnabled ?? true
+
+  const activeProject = safeProjects.find(p => p.id === activeProjectId)
   const activeFile = activeProject?.files.find(f => f.id === activeFileId)
 
   const addConsoleMessage = (type: ConsoleMessage['type'], message: string) => {
@@ -446,7 +450,7 @@ render(<App />, document.getElementById('app'));`,
     }
 
     setProjects(prev =>
-      prev.map(p =>
+      (prev || []).map(p =>
         p.id === activeProjectId
           ? { ...p, files: [...p.files, newFile], updatedAt: Date.now() }
           : p
@@ -468,13 +472,13 @@ render(<App />, document.getElementById('app'));`,
   const deleteFile = (fileId: string) => {
     if (!activeProjectId) return
 
-    const project = projects.find(p => p.id === activeProjectId)
+    const project = safeProjects.find(p => p.id === activeProjectId)
     const file = project?.files.find(f => f.id === fileId)
     
     if (!file) return
 
     setProjects(prev =>
-      prev.map(p =>
+      (prev || []).map(p =>
         p.id === activeProjectId
           ? { ...p, files: p.files.filter(f => f.id !== fileId), updatedAt: Date.now() }
           : p
@@ -495,9 +499,9 @@ render(<App />, document.getElementById('app'));`,
   }
 
   const deleteProject = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId)
+    const project = safeProjects.find(p => p.id === projectId)
     
-    setProjects(prev => prev.filter(p => p.id !== projectId))
+    setProjects(prev => (prev || []).filter(p => p.id !== projectId))
     
     if (activeProjectId === projectId) {
       setActiveProjectId(null)
@@ -517,7 +521,7 @@ render(<App />, document.getElementById('app'));`,
     setIsSaving(true)
     
     setProjects(prev =>
-      prev.map(p =>
+      (prev || []).map(p =>
         p.id === activeProjectId
           ? {
               ...p,
@@ -545,7 +549,7 @@ render(<App />, document.getElementById('app'));`,
   }, [activeProjectId, activeFileId, setProjects, activeFile?.path])
 
   const autoSaveFile = useCallback(() => {
-    if (!autoSaveEnabled || !activeProjectId || !activeFileId) return
+    if (!safeAutoSaveEnabled || !activeProjectId || !activeFileId) return
 
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current)
@@ -554,7 +558,7 @@ render(<App />, document.getElementById('app'));`,
     autoSaveTimeoutRef.current = setTimeout(() => {
       saveFile()
     }, 2000)
-  }, [autoSaveEnabled, activeProjectId, activeFileId, saveFile])
+  }, [safeAutoSaveEnabled, activeProjectId, activeFileId, saveFile])
 
   useEffect(() => {
     return () => {
@@ -682,7 +686,7 @@ render(<App />, document.getElementById('app'));`,
     if (!activeProjectId || !activeFileId) return
 
     setProjects(prev =>
-      prev.map(p =>
+      (prev || []).map(p =>
         p.id === activeProjectId
           ? {
               ...p,
@@ -696,7 +700,7 @@ render(<App />, document.getElementById('app'));`,
       )
     )
 
-    if (autoSaveEnabled) {
+    if (safeAutoSaveEnabled) {
       autoSaveFile()
     }
   }
@@ -785,7 +789,7 @@ render(<App />, document.getElementById('app'));`,
               <Label htmlFor="auto-save" className="text-xs cursor-pointer">Auto-save</Label>
               <Switch
                 id="auto-save"
-                checked={autoSaveEnabled}
+                checked={safeAutoSaveEnabled}
                 onCheckedChange={(checked) => {
                   setAutoSaveEnabled(checked)
                   toast.success(`Auto-save ${checked ? 'enabled' : 'disabled'}`)
@@ -796,7 +800,7 @@ render(<App />, document.getElementById('app'));`,
               />
             </div>
           )}
-          <Select value={editorTheme} onValueChange={(value: CodeTheme) => handleThemeChange(value)}>
+          <Select value={safeEditorTheme} onValueChange={(value: CodeTheme) => handleThemeChange(value)}>
             <SelectTrigger className={`${isMobile ? 'w-[140px]' : 'w-[180px]'} h-9`}>
               <SelectValue placeholder="Theme" />
             </SelectTrigger>
@@ -868,13 +872,13 @@ render(<App />, document.getElementById('app'));`,
                 </SheetHeader>
                 <ScrollArea className="h-[calc(100vh-120px)] mt-4">
                   <div className="space-y-2">
-                    {projects.length === 0 && (
+                    {(!safeProjects || safeProjects.length === 0) && (
                       <div className="text-center py-8 text-xs text-muted-foreground">
                         <FolderOpen size={32} className="mx-auto mb-2 opacity-50" />
                         <p>No projects</p>
                       </div>
                     )}
-                    {projects.map(project => (
+                    {safeProjects.map(project => (
                       <motion.div
                         key={project.id}
                         initial={{ opacity: 0, x: -10 }}
@@ -1060,7 +1064,7 @@ render(<App />, document.getElementById('app'));`,
                       code={activeFile.content}
                       language={activeFile.language}
                       onChange={handleCodeChange}
-                      theme={editorTheme}
+                      theme={safeEditorTheme}
                     />
                   </div>
                 </TabsContent>
@@ -1123,13 +1127,13 @@ render(<App />, document.getElementById('app'));`,
             </div>
             <ScrollArea className="flex-1">
               <div className="space-y-1">
-                {projects.length === 0 && (
+                {(!safeProjects || safeProjects.length === 0) && (
                   <div className="text-center py-8 text-xs text-muted-foreground">
                     <FolderOpen size={32} className="mx-auto mb-2 opacity-50" />
                     <p>No projects</p>
                   </div>
                 )}
-                {projects.map(project => (
+                {safeProjects.map(project => (
                   <motion.div
                     key={project.id}
                     initial={{ opacity: 0, x: -10 }}
@@ -1307,7 +1311,7 @@ render(<App />, document.getElementById('app'));`,
                     onChange={handleCodeChange}
                     readOnly={false}
                     className="h-full"
-                    theme={editorTheme}
+                    theme={safeEditorTheme}
                   />
                 </div>
               </>
