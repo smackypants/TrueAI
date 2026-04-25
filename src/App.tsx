@@ -11,6 +11,9 @@ import { KeyboardShortcutsHelper } from '@/components/ui/keyboard-shortcuts'
 import { MobileBottomNav } from '@/components/ui/mobile-bottom-nav'
 import { FloatingActionButton } from '@/components/ui/floating-action-button'
 import { PullToRefreshIndicator } from '@/components/ui/pull-to-refresh-indicator'
+import { OfflineIndicator } from '@/components/notifications/OfflineIndicator'
+import { ServiceWorkerUpdate } from '@/components/notifications/ServiceWorkerUpdate'
+import { InstallPrompt } from '@/components/notifications/InstallPrompt'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSwipeGesture } from '@/hooks/use-touch-gestures'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
@@ -45,6 +48,7 @@ const BenchmarkRunner = lazy(() => import('@/components/models/BenchmarkRunner')
 const LearningRateBenchmark = lazy(() => import('@/components/models/LearningRateBenchmark'))
 const AppBuilder = lazy(() => import('@/components/builder/AppBuilder'))
 const LocalIDE = lazy(() => import('@/components/builder/LocalIDE'))
+const CacheManager = lazy(() => import('@/components/notifications/CacheManager'))
 
 const LoadingFallback = memo(() => (
   <div className="flex items-center justify-center p-8">
@@ -1160,52 +1164,60 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           </TabsContent>
 
           <TabsContent value="analytics">
-            <Suspense fallback={<LoadingFallback />}>
-              <AnalyticsDashboard 
-                models={models}
-                profiles={performanceProfiles}
-                onApplyOptimization={(insight) => {
-                  if (insight.suggestedAction?.type === 'adjust_parameters' && insight.suggestedAction.details.modelId) {
-                    const model = models.find(m => m.id === insight.suggestedAction!.details.modelId)
+            <div className="space-y-6">
+              <Suspense fallback={<LoadingFallback />}>
+                <AnalyticsDashboard 
+                  models={models}
+                  profiles={performanceProfiles}
+                  onApplyOptimization={(insight) => {
+                    if (insight.suggestedAction?.type === 'adjust_parameters' && insight.suggestedAction.details.modelId) {
+                      const model = models.find(m => m.id === insight.suggestedAction!.details.modelId)
+                      if (model) {
+                        const updatedModel = {
+                          ...model,
+                          ...insight.suggestedAction.details.parameters
+                        }
+                        setModels(prev => (prev || []).map(m => m.id === model.id ? updatedModel : m))
+                        toast.success('Optimization applied successfully')
+                        analytics.track('optimization_applied', 'analytics', 'apply_insight', {
+                          metadata: { insightId: insight.id, insightType: insight.type }
+                        })
+                      }
+                    } else if (insight.suggestedAction?.type === 'add_profile') {
+                      toast.info('Navigate to Performance Profiles to create task-specific profiles')
+                    }
+                  }}
+                  onApplyAutoTune={(recommendation, modelId) => {
+                    const model = models.find(m => m.id === modelId)
                     if (model) {
                       const updatedModel = {
                         ...model,
-                        ...insight.suggestedAction.details.parameters
+                        ...recommendation.recommendedParams
                       }
-                      setModels(prev => (prev || []).map(m => m.id === model.id ? updatedModel : m))
-                      toast.success('Optimization applied successfully')
-                      analytics.track('optimization_applied', 'analytics', 'apply_insight', {
-                        metadata: { insightId: insight.id, insightType: insight.type }
+                      setModels(prev => (prev || []).map(m => m.id === modelId ? updatedModel : m))
+                      toast.success(`Model auto-tuned for ${recommendation.taskType.replace('_', ' ')}`)
+                      analytics.track('auto_tune_applied', 'analytics', 'apply_auto_tune', {
+                        metadata: { 
+                          modelId, 
+                          taskType: recommendation.taskType,
+                          confidence: recommendation.confidence
+                        }
                       })
                     }
-                  } else if (insight.suggestedAction?.type === 'add_profile') {
-                    toast.info('Navigate to Performance Profiles to create task-specific profiles')
-                  }
-                }}
-                onApplyAutoTune={(recommendation, modelId) => {
-                  const model = models.find(m => m.id === modelId)
-                  if (model) {
-                    const updatedModel = {
-                      ...model,
-                      ...recommendation.recommendedParams
-                    }
-                    setModels(prev => (prev || []).map(m => m.id === modelId ? updatedModel : m))
-                    toast.success(`Model auto-tuned for ${recommendation.taskType.replace('_', ' ')}`)
-                    analytics.track('auto_tune_applied', 'analytics', 'apply_auto_tune', {
-                      metadata: { 
-                        modelId, 
-                        taskType: recommendation.taskType,
-                        confidence: recommendation.confidence
-                      }
-                    })
-                  }
-                }}
-                onCreateProfile={(taskType) => {
-                  toast.info('Navigate to Models > Config to create performance profiles')
-                  setActiveTab('models')
-                }}
-              />
-            </Suspense>
+                  }}
+                  onCreateProfile={(taskType) => {
+                    toast.info('Navigate to Models > Config to create performance profiles')
+                    setActiveTab('models')
+                  }}
+                />
+              </Suspense>
+              
+              <div className="max-w-2xl mx-auto">
+                <Suspense fallback={<LoadingFallback />}>
+                  <CacheManager />
+                </Suspense>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="builder">
@@ -1436,6 +1448,10 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           )}
         </>
       )}
+      
+      <OfflineIndicator />
+      <ServiceWorkerUpdate />
+      <InstallPrompt />
     </div>
     </TooltipProvider>
   )
