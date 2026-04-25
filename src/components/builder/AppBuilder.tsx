@@ -143,6 +143,7 @@ export function AppBuilder({ models }: AppBuilderProps) {
   const [selectedTemplateForPreview, setSelectedTemplateForPreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const templateIframeRef = useRef<HTMLIFrameElement>(null)
   
@@ -3293,6 +3294,20 @@ Return ONLY valid JSON in this exact format:
     })
   }
 
+  const categories = [
+    { id: 'all', name: 'All Templates', icon: '🌟' },
+    { id: 'productivity', name: 'Productivity', icon: '✓' },
+    { id: 'utility', name: 'Utility', icon: '🔧' },
+    { id: 'game', name: 'Games', icon: '🎮' },
+    { id: 'dashboard', name: 'Dashboards', icon: '📊' },
+    { id: 'portfolio', name: 'Portfolio', icon: '💼' },
+    { id: 'ecommerce', name: 'E-commerce', icon: '🛒' }
+  ]
+
+  const filteredTemplates = selectedCategory === 'all' 
+    ? APP_TEMPLATES 
+    : APP_TEMPLATES.filter(t => t.category === selectedCategory)
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -3320,34 +3335,63 @@ Return ONLY valid JSON in this exact format:
               Quick Start Templates
             </h3>
             <p className="text-sm text-muted-foreground">
-              Browse sample apps or create your own from scratch
+              Browse sample apps by category or create your own from scratch
             </p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {APP_TEMPLATES.map(template => (
-              <motion.div
-                key={template.id}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+          
+          <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+            {categories.map(category => (
+              <Button
+                key={category.id}
+                variant={selectedCategory === category.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedCategory(category.id)}
+                className="shrink-0"
               >
-                <Card 
-                  className="p-4 cursor-pointer transition-all hover:shadow-md hover:border-primary/50 relative group"
-                  onClick={() => openTemplatePreview(template.id)}
-                >
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="bg-primary text-primary-foreground rounded-full p-1">
-                      <Eye size={14} />
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">{template.preview}</div>
-                    <h4 className="font-semibold text-xs mb-1">{template.name}</h4>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
-                  </div>
-                </Card>
-              </motion.div>
+                <span className="mr-2">{category.icon}</span>
+                {category.name}
+              </Button>
             ))}
           </div>
+
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={selectedCategory}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
+            >
+              {filteredTemplates.map(template => (
+                <motion.div
+                  key={template.id}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  layout
+                >
+                  <Card 
+                    className="p-4 cursor-pointer transition-all hover:shadow-md hover:border-primary/50 relative group"
+                    onClick={() => openTemplatePreview(template.id)}
+                  >
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="bg-primary text-primary-foreground rounded-full p-1">
+                        <Eye size={14} />
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-4xl mb-2">{template.preview}</div>
+                      <h4 className="font-semibold text-xs mb-1">{template.name}</h4>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
+                      <Badge variant="secondary" className="mt-2 text-xs capitalize">
+                        {template.category}
+                      </Badge>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))}
+            </motion.div>
+          </AnimatePresence>
         </Card>
       )}
 
@@ -3725,35 +3769,65 @@ Return ONLY valid JSON in this exact format:
               <p className="text-xs text-muted-foreground mb-2">
                 Choose a pre-built template or describe your own custom app below
               </p>
-              <div className="grid grid-cols-2 gap-3">
-                {APP_TEMPLATES.map(template => {
-                  const isSelected = newProjectForm.template === template.id
-                  return (
-                    <Card 
-                      key={template.id}
-                      className={`p-4 cursor-pointer transition-all hover:shadow-md ${isSelected ? 'ring-2 ring-primary' : ''}`}
-                      onClick={() => setNewProjectForm(prev => ({ ...prev, template: template.id }))}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <span className="text-3xl">{template.preview}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openTemplatePreview(template.id)
-                          }}
-                        >
-                          <Eye size={16} />
-                        </Button>
-                      </div>
-                      <h4 className="font-semibold text-sm mb-1">{template.name}</h4>
-                      <p className="text-xs text-muted-foreground">{template.description}</p>
-                    </Card>
-                  )
-                })}
+              
+              <div className="flex gap-2 mb-3 overflow-x-auto pb-2">
+                {categories.map(category => (
+                  <Button
+                    key={category.id}
+                    variant={selectedCategory === category.id ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSelectedCategory(category.id)}
+                    className="shrink-0"
+                  >
+                    <span className="mr-1.5">{category.icon}</span>
+                    {category.name}
+                  </Button>
+                ))}
               </div>
+
+              <ScrollArea className="h-[300px] pr-4">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={selectedCategory}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    {filteredTemplates.map(template => {
+                      const isSelected = newProjectForm.template === template.id
+                      return (
+                        <Card 
+                          key={template.id}
+                          className={`p-4 cursor-pointer transition-all hover:shadow-md ${isSelected ? 'ring-2 ring-primary' : ''}`}
+                          onClick={() => setNewProjectForm(prev => ({ ...prev, template: template.id }))}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <span className="text-3xl">{template.preview}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openTemplatePreview(template.id)
+                              }}
+                            >
+                              <Eye size={16} />
+                            </Button>
+                          </div>
+                          <h4 className="font-semibold text-sm mb-1">{template.name}</h4>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
+                          <Badge variant="secondary" className="mt-2 text-xs capitalize">
+                            {template.category}
+                          </Badge>
+                        </Card>
+                      )
+                    })}
+                  </motion.div>
+                </AnimatePresence>
+              </ScrollArea>
             </div>
 
             <div className="space-y-2">
