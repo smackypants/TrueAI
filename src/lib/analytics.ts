@@ -22,7 +22,7 @@ class AnalyticsService {
   }
 
   private generateSessionId(): string {
-    return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    return `session-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
   }
 
   private async initSession() {
@@ -77,7 +77,7 @@ class AnalyticsService {
       await this.updateSession()
 
       const event: AnalyticsEvent = {
-        id: `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `event-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
         type,
         timestamp: Date.now(),
         sessionId: this.sessionId,

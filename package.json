@@ -7,7 +7,7 @@
         "dev": "vite",
         "kill": "fuser -k 5000/tcp",
         "build": "tsc -b --noCheck && vite build",
-        "lint": "eslint .",
+        "lint": "node ./node_modules/eslint/bin/eslint.js .",
         "optimize": "vite optimize",
         "preview": "vite preview"
     },

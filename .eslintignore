@@ -1,0 +1,8 @@
+dist
+node_modules
+packages
+*.config.js
+*.config.ts
+*.config.mjs
+vite.config.ts
+tailwind.config.js
