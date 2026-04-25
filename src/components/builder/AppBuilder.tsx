@@ -3747,14 +3747,14 @@ Based on the original prompt and the refinement request, modify the existing ${a
                       </div>
                       
                       {activeFile && (
-                        <div className="flex-1 border border-border rounded-lg overflow-hidden relative">
-                          <div className="absolute top-2 right-2 z-10">
-                            <div className="bg-accent/90 backdrop-blur-sm text-accent-foreground text-xs px-2 py-1 rounded font-mono font-semibold uppercase">
-                              {activeFile.language}
-                            </div>
-                          </div>
+                        <div className="flex-1 border border-border rounded-lg overflow-hidden">
                           <CodeEditor 
-                            code={activeFile.content}
+                            code={activeFile.content} rounded font-mono font-semibold uppercase">
+                            language={activeFile.language}
+                            readOnly={true}
+                            className="h-full"
+                          />
+                        </div>
                             language={activeFile.language}
                             readOnly={true}
                             className="h-full"
