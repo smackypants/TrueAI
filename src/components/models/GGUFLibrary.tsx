@@ -22,6 +22,8 @@ import {
   Tag
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { EmptyState } from '@/components/ui/empty-state'
+import { emptyStateModels } from '@/assets'
 import type { GGUFModel } from '@/lib/types'
 
 interface GGUFLibraryProps {
@@ -162,15 +164,20 @@ export function GGUFLibrary({ models, onAddModel, onDeleteModel }: GGUFLibraryPr
         <div className="lg:col-span-2">
           {filteredModels.length === 0 && (
             <Card className="p-12">
-              <div className="text-center space-y-3">
-                <HardDrives size={48} className="mx-auto text-muted-foreground" />
-                <div>
-                  <h3 className="font-semibold text-lg">No Models Found</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {searchQuery ? 'Try a different search term' : 'Add your first GGUF model to get started'}
-                  </p>
-                </div>
-              </div>
+              <EmptyState
+                illustration={emptyStateModels}
+                title="No Models Found"
+                description={searchQuery ? 'Try a different search term' : 'Add your first GGUF model to get started'}
+                size="lg"
+                action={
+                  !searchQuery ? (
+                    <Button onClick={() => setAddModelDialog(true)} className="gap-2 mt-4">
+                      <FilePlus weight="bold" size={20} />
+                      Add Model
+                    </Button>
+                  ) : undefined
+                }
+              />
             </Card>
           )}
 
@@ -341,13 +348,12 @@ export function GGUFLibrary({ models, onAddModel, onDeleteModel }: GGUFLibraryPr
               </div>
             ) : (
               <div className="text-center py-12 space-y-3">
-                <Info size={48} className="mx-auto text-muted-foreground" />
-                <div>
-                  <h3 className="font-semibold">No Model Selected</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Select a model to view details
-                  </p>
-                </div>
+                <EmptyState
+                  illustration={emptyStateModels}
+                  title="No Model Selected"
+                  description="Select a model to view details"
+                  size="sm"
+                />
               </div>
             )}
           </Card>

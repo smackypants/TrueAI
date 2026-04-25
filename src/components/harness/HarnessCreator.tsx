@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Code, Plus, Trash, Download, Eye, Wrench } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { EmptyState } from '@/components/ui/empty-state'
+import { emptyStateHarness } from '@/assets'
 import type { HarnessManifest, HarnessTool, HarnessParameter } from '@/lib/types'
 
 interface HarnessCreatorProps {
@@ -180,9 +182,12 @@ export function HarnessCreator({
             <ScrollArea className="h-[600px]">
               <div className="space-y-2">
                 {harnesses.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    No harnesses created yet
-                  </p>
+                  <EmptyState
+                    illustration={emptyStateHarness}
+                    title="No harnesses yet"
+                    description="Create custom tool harnesses to extend agent capabilities"
+                    size="md"
+                  />
                 )}
                 {harnesses.map(harness => (
                   <Card
@@ -352,11 +357,12 @@ export function HarnessCreator({
             </Card>
           ) : (
             <Card className="p-12 flex flex-col items-center justify-center h-[700px]">
-              <Wrench size={64} className="text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Harness Selected</h3>
-              <p className="text-muted-foreground text-center max-w-md">
-                Select a harness from the left or create a new one to start developing custom agent tools
-              </p>
+              <EmptyState
+                illustration={emptyStateHarness}
+                title="No Harness Selected"
+                description="Select a harness from the left or create a new one to start developing custom agent tools"
+                size="lg"
+              />
             </Card>
           )}
         </div>
