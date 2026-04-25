@@ -33,6 +33,7 @@ import { PerformanceProfileManager } from '@/components/models/PerformanceProfil
 import { BenchmarkRunner } from '@/components/models/BenchmarkRunner'
 import { LearningRateBenchmark } from '@/components/models/LearningRateBenchmark'
 import { AppBuilder } from '@/components/builder/AppBuilder'
+import { LocalIDE } from '@/components/builder/LocalIDE'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -1165,7 +1166,26 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           </TabsContent>
 
           <TabsContent value="builder">
-            <AppBuilder models={models} />
+            <Tabs defaultValue="ai-builder" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="ai-builder" className="gap-2">
+                  <Sparkle weight="fill" size={18} />
+                  AI Builder
+                </TabsTrigger>
+                <TabsTrigger value="local-ide" className="gap-2">
+                  <Code weight="fill" size={18} />
+                  Local IDE
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="ai-builder">
+                <AppBuilder models={models} />
+              </TabsContent>
+
+              <TabsContent value="local-ide">
+                <LocalIDE />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </main>
