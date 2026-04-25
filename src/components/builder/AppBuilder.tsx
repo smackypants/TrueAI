@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { analytics } from '@/lib/analytics'
 import { FRAMEWORK_CONFIGS, getFrameworkConfig, getFrameworkPromptInstructions } from '@/lib/framework-configs'
 import type { AppProject, AppFile, TestResult, BuildStep, AppTemplate, Framework } from '@/lib/app-builder-types'
+import { CodeEditor } from './CodeEditor'
 
 const APP_TEMPLATES: AppTemplate[] = [
   {
@@ -3746,11 +3747,19 @@ Based on the original prompt and the refinement request, modify the existing ${a
                       </div>
                       
                       {activeFile && (
-                        <ScrollArea className="flex-1 border border-border rounded-lg p-4 bg-muted/30">
-                          <pre className="text-xs font-mono">
-                            <code>{activeFile.content}</code>
-                          </pre>
-                        </ScrollArea>
+                        <div className="flex-1 border border-border rounded-lg overflow-hidden relative">
+                          <div className="absolute top-2 right-2 z-10">
+                            <div className="bg-accent/90 backdrop-blur-sm text-accent-foreground text-xs px-2 py-1 rounded font-mono font-semibold uppercase">
+                              {activeFile.language}
+                            </div>
+                          </div>
+                          <CodeEditor 
+                            code={activeFile.content}
+                            language={activeFile.language}
+                            readOnly={true}
+                            className="h-full"
+                          />
+                        </div>
                       )}
                     </>
                   )}
@@ -4179,26 +4188,29 @@ Based on the original prompt and the refinement request, modify the existing ${a
       </Dialog>
 
       <Dialog open={editCodeDialog} onOpenChange={setEditCodeDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileCode size={20} />
               Edit {selectedFile}
             </DialogTitle>
             <DialogDescription>
-              Make changes to your code. The preview will update when you save.
+              Make changes to your code with syntax highlighting. The preview will update when you save.
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 min-h-0 space-y-2">
-            <Textarea
-              value={editingFileContent}
-              onChange={(e) => setEditingFileContent(e.target.value)}
-              className="font-mono text-xs h-full min-h-[400px] resize-none"
-              placeholder="Enter your code here..."
-            />
+            <div className="h-[500px] border border-border rounded-lg overflow-hidden">
+              <CodeEditor
+                code={editingFileContent}
+                language={activeFile?.language || 'javascript'}
+                readOnly={false}
+                onChange={(newCode) => setEditingFileContent(newCode)}
+                className="h-full"
+              />
+            </div>
             <p className="text-xs text-muted-foreground">
-              {editingFileContent.length} characters
+              {editingFileContent.length} characters • Press Tab to indent
             </p>
           </div>
 
