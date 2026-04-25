@@ -837,7 +837,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                   <h2 className="text-lg sm:text-xl font-semibold">Model Configuration</h2>
                   <div className="flex items-center gap-2">
                     {!editingModel && isMobile && models.length > 0 && (
-                      <QuickActionsMenu
+                      Back
                         model={models[0]}
                         onUpdate={(updatedModel) => {
                           setModels(prev => 
