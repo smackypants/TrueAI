@@ -89,6 +89,13 @@ A browser-based AI assistant platform that enables local model integration, auto
 - **Progression**: Device goes offline → User performs action (create/update/delete) → Action queued with metadata → Visual indicator shows pending count → Connection restored → Background sync automatically triggered → Actions processed with retry logic (up to 3 attempts) → Success/failure feedback → Queue cleared of completed actions
 - **Success criteria**: All offline actions captured without data loss, automatic sync on reconnection, failed actions show clear errors, queue persists across sessions, visual indicators show real-time status, manual sync and retry available, queue management in Analytics tab allows clearing/retrying actions
 
+### 11. Advanced Theme Customization with Live Preview
+- **Functionality**: Comprehensive theme creation and management system with live preview, custom color picker, preset themes, and export/import capabilities
+- **Purpose**: Enable users to create fully personalized color schemes that match their preferences and brand identity, with real-time visual feedback
+- **Trigger**: User navigates to Settings → Appearance → Colors & Themes tab
+- **Progression**: Browse default themes (Deep Ocean, Forest Night, Sunset Glow, Purple Dream, Cyberpunk, Minimal Light) → Preview any theme with live color changes → Activate to apply permanently → Create custom theme with name and optional base → Edit individual colors (background, foreground, card, primary, secondary, accent, muted, destructive, borders) organized by category → Use color picker with OKLCH format → View live preview showing buttons, cards, text in current colors → Save custom theme → Export as JSON or copy CSS code → Import themes from files
+- **Success criteria**: Preview updates instantly without page refresh, color changes apply correctly to all UI elements, custom themes persist across sessions, export/import works reliably, OKLCH color format provides perceptually uniform adjustments, preset themes provide diverse starting points, theme deletion and management work correctly, CSS code export allows external use
+
 ## Edge Case Handling
 
 - **Empty States**: Show helpful onboarding messages when no conversations or agents exist
