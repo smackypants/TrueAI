@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense, memo, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense, memo, useCallback, useMemo, startTransition } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
@@ -30,7 +30,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { emptyStateChat, emptyStateAgents, emptyStateWorkflow } from '@/assets'
 import { analytics } from '@/lib/analytics'
 import { defaultProfilesByTaskType } from '@/lib/performance-profiles'
@@ -56,10 +56,20 @@ const CacheManager = lazy(() => import('@/components/notifications/CacheManager'
 const OfflineQueuePanel = lazy(() => import('@/components/notifications/OfflineQueuePanel'))
 
 const LoadingFallback = memo(() => (
-  <div className="flex items-center justify-center p-8">
-    <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-  </div>
+  <motion.div 
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="flex items-center justify-center p-8"
+  >
+    <motion.div 
+      animate={{ rotate: 360 }}
+      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+      className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full" 
+    />
+  </motion.div>
 ))
+
+LoadingFallback.displayName = 'LoadingFallback'
 
 const TabErrorBoundary = ({ children, tabName }: { children: React.ReactNode; tabName: string }) => {
   const [hasError, setHasError] = useState(false)
@@ -159,11 +169,14 @@ function App() {
     if (isTabSwitching) return
     
     setIsTabSwitching(true)
-    setActiveTab(newTab)
     
-    setTimeout(() => {
-      setIsTabSwitching(false)
-    }, 100)
+    startTransition(() => {
+      setActiveTab(newTab)
+      
+      setTimeout(() => {
+        setIsTabSwitching(false)
+      }, 150)
+    })
   }, [isTabSwitching])
 
   const navigateToTab = useCallback((direction: 'left' | 'right') => {
@@ -716,49 +729,84 @@ Describe what input you would give to the ${tool} tool (one sentence).`
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-background text-foreground">
+      <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
+        <motion.div
+          className="absolute inset-0 opacity-[0.02] pointer-events-none"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)',
+            backgroundSize: '40px 40px'
+          }}
+        />
+        
         <motion.header 
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="border-b border-border bg-card/95 backdrop-blur-md sticky top-0 z-50 safe-top shadow-sm"
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="border-b border-border/50 bg-card/95 backdrop-blur-xl sticky top-0 z-50 safe-top shadow-lg shadow-primary/5"
         >
           <div className="container mx-auto px-4 sm:px-4 md:px-6 py-3 md:py-4">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <motion.div 
+                className="flex items-center gap-2.5 sm:gap-3 min-w-0"
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.3 }}
+              >
                 <motion.div 
-                  className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center relative overflow-hidden shrink-0"
-                  whileHover={{ scale: 1.05 }}
+                  className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-primary via-primary to-accent flex items-center justify-center relative overflow-hidden shrink-0 shadow-lg shadow-primary/30"
+                  whileHover={{ scale: 1.08, rotate: 5 }}
                   whileTap={{ scale: 0.92 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 17 }}
                 >
                   <Lightning weight="fill" size={isMobile ? 22 : 24} className="text-white relative z-10" />
                   <motion.div
-                    className="absolute inset-0 bg-gradient-to-br from-accent to-primary"
+                    className="absolute inset-0 bg-gradient-to-br from-accent via-accent to-primary"
                     initial={{ opacity: 0 }}
                     whileHover={{ opacity: 1 }}
                     transition={{ duration: 0.3 }}
                   />
+                  <motion.div
+                    className="absolute inset-0 bg-white"
+                    initial={{ opacity: 0 }}
+                    whileHover={{ opacity: 0.2 }}
+                    transition={{ duration: 0.2 }}
+                  />
                 </motion.div>
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-base sm:text-xl md:text-2xl font-bold tracking-tight truncate">TrueAI LocalAI</h1>
+                  <h1 className="text-base sm:text-xl md:text-2xl font-bold tracking-tight truncate bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                    TrueAI LocalAI
+                  </h1>
                   <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block truncate">Enterprise AI Assistant Platform</p>
                 </div>
-              </div>
+              </motion.div>
               
-              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              <motion.div 
+                className="flex items-center gap-1 sm:gap-2 shrink-0"
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.2, duration: 0.3 }}
+              >
                 <OfflineQueueIndicator />
                 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-10 sm:w-10 active:scale-95 transition-transform">
-                      <Sparkle size={isMobile ? 20 : 22} className="text-accent" />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-10 sm:w-10 relative group">
+                        <Sparkle size={isMobile ? 20 : 22} className="text-accent relative z-10" />
+                        <motion.div
+                          className="absolute inset-0 rounded-lg bg-accent/10"
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          whileHover={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.2 }}
+                        />
+                      </Button>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>What's new</p>
                   </TooltipContent>
                 </Tooltip>
-              </div>
+              </motion.div>
             </div>
           </div>
         </motion.header>
@@ -770,82 +818,120 @@ Describe what input you would give to the ${tool} tool (one sentence).`
         onTouchEnd={swipeHandlers.onTouchEnd}
       >
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="hidden lg:grid w-full max-w-3xl mx-auto grid-cols-5 mb-6">
-            <TabsTrigger value="chat" className="gap-2">
-              <ChatCircle weight="fill" size={20} />
-              <span className="hidden sm:inline">Chat</span>
-            </TabsTrigger>
-            <TabsTrigger value="agents" className="gap-2">
-              <Robot weight="fill" size={20} />
-              <span className="hidden sm:inline">Agents</span>
-            </TabsTrigger>
-            <TabsTrigger value="models" className="gap-2">
-              <Lightning weight="fill" size={20} />
-              <span className="hidden sm:inline">Models</span>
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="gap-2">
-              <ChartBar weight="fill" size={20} />
-              <span className="hidden sm:inline">Analytics</span>
-            </TabsTrigger>
-            <TabsTrigger value="builder" className="gap-2">
-              <Cube weight="fill" size={20} />
-              <span className="hidden sm:inline">Builder</span>
-            </TabsTrigger>
-          </TabsList>
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.3 }}
+          >
+            <TabsList className="hidden lg:grid w-full max-w-3xl mx-auto grid-cols-5 mb-6 bg-card/50 backdrop-blur-sm border border-border/50 p-1.5 shadow-lg shadow-primary/5">
+              <TabsTrigger value="chat" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+                <ChatCircle weight="fill" size={20} />
+                <span className="hidden sm:inline">Chat</span>
+              </TabsTrigger>
+              <TabsTrigger value="agents" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+                <Robot weight="fill" size={20} />
+                <span className="hidden sm:inline">Agents</span>
+              </TabsTrigger>
+              <TabsTrigger value="models" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+                <Lightning weight="fill" size={20} />
+                <span className="hidden sm:inline">Models</span>
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+                <ChartBar weight="fill" size={20} />
+                <span className="hidden sm:inline">Analytics</span>
+              </TabsTrigger>
+              <TabsTrigger value="builder" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+                <Cube weight="fill" size={20} />
+                <span className="hidden sm:inline">Builder</span>
+              </TabsTrigger>
+            </TabsList>
+          </motion.div>
 
           <TabsContent value="chat" className="space-y-4">
             <TabErrorBoundary tabName="Chat">
-            <div className="flex justify-between items-center gap-2">
+            <motion.div 
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="flex justify-between items-center gap-2"
+            >
               <h2 className="text-lg sm:text-xl font-semibold truncate">Conversations</h2>
-              <Button onClick={() => setNewConversationDialog(true)} size="sm" className="lg:hidden shrink-0 h-10 px-3 active:scale-95 transition-transform">
-                <Plus weight="bold" size={20} />
-              </Button>
-              <Button onClick={() => setNewConversationDialog(true)} className="hidden lg:flex">
-                <Plus weight="bold" size={20} className="mr-2" />
-                New Chat
-              </Button>
-            </div>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <Button onClick={() => setNewConversationDialog(true)} size="sm" className="lg:hidden shrink-0 h-10 px-3 shadow-md hover:shadow-lg transition-shadow">
+                  <Plus weight="bold" size={20} />
+                </Button>
+              </motion.div>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button onClick={() => setNewConversationDialog(true)} className="hidden lg:flex shadow-md hover:shadow-lg transition-shadow">
+                  <Plus weight="bold" size={20} className="mr-2" />
+                  New Chat
+                </Button>
+              </motion.div>
+            </motion.div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-              <Card className="lg:col-span-1 p-4 relative overflow-hidden">
-                <PullToRefreshIndicator 
-                  isRefreshing={conversationsPullToRefresh.isRefreshing}
-                  pullDistance={conversationsPullToRefresh.pullDistance}
-                  progress={conversationsPullToRefresh.progress}
-                  className="absolute top-0 left-0 right-0 z-10"
-                />
-                <ScrollArea 
-                  className="h-[calc(100vh-320px)] sm:h-[600px]"
-                  {...conversationsPullToRefresh.handlers}
-                >
-                  <div className="space-y-2">
-                    {(!conversations || conversations.length === 0) && (
-                      <EmptyState
-                        illustration={emptyStateChat}
-                        title="No conversations yet"
-                        description="Create a new chat to get started with AI assistance"
-                        size="md"
-                      />
-                    )}
-                    {conversations?.map(conv => (
-                      <div key={conv.id}>
-                        <Button
-                          variant={activeConversationId === conv.id ? 'secondary' : 'ghost'}
-                          className="w-full justify-start text-left h-auto py-3 px-4 active:scale-[0.98] transition-transform"
-                          onClick={() => setActiveConversationId(conv.id)}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="truncate font-medium text-sm sm:text-base">{conv.title}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {new Date(conv.updatedAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </Button>
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.3 }}
+                className="lg:col-span-1"
+              >
+                <Card className="p-4 relative overflow-hidden backdrop-blur-sm bg-card/80 border-border/50 shadow-lg hover:shadow-xl transition-shadow duration-300">
+                  <PullToRefreshIndicator 
+                    isRefreshing={conversationsPullToRefresh.isRefreshing}
+                    pullDistance={conversationsPullToRefresh.pullDistance}
+                    progress={conversationsPullToRefresh.progress}
+                    className="absolute top-0 left-0 right-0 z-10"
+                  />
+                  <ScrollArea 
+                    className="h-[calc(100vh-320px)] sm:h-[600px]"
+                    {...conversationsPullToRefresh.handlers}
+                  >
+                    <AnimatePresence mode="popLayout">
+                      <div className="space-y-2">
+                        {(!conversations || conversations.length === 0) && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <EmptyState
+                              illustration={emptyStateChat}
+                              title="No conversations yet"
+                              description="Create a new chat to get started with AI assistance"
+                              size="md"
+                            />
+                          </motion.div>
+                        )}
+                        {conversations?.map((conv, index) => (
+                          <motion.div 
+                            key={conv.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            transition={{ delay: index * 0.05, duration: 0.2 }}
+                            whileHover={{ x: 4 }}
+                          >
+                            <Button
+                              variant={activeConversationId === conv.id ? 'secondary' : 'ghost'}
+                              className="w-full justify-start text-left h-auto py-3 px-4 transition-all duration-200 hover:shadow-md"
+                              onClick={() => setActiveConversationId(conv.id)}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="truncate font-medium text-sm sm:text-base">{conv.title}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {new Date(conv.updatedAt).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </Button>
+                          </motion.div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </Card>
+                    </AnimatePresence>
+                  </ScrollArea>
+                </Card>
+              </motion.div>
 
               <Card className="lg:col-span-3 p-4 sm:p-6 flex flex-col h-[calc(100vh-320px)] sm:h-[600px]">
                 {activeConversation ? (

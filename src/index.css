@@ -3,7 +3,10 @@
 
 @layer base {
   * {
-    @apply border-border
+    @apply border-border;
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
   }
 }
 
@@ -31,7 +34,7 @@
   --input: oklch(0.30 0.02 260);
   --ring: oklch(0.75 0.14 200);
 
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 
   --font-sans: Roboto;
 
@@ -75,10 +78,13 @@
 
 body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
+  letter-spacing: -0.02em;
 }
 
 code, pre {
@@ -86,12 +92,53 @@ code, pre {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%, 100% { 
+    opacity: 1;
+    box-shadow: 0 0 20px oklch(0.75 0.14 200 / 0.3);
+  }
+  50% { 
+    opacity: 0.8;
+    box-shadow: 0 0 30px oklch(0.75 0.14 200 / 0.5);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.25 0.01 260) 0%,
+    oklch(0.35 0.05 260) 50%,
+    oklch(0.25 0.01 260) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
 }
 
 .safe-bottom {

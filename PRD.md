@@ -134,7 +134,31 @@ Typography should balance technical precision with modern clarity - readable for
 
 ## Animations
 
-Animations should emphasize the "thinking" and "processing" nature of AI - subtle pulsing for loading states, smooth sliding for transitions, and satisfying confirmations for actions. Token-by-token streaming should feel like real-time synthesis. Agent execution steps should cascade in with a sense of sequential processing. Navigation transitions should be quick (200ms) while state changes get 300ms for recognition.
+Animations emphasize the "thinking" and "processing" nature of AI with sophisticated, performance-optimized transitions. The system uses framer-motion for fluid animations with careful attention to performance:
+
+**Loading States:**
+- Rotating spinner with pulsing glow effect (1s duration, infinite loop)
+- Three-dot bounce animation with staggered delays (0.8s duration, 0.15s stagger)
+- Shimmer effect for skeleton loaders (2s linear animation across gradients)
+
+**Content Transitions:**
+- Tab changes: 200ms ease-in-out with opacity and subtle y-translation
+- Card hover: 200ms lift effect (translateY(-4px)) with enhanced shadow
+- Message bubbles: Staggered entry animation (0.05s delay per item, 0.3s duration)
+- Modal/Dialog: Backdrop blur with scale animation (0.2s ease-out)
+
+**Interactive Feedback:**
+- Button press: Scale to 0.95 with 100ms spring animation
+- Icon hover: Scale to 1.05-1.08 with optional rotation (5deg) 
+- Active state glow: Subtle box-shadow pulse on primary elements
+- Streaming text: Character-by-character reveal with typing cursor
+
+**Performance Optimizations:**
+- AnimatePresence with "popLayout" mode for list animations
+- Lazy loading with Suspense boundaries for heavy components
+- Memoized motion components to prevent unnecessary re-renders
+- startTransition for non-urgent tab switching
+- Optimized re-render cycles with React.memo and useMemo
 
 ## Component Selection
 
