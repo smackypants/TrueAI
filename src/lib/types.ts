@@ -380,6 +380,8 @@ export type AnalyticsEventType =
   | 'error_occurred'
   | 'page_view'
   | 'feature_used'
+  | 'optimization_applied'
+  | 'auto_tune_applied'
 
 export interface AnalyticsSession {
   id: string

@@ -1061,7 +1061,50 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           </TabsContent>
 
           <TabsContent value="analytics">
-            <AnalyticsDashboard />
+            <AnalyticsDashboard 
+              models={models}
+              profiles={performanceProfiles}
+              onApplyOptimization={(insight) => {
+                if (insight.suggestedAction?.type === 'adjust_parameters' && insight.suggestedAction.details.modelId) {
+                  const model = models.find(m => m.id === insight.suggestedAction!.details.modelId)
+                  if (model) {
+                    const updatedModel = {
+                      ...model,
+                      ...insight.suggestedAction.details.parameters
+                    }
+                    setModels(prev => prev.map(m => m.id === model.id ? updatedModel : m))
+                    toast.success('Optimization applied successfully')
+                    analytics.track('optimization_applied', 'analytics', 'apply_insight', {
+                      metadata: { insightId: insight.id, insightType: insight.type }
+                    })
+                  }
+                } else if (insight.suggestedAction?.type === 'add_profile') {
+                  toast.info('Navigate to Performance Profiles to create task-specific profiles')
+                }
+              }}
+              onApplyAutoTune={(recommendation, modelId) => {
+                const model = models.find(m => m.id === modelId)
+                if (model) {
+                  const updatedModel = {
+                    ...model,
+                    ...recommendation.recommendedParams
+                  }
+                  setModels(prev => prev.map(m => m.id === modelId ? updatedModel : m))
+                  toast.success(`Model auto-tuned for ${recommendation.taskType.replace('_', ' ')}`)
+                  analytics.track('auto_tune_applied', 'analytics', 'apply_auto_tune', {
+                    metadata: { 
+                      modelId, 
+                      taskType: recommendation.taskType,
+                      confidence: recommendation.confidence
+                    }
+                  })
+                }
+              }}
+              onCreateProfile={(taskType) => {
+                toast.info('Navigate to Models > Config to create performance profiles')
+                setActiveTab('models')
+              }}
+            />
           </TabsContent>
         </Tabs>
       </main>
