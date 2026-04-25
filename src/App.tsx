@@ -30,6 +30,7 @@ import { HardwareOptimizer } from '@/components/models/HardwareOptimizer'
 import { QuickActionsMenu } from '@/components/models/QuickActionsMenu'
 import { PerformanceProfileManager } from '@/components/models/PerformanceProfileManager'
 import { BenchmarkRunner } from '@/components/models/BenchmarkRunner'
+import { LearningRateBenchmark } from '@/components/models/LearningRateBenchmark'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -1053,9 +1054,35 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               </TabsContent>
 
               <TabsContent value="benchmark">
-                <BenchmarkRunner 
-                  models={models}
-                />
+                <Tabs defaultValue="standard" className="w-full">
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="standard" className="gap-2">
+                      <ChartBar weight="fill" size={18} />
+                      Standard Benchmark
+                    </TabsTrigger>
+                    <TabsTrigger value="learning-rate" className="gap-2">
+                      <Lightning weight="fill" size={18} />
+                      Learning Rate Tuning
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="standard">
+                    <BenchmarkRunner 
+                      models={models}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="learning-rate">
+                    <LearningRateBenchmark
+                      models={models}
+                      onModelUpdate={(updatedModel) => {
+                        setModels(prev => 
+                          prev.map(m => m.id === updatedModel.id ? updatedModel : m)
+                        )
+                      }}
+                    />
+                  </TabsContent>
+                </Tabs>
               </TabsContent>
             </Tabs>
           </TabsContent>
