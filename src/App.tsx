@@ -8,6 +8,9 @@ import { Separator } from '@/components/ui/separator'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { KeyboardShortcutsHelper } from '@/components/ui/keyboard-shortcuts'
+import { MobileBottomNav } from '@/components/ui/mobile-bottom-nav'
+import { FloatingActionButton } from '@/components/ui/floating-action-button'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { ChatCircle, Robot, Lightning, Plus, Flask, Cube, Wrench, Download, HardDrives, ChartBar, Sparkle } from '@phosphor-icons/react'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ChatInput } from '@/components/chat/ChatInput'
@@ -33,6 +36,7 @@ import { analytics } from '@/lib/analytics'
 import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig, FineTuningDataset, FineTuningJob, QuantizationJob, HarnessManifest, HuggingFaceModel, GGUFModel } from '@/lib/types'
 
 function App() {
+  const isMobile = useIsMobile()
   const [conversations, setConversations] = useKV<Conversation[]>('conversations', [])
   const [messages, setMessages] = useKV<Message[]>('messages', [])
   const [agents, setAgents] = useKV<Agent[]>('agents', [])
@@ -54,6 +58,7 @@ function App() {
   const [newAgentDialog, setNewAgentDialog] = useState(false)
   const [newConversationDialog, setNewConversationDialog] = useState(false)
   const [editingModelId, setEditingModelId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('chat')
 
   const [newAgentForm, setNewAgentForm] = useState({
     name: '',
@@ -560,9 +565,9 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           </div>
         </motion.header>
 
-      <main className="container mx-auto px-6 py-6">
-        <Tabs defaultValue="chat" className="w-full">
-          <TabsList className="grid w-full max-w-2xl mx-auto grid-cols-4 mb-6">
+      <main className="container mx-auto px-4 md:px-6 py-4 md:py-6 pb-20 lg:pb-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="hidden lg:grid w-full max-w-2xl mx-auto grid-cols-4 mb-6">
             <TabsTrigger value="chat" className="gap-2">
               <ChatCircle weight="fill" size={20} />
               Chat
@@ -1005,6 +1010,57 @@ Describe what input you would give to the ${tool} tool (one sentence).`
       </Dialog>
       
       <KeyboardShortcutsHelper />
+      
+      {isMobile && (
+        <>
+          <MobileBottomNav
+            items={[
+              {
+                id: 'chat',
+                label: 'Chat',
+                icon: <ChatCircle weight="fill" size={24} />,
+                active: activeTab === 'chat',
+                onClick: () => setActiveTab('chat')
+              },
+              {
+                id: 'agents',
+                label: 'Agents',
+                icon: <Robot weight="fill" size={24} />,
+                active: activeTab === 'agents',
+                onClick: () => setActiveTab('agents')
+              },
+              {
+                id: 'models',
+                label: 'Models',
+                icon: <Lightning weight="fill" size={24} />,
+                active: activeTab === 'models',
+                onClick: () => setActiveTab('models')
+              },
+              {
+                id: 'analytics',
+                label: 'Analytics',
+                icon: <ChartBar weight="fill" size={24} />,
+                active: activeTab === 'analytics',
+                onClick: () => setActiveTab('analytics')
+              }
+            ]}
+          />
+          
+          {activeTab === 'chat' && (
+            <FloatingActionButton
+              onClick={() => setNewConversationDialog(true)}
+              icon={<Plus weight="bold" size={28} />}
+            />
+          )}
+          
+          {activeTab === 'agents' && (
+            <FloatingActionButton
+              onClick={() => setNewAgentDialog(true)}
+              icon={<Plus weight="bold" size={28} />}
+            />
+          )}
+        </>
+      )}
     </div>
     </TooltipProvider>
   )
