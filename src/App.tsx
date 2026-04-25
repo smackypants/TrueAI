@@ -10,8 +10,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { KeyboardShortcutsHelper } from '@/components/ui/keyboard-shortcuts'
 import { MobileBottomNav } from '@/components/ui/mobile-bottom-nav'
 import { FloatingActionButton } from '@/components/ui/floating-action-button'
+import { PullToRefreshIndicator } from '@/components/ui/pull-to-refresh-indicator'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSwipeGesture } from '@/hooks/use-touch-gestures'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { ChatCircle, Robot, Lightning, Plus, Flask, Cube, Wrench, Download, HardDrives, ChartBar, Sparkle, Cpu } from '@phosphor-icons/react'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ChatInput } from '@/components/chat/ChatInput'
@@ -108,6 +110,28 @@ function App() {
     onSwipeLeft: () => navigateToTab('left'),
     onSwipeRight: () => navigateToTab('right')
   }, 100)
+
+  const refreshConversations = async () => {
+    await new Promise(resolve => setTimeout(resolve, 800))
+    toast.success('Conversations refreshed')
+    analytics.track('conversation_created', 'chat', 'pull_to_refresh')
+  }
+
+  const refreshAgents = async () => {
+    await new Promise(resolve => setTimeout(resolve, 800))
+    toast.success('Agents refreshed')
+    analytics.track('agent_created', 'agent', 'pull_to_refresh')
+  }
+
+  const conversationsPullToRefresh = usePullToRefresh({
+    onRefresh: refreshConversations,
+    threshold: 80
+  })
+
+  const agentsPullToRefresh = usePullToRefresh({
+    onRefresh: refreshAgents,
+    threshold: 80
+  })
 
   useEffect(() => {
     analytics.track('page_view', 'app', 'load', {
@@ -691,8 +715,17 @@ Describe what input you would give to the ${tool} tool (one sentence).`
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-              <Card className="lg:col-span-1 p-4">
-                <ScrollArea className="h-[calc(100vh-320px)] sm:h-[600px]">
+              <Card className="lg:col-span-1 p-4 relative overflow-hidden">
+                <PullToRefreshIndicator 
+                  isRefreshing={conversationsPullToRefresh.isRefreshing}
+                  pullDistance={conversationsPullToRefresh.pullDistance}
+                  progress={conversationsPullToRefresh.progress}
+                  className="absolute top-0 left-0 right-0 z-10"
+                />
+                <ScrollArea 
+                  className="h-[calc(100vh-320px)] sm:h-[600px]"
+                  {...conversationsPullToRefresh.handlers}
+                >
                   <div className="space-y-2">
                     {conversations.length === 0 && (
                       <EmptyState
@@ -789,36 +822,47 @@ Describe what input you would give to the ${tool} tool (one sentence).`
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-              <div className="lg:col-span-2 space-y-3 sm:space-y-4">
-                {agents.length === 0 && (
-                  <Card className="p-6 sm:p-12">
-                    <EmptyState
-                      illustration={emptyStateAgents}
-                      title="No agents created yet"
-                      description="Create an autonomous AI agent to automate tasks and execute multi-step workflows"
-                      size="lg"
-                      action={
-                        <Button onClick={() => setNewAgentDialog(true)} className="w-full sm:w-auto">
-                          <Plus weight="bold" size={20} className="mr-2" />
-                          <span className="hidden sm:inline">Create Your First Agent</span>
-                          <span className="sm:hidden">Create Agent</span>
-                        </Button>
-                      }
+              <div className="lg:col-span-2 relative">
+                <PullToRefreshIndicator 
+                  isRefreshing={agentsPullToRefresh.isRefreshing}
+                  pullDistance={agentsPullToRefresh.pullDistance}
+                  progress={agentsPullToRefresh.progress}
+                  className="sticky top-0 left-0 right-0 z-10 bg-background/95 backdrop-blur-sm"
+                />
+                <div 
+                  className="space-y-3 sm:space-y-4 overflow-auto max-h-[calc(100vh-280px)]"
+                  {...agentsPullToRefresh.handlers}
+                >
+                  {agents.length === 0 && (
+                    <Card className="p-6 sm:p-12">
+                      <EmptyState
+                        illustration={emptyStateAgents}
+                        title="No agents created yet"
+                        description="Create an autonomous AI agent to automate tasks and execute multi-step workflows"
+                        size="lg"
+                        action={
+                          <Button onClick={() => setNewAgentDialog(true)} className="w-full sm:w-auto">
+                            <Plus weight="bold" size={20} className="mr-2" />
+                            <span className="hidden sm:inline">Create Your First Agent</span>
+                            <span className="sm:hidden">Create Agent</span>
+                          </Button>
+                        }
+                      />
+                    </Card>
+                  )}
+                  {agents.map(agent => (
+                    <AgentCard
+                      key={agent.id}
+                      agent={agent}
+                      onRun={runAgent}
+                      onDelete={deleteAgent}
+                      onView={(id) => {
+                        const run = agentRuns.find(r => r.agentId === id)
+                        if (run) setActiveAgentRunId(run.id)
+                      }}
                     />
-                  </Card>
-                )}
-                {agents.map(agent => (
-                  <AgentCard
-                    key={agent.id}
-                    agent={agent}
-                    onRun={runAgent}
-                    onDelete={deleteAgent}
-                    onView={(id) => {
-                      const run = agentRuns.find(r => r.agentId === id)
-                      if (run) setActiveAgentRunId(run.id)
-                    }}
-                  />
-                ))}
+                  ))}
+                </div>
               </div>
 
               <Card className="lg:col-span-1 p-3 sm:p-4">
