@@ -571,6 +571,7 @@ Return ONLY valid JSON in this exact format:
           <h2 className="text-xl font-semibold">App Builder</h2>
           <p className="text-sm text-muted-foreground">Create complete web apps from natural language</p>
         </div>
+        <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setFrameworkInfoDialog(true)} size="sm">
             <Lightning weight="bold" size={20} className="mr-2" />
             Frameworks
@@ -581,13 +582,13 @@ Return ONLY valid JSON in this exact format:
           </Button>
         </div>
       </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <Card className="lg:col-span-1 p-4">
           <h3 className="font-semibold mb-3 text-sm">Projects</h3>
           <ScrollArea className="h-[600px]">
             <div className="space-y-2">
+              {projects.length === 0 && (
                 <div className="text-center py-8 text-sm text-muted-foreground">
                   <Code size={32} className="mx-auto mb-2 opacity-50" />
                   <p>No projects yet</p>
@@ -965,7 +966,11 @@ Return ONLY valid JSON in this exact format:
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
       <Dialog open={frameworkInfoDialog} onOpenChange={setFrameworkInfoDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Framework Comparison</DialogTitle>
             <DialogDescription>
               Compare different frameworks to choose the best one for your project
             </DialogDescription>
@@ -1014,9 +1019,6 @@ Return ONLY valid JSON in this exact format:
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  )
-}
     </div>
   )
 }
