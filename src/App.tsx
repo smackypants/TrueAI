@@ -822,47 +822,36 @@ Describe what input you would give to the ${tool} tool (one sentence).`
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-              <div className="lg:col-span-2 relative">
-                <PullToRefreshIndicator 
-                  isRefreshing={agentsPullToRefresh.isRefreshing}
-                  pullDistance={agentsPullToRefresh.pullDistance}
-                  progress={agentsPullToRefresh.progress}
-                  className="sticky top-0 left-0 right-0 z-10 bg-background/95 backdrop-blur-sm"
-                />
-                <div 
-                  className="space-y-3 sm:space-y-4 overflow-auto max-h-[calc(100vh-280px)]"
-                  {...agentsPullToRefresh.handlers}
-                >
-                  {agents.length === 0 && (
-                    <Card className="p-6 sm:p-12">
-                      <EmptyState
-                        illustration={emptyStateAgents}
-                        title="No agents created yet"
-                        description="Create an autonomous AI agent to automate tasks and execute multi-step workflows"
-                        size="lg"
-                        action={
-                          <Button onClick={() => setNewAgentDialog(true)} className="w-full sm:w-auto">
-                            <Plus weight="bold" size={20} className="mr-2" />
-                            <span className="hidden sm:inline">Create Your First Agent</span>
-                            <span className="sm:hidden">Create Agent</span>
-                          </Button>
-                        }
-                      />
-                    </Card>
-                  )}
-                  {agents.map(agent => (
-                    <AgentCard
-                      key={agent.id}
-                      agent={agent}
-                      onRun={runAgent}
-                      onDelete={deleteAgent}
-                      onView={(id) => {
-                        const run = agentRuns.find(r => r.agentId === id)
-                        if (run) setActiveAgentRunId(run.id)
-                      }}
+              <div className="lg:col-span-2 space-y-3 sm:space-y-4">
+                {agents.length === 0 && (
+                  <Card className="p-6 sm:p-12">
+                    <EmptyState
+                      illustration={emptyStateAgents}
+                      title="No agents created yet"
+                      description="Create an autonomous AI agent to automate tasks and execute multi-step workflows"
+                      size="lg"
+                      action={
+                        <Button onClick={() => setNewAgentDialog(true)} className="w-full sm:w-auto">
+                          <Plus weight="bold" size={20} className="mr-2" />
+                          <span className="hidden sm:inline">Create Your First Agent</span>
+                          <span className="sm:hidden">Create Agent</span>
+                        </Button>
+                      }
                     />
-                  ))}
-                </div>
+                  </Card>
+                )}
+                {agents.map(agent => (
+                  <AgentCard
+                    key={agent.id}
+                    agent={agent}
+                    onRun={runAgent}
+                    onDelete={deleteAgent}
+                    onView={(id) => {
+                      const run = agentRuns.find(r => r.agentId === id)
+                      if (run) setActiveAgentRunId(run.id)
+                    }}
+                  />
+                ))}
               </div>
 
               <Card className="lg:col-span-1 p-3 sm:p-4">
