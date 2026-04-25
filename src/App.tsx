@@ -714,17 +714,6 @@ Describe what input you would give to the ${tool} tool (one sentence).`
 
   const editingModel = models?.find(m => m.id === editingModelId)
 
-  useEffect(() => {
-    const currentTabs = ['chat', 'agents', 'models', 'analytics', 'builder']
-    if (currentTabs.includes(activeTab)) {
-      setTabLoadingStates(prev => ({ ...prev, [activeTab]: true }))
-      
-      const timer = setTimeout(() => {
-        setTabLoadingStates(prev => ({ ...prev, [activeTab]: false }))
-      }, 300)
-      
-      return () => clearTimeout(timer)
-    }
   }, [activeTab])
 
   return (
