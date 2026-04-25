@@ -1,34 +1,32 @@
 import { useState } from 'react'
 import { Message } from '@/lib/types'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { User, Robot, Copy, Check } from '@phosphor-icons/react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { toast } from 'sonner'
+import { User, Robot } from '@phosphor-icons/react'
+import { motion } from 'framer-motion'
+import { MessageActions } from './MessageActions'
 
 interface MessageBubbleProps {
   message: Message
   isStreaming?: boolean
+  onEdit?: (messageId: string, newContent: string) => void
+  onDelete?: (messageId: string) => void
+  onRegenerate?: (messageId: string) => void
+  onExport?: (message: Message) => void
 }
 
-export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
+export function MessageBubble({ 
+  message, 
+  isStreaming,
+  onEdit,
+  onDelete,
+  onRegenerate,
+  onExport
+}: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const isSystem = message.role === 'system'
-  const [copied, setCopied] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(message.content)
-      setCopied(true)
-      toast.success('Copied to clipboard')
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      toast.error('Failed to copy')
-    }
-  }
 
   return (
     <TooltipProvider>
@@ -93,40 +91,15 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
               </p>
             </motion.div>
 
-            <AnimatePresence>
-              {isHovered && !isStreaming && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8, y: -5 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.8, y: -5 }}
-                  transition={{ duration: 0.15 }}
-                  className={cn(
-                    'absolute -top-10 sm:-top-9 flex gap-1',
-                    isUser ? 'right-0' : 'left-0'
-                  )}
-                >
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-8 w-8 sm:h-7 sm:w-7 p-0 shadow-lg active:scale-95 transition-transform"
-                        onClick={handleCopy}
-                      >
-                        {copied ? (
-                          <Check size={14} weight="bold" className="text-green-500" />
-                        ) : (
-                          <Copy size={14} weight="bold" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{copied ? 'Copied!' : 'Copy message'}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <MessageActions
+              message={message}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onRegenerate={onRegenerate}
+              onExport={onExport}
+              isVisible={isHovered && !isStreaming}
+              position={isUser ? 'right' : 'left'}
+            />
           </div>
           
           <motion.span

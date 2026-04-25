@@ -16,6 +16,12 @@ export interface Conversation {
   updatedAt: number
   messageCount?: number
   tags?: string[]
+  temperature?: number
+  maxTokens?: number
+  streamingEnabled?: boolean
+  contextWindow?: number
+  pinned?: boolean
+  archived?: boolean
 }
 
 export interface Agent {

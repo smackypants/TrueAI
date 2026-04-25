@@ -18,6 +18,11 @@ import { InstallPrompt } from '@/components/notifications/InstallPrompt'
 import { SettingsMenu } from '@/components/settings/SettingsMenu'
 import { PerformanceMonitor } from '@/components/PerformanceMonitor'
 import { ConversationItem } from '@/components/chat/ConversationItem'
+import { ConversationSettings } from '@/components/chat/ConversationSettings'
+import { ConversationFilters, type ConversationSortOption, type ConversationFilterOption } from '@/components/chat/ConversationFilters'
+import { ChatSearch } from '@/components/chat/ChatSearch'
+import { ChatExportDialog } from '@/components/chat/ChatExportDialog'
+import { PromptTemplates } from '@/components/chat/PromptTemplates'
 import { IndexedDBStatus } from '@/components/cache/IndexedDBStatus'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useSwipeGesture } from '@/hooks/use-touch-gestures'
@@ -25,7 +30,7 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useAutoPerformanceOptimization } from '@/hooks/use-auto-performance'
 import { useIndexedDBCache } from '@/hooks/use-indexeddb-cache'
 import { useDebounce } from '@/lib/mobile-performance'
-import { ChatCircle, Robot, Lightning, Plus, Flask, Cube, Wrench, Download, HardDrives, ChartBar, Sparkle, Cpu, Code, Gear, Users, Brain, Play, ArrowsClockwise, CurrencyDollar } from '@phosphor-icons/react'
+import { ChatCircle, Robot, Lightning, Plus, Flask, Cube, Wrench, Download, HardDrives, ChartBar, Sparkle, Cpu, Code, Gear, Users, Brain, Play, ArrowsClockwise, CurrencyDollar, MagnifyingGlass, BookBookmark, DownloadSimple, PushPin } from '@phosphor-icons/react'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -261,6 +266,13 @@ function App() {
   const [tabLoadingStates, setTabLoadingStates] = useState<Record<string, boolean>>({})
   const [isTabSwitching, setIsTabSwitching] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  
+  const [conversationSettingsOpen, setConversationSettingsOpen] = useState(false)
+  const [chatSearchOpen, setChatSearchOpen] = useState(false)
+  const [chatExportOpen, setChatExportOpen] = useState(false)
+  const [promptTemplatesOpen, setPromptTemplatesOpen] = useState(false)
+  const [conversationSortBy, setConversationSortBy] = useState<ConversationSortOption>('recent')
+  const [conversationFilterBy, setConversationFilterBy] = useState<ConversationFilterOption>('all')
 
   const [newAgentForm, setNewAgentForm] = useState({
     name: '',
@@ -838,6 +850,109 @@ Describe what input you would give to the ${tool} tool (one sentence).`
     toast.success('Conversation deleted')
   }, [activeConversationId, setConversations, setMessages, indexedDBCache])
 
+  const updateConversation = useCallback((convId: string, updates: Partial<Conversation>) => {
+    setConversations(prev => (prev || []).map(c =>
+      c.id === convId ? { ...c, ...updates, updatedAt: Date.now() } : c
+    ))
+    toast.success('Conversation updated')
+  }, [setConversations])
+
+  const pinConversation = useCallback((convId: string) => {
+    setConversations(prev => (prev || []).map(c =>
+      c.id === convId ? { ...c, pinned: !c.pinned } : c
+    ))
+  }, [setConversations])
+
+  const archiveConversation = useCallback((convId: string) => {
+    setConversations(prev => (prev || []).map(c =>
+      c.id === convId ? { ...c, archived: !c.archived } : c
+    ))
+    toast.success('Conversation archived')
+  }, [setConversations])
+
+  const editMessage = useCallback((messageId: string, newContent: string) => {
+    setMessages(prev => (prev || []).map(m =>
+      m.id === messageId ? { ...m, content: newContent } : m
+    ))
+    toast.success('Message edited')
+  }, [setMessages])
+
+  const deleteMessage = useCallback((messageId: string) => {
+    setMessages(prev => (prev || []).filter(m => m.id !== messageId))
+    toast.success('Message deleted')
+  }, [setMessages])
+
+  const regenerateMessage = useCallback(async (messageId: string) => {
+    const message = messages?.find(m => m.id === messageId)
+    if (!message || message.role !== 'assistant' || !activeConversationId) return
+
+    const messageIndex = messages?.findIndex(m => m.id === messageId)
+    if (messageIndex === undefined || messageIndex < 1) return
+
+    const previousMessage = messages[messageIndex - 1]
+    if (!previousMessage || previousMessage.role !== 'user') return
+
+    setMessages(prev => (prev || []).filter(m => m.id !== messageId))
+    await sendMessage(previousMessage.content)
+  }, [messages, activeConversationId, setMessages])
+
+  const exportMessage = useCallback((message: Message) => {
+    const content = `${message.role.toUpperCase()} (${new Date(message.timestamp).toLocaleString()}):\n\n${message.content}`
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `message-${message.id}.txt`
+    link.click()
+    URL.revokeObjectURL(url)
+  }, [])
+
+  const handleSelectMessage = useCallback((conversationId: string, messageId: string) => {
+    setActiveConversationId(conversationId)
+    setActiveTab('chat')
+  }, [])
+
+  const filteredAndSortedConversations = useMemo(() => {
+    let filtered = conversations || []
+
+    switch (conversationFilterBy) {
+      case 'pinned':
+        filtered = filtered.filter(c => c.pinned && !c.archived)
+        break
+      case 'archived':
+        filtered = filtered.filter(c => c.archived)
+        break
+      case 'today':
+        const today = new Date().setHours(0, 0, 0, 0)
+        filtered = filtered.filter(c => c.updatedAt >= today && !c.archived)
+        break
+      case 'week':
+        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+        filtered = filtered.filter(c => c.updatedAt >= weekAgo && !c.archived)
+        break
+      case 'month':
+        const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+        filtered = filtered.filter(c => c.updatedAt >= monthAgo && !c.archived)
+        break
+      default:
+        filtered = filtered.filter(c => !c.archived)
+    }
+
+    switch (conversationSortBy) {
+      case 'oldest':
+        return [...filtered].sort((a, b) => a.updatedAt - b.updatedAt)
+      case 'alphabetical':
+        return [...filtered].sort((a, b) => a.title.localeCompare(b.title))
+      case 'messages':
+        return [...filtered].sort((a, b) => (b.messageCount || 0) - (a.messageCount || 0))
+      default:
+        return [...filtered].sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+          return b.updatedAt - a.updatedAt
+        })
+    }
+  }, [conversations, conversationSortBy, conversationFilterBy])
+
   const toggleAgentTool = useCallback((tool: AgentTool) => {
     setNewAgentForm(prev => ({
       ...prev,
@@ -1312,17 +1427,58 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               className="flex justify-between items-center gap-2"
             >
               <h2 className="text-lg sm:text-xl font-semibold truncate">Conversations</h2>
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button onClick={() => setNewConversationDialog(true)} size="sm" className="lg:hidden shrink-0 h-10 px-3 shadow-md hover:shadow-lg transition-shadow">
-                  <Plus weight="bold" size={20} />
-                </Button>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button onClick={() => setNewConversationDialog(true)} className="hidden lg:flex shadow-md hover:shadow-lg transition-shadow">
-                  <Plus weight="bold" size={20} className="mr-2" />
-                  New Chat
-                </Button>
-              </motion.div>
+              <div className="flex items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => setChatSearchOpen(true)}
+                    >
+                      <MagnifyingGlass size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Search</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => setPromptTemplatesOpen(true)}
+                    >
+                      <BookBookmark size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Templates</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                <ConversationFilters
+                  sortBy={conversationSortBy}
+                  filterBy={conversationFilterBy}
+                  onSortChange={setConversationSortBy}
+                  onFilterChange={setConversationFilterBy}
+                />
+
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button onClick={() => setNewConversationDialog(true)} size="sm" className="lg:hidden shrink-0 h-10 px-3 shadow-md hover:shadow-lg transition-shadow">
+                    <Plus weight="bold" size={20} />
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button onClick={() => setNewConversationDialog(true)} className="hidden lg:flex shadow-md hover:shadow-lg transition-shadow">
+                    <Plus weight="bold" size={20} className="mr-2" />
+                    New Chat
+                  </Button>
+                </motion.div>
+              </div>
             </motion.div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -1345,7 +1501,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                   >
                     <AnimatePresence mode="popLayout">
                       <div className="space-y-2">
-                        {(!conversations || conversations.length === 0) && (
+                        {(!filteredAndSortedConversations || filteredAndSortedConversations.length === 0) && (
                           <motion.div
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
@@ -1360,13 +1516,16 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                             />
                           </motion.div>
                         )}
-                        {conversations?.map((conv, index) => (
+                        {filteredAndSortedConversations?.map((conv, index) => (
                           <ConversationItem
                             key={conv.id}
                             conversation={conv}
                             isActive={activeConversationId === conv.id}
                             onClick={() => setActiveConversationId(conv.id)}
                             index={index}
+                            onPin={pinConversation}
+                            onArchive={archiveConversation}
+                            onDelete={deleteConversation}
                           />
                         ))}
                       </div>
@@ -1383,15 +1542,48 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                         <h3 className="text-base sm:text-lg font-semibold truncate">{activeConversation.title}</h3>
                         <p className="text-xs sm:text-sm text-muted-foreground truncate">Model: {activeConversation.model}</p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0 h-10 px-3 active:scale-95 transition-transform"
-                        onClick={() => deleteConversation(activeConversation.id)}
-                      >
-                        <span className="hidden sm:inline">Delete</span>
-                        <span className="sm:hidden">���</span>
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9"
+                              onClick={() => setConversationSettingsOpen(true)}
+                            >
+                              <Gear size={18} />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Settings</p>
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9"
+                              onClick={() => setChatExportOpen(true)}
+                            >
+                              <DownloadSimple size={18} />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Export</p>
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0 h-9 px-3 active:scale-95 transition-transform hover:bg-destructive hover:text-destructive-foreground"
+                          onClick={() => deleteConversation(activeConversation.id)}
+                        >
+                          <span className="hidden sm:inline">Delete</span>
+                        </Button>
+                      </div>
                     </div>
                     <Separator className="mb-4" />
                     
@@ -1402,7 +1594,14 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                         </div>
                       )}
                       {conversationMessages.map(msg => (
-                        <MessageBubble key={msg.id} message={msg} />
+                        <MessageBubble 
+                          key={msg.id} 
+                          message={msg}
+                          onEdit={editMessage}
+                          onDelete={deleteMessage}
+                          onRegenerate={regenerateMessage}
+                          onExport={exportMessage}
+                        />
                       ))}
                       {isStreaming && (
                         <div className="flex gap-3 my-3">
@@ -2235,6 +2434,45 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           />
         </LazyErrorBoundary>
       )}
+
+      {activeConversation && (
+        <>
+          <ConversationSettings
+            conversation={activeConversation}
+            models={models || []}
+            onUpdate={(updates) => updateConversation(activeConversation.id, updates)}
+            open={conversationSettingsOpen}
+            onOpenChange={setConversationSettingsOpen}
+          />
+
+          <ChatExportDialog
+            open={chatExportOpen}
+            onOpenChange={setChatExportOpen}
+            conversation={activeConversation}
+            messages={conversationMessages}
+          />
+        </>
+      )}
+
+      <ChatSearch
+        open={chatSearchOpen}
+        onOpenChange={setChatSearchOpen}
+        conversations={conversations || []}
+        messages={messages || []}
+        onSelectMessage={handleSelectMessage}
+      />
+
+      <PromptTemplates
+        open={promptTemplatesOpen}
+        onOpenChange={setPromptTemplatesOpen}
+        onSelectTemplate={(template) => {
+          if (activeConversationId) {
+            sendMessage(template.content)
+          } else {
+            toast.info('Please select or create a conversation first')
+          }
+        }}
+      />
       
       <KeyboardShortcutsHelper />
       
