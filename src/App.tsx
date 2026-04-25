@@ -10,6 +10,7 @@ import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { AgentCard } from '@/components/agent/AgentCard'
 import { AgentStepView } from '@/components/agent/AgentStepView'
+import { ModelConfigPanel } from '@/components/models/ModelConfigPanel'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,7 +25,7 @@ function App() {
   const [messages, setMessages] = useKV<Message[]>('messages', [])
   const [agents, setAgents] = useKV<Agent[]>('agents', [])
   const [agentRuns, setAgentRuns] = useKV<AgentRun[]>('agent-runs', [])
-  const [models] = useKV<ModelConfig[]>('models', [
+  const [models, setModels] = useKV<ModelConfig[]>('models', [
     { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', temperature: 0.7, maxTokens: 2000, topP: 1, frequencyPenalty: 0, presencePenalty: 0 },
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', temperature: 0.7, maxTokens: 2000, topP: 1, frequencyPenalty: 0, presencePenalty: 0 },
   ])
@@ -34,6 +35,7 @@ function App() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [newAgentDialog, setNewAgentDialog] = useState(false)
   const [newConversationDialog, setNewConversationDialog] = useState(false)
+  const [editingModelId, setEditingModelId] = useState<string | null>(null)
 
   const [newAgentForm, setNewAgentForm] = useState({
     name: '',
@@ -297,6 +299,16 @@ Describe what input you would give to the ${tool} tool (one sentence).`
     }))
   }
 
+  const saveModelConfig = (updatedModel: ModelConfig) => {
+    setModels(prev => 
+      prev.map(m => m.id === updatedModel.id ? updatedModel : m)
+    )
+    setEditingModelId(null)
+    toast.success('Model configuration saved')
+  }
+
+  const editingModel = models.find(m => m.id === editingModelId)
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
@@ -472,29 +484,50 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           </TabsContent>
 
           <TabsContent value="models" className="space-y-4">
-            <h2 className="text-xl font-semibold">Available Models</h2>
+            <h2 className="text-xl font-semibold">Model Configuration</h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {models.map(model => (
-                <Card key={model.id} className="p-6">
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-semibold">{model.name}</h3>
-                    <p className="text-sm text-muted-foreground capitalize">Provider: {model.provider}</p>
-                    <Separator />
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Temperature:</span>
-                        <span>{model.temperature}</span>
+            {editingModel ? (
+              <ModelConfigPanel
+                model={editingModel}
+                onSave={saveModelConfig}
+                onClose={() => setEditingModelId(null)}
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {models.map(model => (
+                  <Card key={model.id} className="p-6">
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-lg font-semibold">{model.name}</h3>
+                        <p className="text-sm text-muted-foreground capitalize">Provider: {model.provider}</p>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Max Tokens:</span>
-                        <span>{model.maxTokens}</span>
+                      <Separator />
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Temperature:</span>
+                          <span className="font-mono">{model.temperature}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Max Tokens:</span>
+                          <span className="font-mono">{model.maxTokens}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Top P:</span>
+                          <span className="font-mono">{model.topP}</span>
+                        </div>
                       </div>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setEditingModelId(model.id)}
+                      >
+                        Configure
+                      </Button>
                     </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </main>
