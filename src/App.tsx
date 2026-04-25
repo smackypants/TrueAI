@@ -1182,8 +1182,6 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               >
                 <IndexedDBStatus />
                 
-                <OfflineQueueIndicator />
-                
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
