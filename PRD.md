@@ -154,7 +154,15 @@ Animations should emphasize the "thinking" and "processing" nature of AI - subtl
   - Sidebar collapses to overlay drawer on mobile
   - Message input fixed at bottom with safe-area-inset
   - Single column layout for agent execution steps
-  - Touch targets minimum 44px height
-  - Bottom navigation bar for primary views (Chat, Agents, Models)
-  - Settings accessible via hamburger menu
-  - Horizontal scroll for model parameter cards
+  - Touch targets minimum 44px height (48px preferred for primary actions)
+  - Bottom navigation bar for primary views (Chat, Agents, Models, Analytics)
+  - Floating action buttons for primary creation actions with haptic-style feedback
+  - Optimized typography scaling (14px body text minimum, 16px for inputs to prevent iOS zoom)
+  - Reduced padding in mobile view (p-3 instead of p-6) to maximize content area
+  - Horizontal scroll for model parameter cards with snap-scroll behavior
+  - Touch-optimized hit areas with visual feedback on tap
+  - Pull-to-refresh pattern for lists and conversations
+  - Swipe gestures for navigation between tabs
+  - Optimized modals with full-screen on mobile, bottom sheets for quick actions
+  - Sticky headers with blur effect for context retention during scroll
+  - Optimized scroll performance with virtualization for long lists

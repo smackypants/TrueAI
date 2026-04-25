@@ -611,17 +611,18 @@ Describe what input you would give to the ${tool} tool (one sentence).`
         <motion.header 
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50 safe-top"
+          className="border-b border-border bg-card/95 backdrop-blur-md sticky top-0 z-50 safe-top shadow-sm"
         >
-          <div className="container mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+          <div className="container mx-auto px-4 sm:px-4 md:px-6 py-3 md:py-4">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                 <motion.div 
-                  className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center relative overflow-hidden shrink-0"
+                  className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center relative overflow-hidden shrink-0"
                   whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileTap={{ scale: 0.92 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
                 >
-                  <Lightning weight="fill" size={isMobile ? 20 : 24} className="text-white relative z-10" />
+                  <Lightning weight="fill" size={isMobile ? 22 : 24} className="text-white relative z-10" />
                   <motion.div
                     className="absolute inset-0 bg-gradient-to-br from-accent to-primary"
                     initial={{ opacity: 0 }}
@@ -638,8 +639,8 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9">
-                      <Sparkle size={isMobile ? 18 : 20} className="text-accent" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-10 sm:w-10 active:scale-95 transition-transform">
+                      <Sparkle size={isMobile ? 20 : 22} className="text-accent" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -652,7 +653,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
         </motion.header>
 
       <main 
-        className="container mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 pb-24 sm:pb-20 lg:pb-6"
+        className="container mx-auto px-4 sm:px-4 md:px-6 py-4 sm:py-4 md:py-6 pb-24 lg:pb-6"
         ref={contentRef}
         onTouchStart={swipeHandlers.onTouchStart}
         onTouchEnd={swipeHandlers.onTouchEnd}
@@ -677,10 +678,10 @@ Describe what input you would give to the ${tool} tool (one sentence).`
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="chat" className="space-y-3 sm:space-y-4">
+          <TabsContent value="chat" className="space-y-4">
             <div className="flex justify-between items-center gap-2">
               <h2 className="text-lg sm:text-xl font-semibold truncate">Conversations</h2>
-              <Button onClick={() => setNewConversationDialog(true)} size="sm" className="lg:hidden shrink-0">
+              <Button onClick={() => setNewConversationDialog(true)} size="sm" className="lg:hidden shrink-0 h-10 px-3 active:scale-95 transition-transform">
                 <Plus weight="bold" size={20} />
               </Button>
               <Button onClick={() => setNewConversationDialog(true)} className="hidden lg:flex">
@@ -689,9 +690,9 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-4">
-              <Card className="lg:col-span-1 p-3 sm:p-4">
-                <ScrollArea className="h-[calc(100vh-280px)] sm:h-[600px]">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              <Card className="lg:col-span-1 p-4">
+                <ScrollArea className="h-[calc(100vh-320px)] sm:h-[600px]">
                   <div className="space-y-2">
                     {conversations.length === 0 && (
                       <EmptyState
@@ -705,7 +706,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                       <div key={conv.id}>
                         <Button
                           variant={activeConversationId === conv.id ? 'secondary' : 'ghost'}
-                          className="w-full justify-start text-left h-auto py-3 px-3 sm:px-4"
+                          className="w-full justify-start text-left h-auto py-3 px-4 active:scale-[0.98] transition-transform"
                           onClick={() => setActiveConversationId(conv.id)}
                         >
                           <div className="flex-1 min-w-0">
@@ -721,10 +722,10 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 </ScrollArea>
               </Card>
 
-              <Card className="lg:col-span-3 p-3 sm:p-6 flex flex-col h-[calc(100vh-280px)] sm:h-[600px]">
+              <Card className="lg:col-span-3 p-4 sm:p-6 flex flex-col h-[calc(100vh-320px)] sm:h-[600px]">
                 {activeConversation ? (
                   <>
-                    <div className="flex justify-between items-start mb-3 sm:mb-4 gap-2">
+                    <div className="flex justify-between items-start mb-4 gap-2">
                       <div className="min-w-0 flex-1">
                         <h3 className="text-base sm:text-lg font-semibold truncate">{activeConversation.title}</h3>
                         <p className="text-xs sm:text-sm text-muted-foreground truncate">Model: {activeConversation.model}</p>
@@ -732,16 +733,16 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="shrink-0 h-9 px-2 sm:px-3"
+                        className="shrink-0 h-10 px-3 active:scale-95 transition-transform"
                         onClick={() => deleteConversation(activeConversation.id)}
                       >
                         <span className="hidden sm:inline">Delete</span>
                         <span className="sm:hidden">✕</span>
                       </Button>
                     </div>
-                    <Separator className="mb-3 sm:mb-4" />
+                    <Separator className="mb-4" />
                     
-                    <ScrollArea className="flex-1 pr-2 sm:pr-4">
+                    <ScrollArea className="flex-1 pr-3 sm:pr-4">
                       {conversationMessages.length === 0 && (
                         <div className="flex items-center justify-center h-full">
                           <p className="text-muted-foreground text-sm sm:text-base">Start a conversation...</p>
@@ -751,14 +752,14 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                         <MessageBubble key={msg.id} message={msg} />
                       ))}
                       {isStreaming && (
-                        <div className="flex gap-2 sm:gap-3 my-3">
-                          <div className="h-7 w-7 sm:h-8 sm:w-8" />
+                        <div className="flex gap-3 my-3">
+                          <div className="h-8 w-8" />
                           <div className="text-muted-foreground text-sm sm:text-base">Thinking...</div>
                         </div>
                       )}
                     </ScrollArea>
 
-                    <div className="pt-3 sm:pt-4 border-t border-border mt-3 sm:mt-4">
+                    <div className="pt-4 border-t border-border mt-4">
                       <ChatInput 
                         onSend={sendMessage} 
                         disabled={isStreaming}

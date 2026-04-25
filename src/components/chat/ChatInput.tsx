@@ -44,8 +44,8 @@ export function ChatInput({ onSend, disabled, isStreaming, onStop }: ChatInputPr
   return (
     <TooltipProvider>
       <form onSubmit={handleSubmit} className="relative">
-        <div className={`flex gap-2 items-end transition-all duration-200 ${
-          isFocused ? 'ring-2 ring-accent/30 rounded-lg p-2' : 'p-0'
+        <div className={`flex gap-2 sm:gap-3 items-end transition-all duration-200 ${
+          isFocused ? 'ring-2 ring-accent/30 rounded-xl p-1.5 sm:p-2' : 'p-0'
         }`}>
           <div className="flex-1 relative">
             <Textarea
@@ -56,9 +56,9 @@ export function ChatInput({ onSend, disabled, isStreaming, onStop }: ChatInputPr
               onKeyDown={handleKeyDown}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              placeholder="Type your message... (Shift+Enter for new line)"
+              placeholder="Type your message..."
               disabled={disabled}
-              className="min-h-[60px] max-h-[200px] resize-none pr-16"
+              className="min-h-[56px] sm:min-h-[60px] max-h-[180px] sm:max-h-[200px] resize-none pr-16 text-base rounded-xl"
               rows={2}
             />
             
@@ -68,7 +68,7 @@ export function ChatInput({ onSend, disabled, isStreaming, onStop }: ChatInputPr
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
-                  className="absolute bottom-2 right-2 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm px-2 py-1 rounded"
+                  className="absolute bottom-2.5 right-2.5 text-xs text-muted-foreground bg-background/90 backdrop-blur-sm px-2 py-1 rounded-md"
                 >
                   {charCount}
                 </motion.div>
@@ -84,13 +84,13 @@ export function ChatInput({ onSend, disabled, isStreaming, onStop }: ChatInputPr
                   onClick={onStop}
                   variant="destructive"
                   size="icon"
-                  className="h-[60px] w-[60px] shrink-0 hover:scale-105 transition-transform"
+                  className="h-14 w-14 shrink-0 rounded-xl active:scale-95 transition-transform"
                 >
                   <StopCircle weight="fill" size={24} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Stop generation (Esc)</p>
+                <p>Stop generation</p>
               </TooltipContent>
             </Tooltip>
           ) : (
@@ -98,13 +98,13 @@ export function ChatInput({ onSend, disabled, isStreaming, onStop }: ChatInputPr
               <TooltipTrigger asChild>
                 <motion.div
                   whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileTap={{ scale: 0.92 }}
                 >
                   <Button
                     type="submit"
                     disabled={disabled || !input.trim()}
                     size="icon"
-                    className="h-[60px] w-[60px] shrink-0 relative overflow-hidden"
+                    className="h-14 w-14 shrink-0 relative overflow-hidden rounded-xl"
                   >
                     <motion.div
                       animate={input.trim() ? { 
@@ -126,7 +126,7 @@ export function ChatInput({ onSend, disabled, isStreaming, onStop }: ChatInputPr
                 </motion.div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Send message (Enter)</p>
+                <p>Send message</p>
               </TooltipContent>
             </Tooltip>
           )}
@@ -138,7 +138,7 @@ export function ChatInput({ onSend, disabled, isStreaming, onStop }: ChatInputPr
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}
-              className="absolute -top-8 left-0 text-xs text-muted-foreground"
+              className="absolute -top-7 left-0 text-xs text-muted-foreground hidden sm:block"
             >
               Press Enter to send • Shift+Enter for new line
             </motion.div>

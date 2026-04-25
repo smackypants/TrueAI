@@ -107,19 +107,30 @@ code, pre {
     touch-action: manipulation;
   }
   
-  button, a {
-    -webkit-tap-highlight-color: rgba(117, 190, 218, 0.3);
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: rgba(117, 190, 218, 0.2);
     touch-action: manipulation;
+    min-height: 44px;
   }
   
   input, textarea, select {
     font-size: 16px;
     -webkit-user-select: text;
     user-select: text;
+    -webkit-appearance: none;
+    border-radius: 0.75rem;
   }
   
   * {
     -webkit-overflow-scrolling: touch;
+  }
+
+  body {
+    overscroll-behavior-y: contain;
+  }
+
+  .scroll-smooth {
+    scroll-behavior: smooth;
   }
 }
 
