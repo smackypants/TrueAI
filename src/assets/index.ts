@@ -1,31 +1,57 @@
-export { default as emptyStateChat } from './images/empty-state-chat.svg'
-export { default as emptyStateAgents } from './images/empty-state-agents.svg'
-export { default as emptyStateModels } from './images/empty-state-models.svg'
-export { default as emptyStateWorkflow } from './images/empty-state-workflow.svg'
-export { default as emptyStateKnowledge } from './images/empty-state-knowledge.svg'
-export { default as emptyStateFineTuning } from './images/empty-state-finetuning.svg'
-export { default as emptyStateQuantization } from './images/empty-state-quantization.svg'
-export { default as emptyStateHarness } from './images/empty-state-harness.svg'
-export { default as emptyStateEnsemble } from './images/empty-state-ensemble.svg'
-export { default as emptyStateAnalytics } from './images/empty-state-analytics.svg'
+import emptyStateChatSvg from './images/empty-state-chat.svg?url'
+import emptyStateAgentsSvg from './images/empty-state-agents.svg?url'
+import emptyStateModelsSvg from './images/empty-state-models.svg?url'
+import emptyStateWorkflowSvg from './images/empty-state-workflow.svg?url'
+import emptyStateKnowledgeSvg from './images/empty-state-knowledge.svg?url'
+import emptyStateFineTuningSvg from './images/empty-state-finetuning.svg?url'
+import emptyStateQuantizationSvg from './images/empty-state-quantization.svg?url'
+import emptyStateHarnessSvg from './images/empty-state-harness.svg?url'
+import emptyStateEnsembleSvg from './images/empty-state-ensemble.svg?url'
+import emptyStateAnalyticsSvg from './images/empty-state-analytics.svg?url'
+import iconSuccessSvg from './images/icon-success.svg?url'
+import iconErrorSvg from './images/icon-error.svg?url'
+import iconWarningSvg from './images/icon-warning.svg?url'
+import iconInfoSvg from './images/icon-info.svg?url'
+import agentExecutingSvg from './images/agent-executing.svg?url'
+import modelLoadingSvg from './images/model-loading.svg?url'
+import modelDownloadingSvg from './images/model-downloading.svg?url'
+import logoFullSvg from './images/logo-full.svg?url'
+import backgroundPatternSvg from './images/background-pattern.svg?url'
+import heroBackgroundSvg from './images/hero-background.svg?url'
 
-export { default as iconSuccess } from './images/icon-success.svg'
-export { default as iconError } from './images/icon-error.svg'
-export { default as iconWarning } from './images/icon-warning.svg'
-export { default as iconInfo } from './images/icon-info.svg'
+export const emptyStateChat = emptyStateChatSvg
+export const emptyStateAgents = emptyStateAgentsSvg
+export const emptyStateModels = emptyStateModelsSvg
+export const emptyStateWorkflow = emptyStateWorkflowSvg
+export const emptyStateKnowledge = emptyStateKnowledgeSvg
+export const emptyStateFineTuning = emptyStateFineTuningSvg
+export const emptyStateQuantization = emptyStateQuantizationSvg
+export const emptyStateHarness = emptyStateHarnessSvg
+export const emptyStateEnsemble = emptyStateEnsembleSvg
+export const emptyStateAnalytics = emptyStateAnalyticsSvg
+export const iconSuccess = iconSuccessSvg
+export const iconError = iconErrorSvg
+export const iconWarning = iconWarningSvg
+export const iconInfo = iconInfoSvg
+export const agentExecuting = agentExecutingSvg
+export const modelLoading = modelLoadingSvg
+export const modelDownloading = modelDownloadingSvg
+export const logoFull = logoFullSvg
+export const backgroundPattern = backgroundPatternSvg
+export const heroBackground = heroBackgroundSvg
 
-export { default as agentExecuting } from './images/agent-executing.svg'
-export { default as modelLoading } from './images/model-loading.svg'
-export { default as modelDownloading } from './images/model-downloading.svg'
+import exampleGGUFModelsJson from './documents/example-gguf-models.json'
+import exampleHarnessesJson from './documents/example-harness-manifests.json'
+import exampleFineTuningDatasetsJson from './documents/example-finetuning-datasets.json'
+import modelProvidersJson from './documents/model-providers.json'
+import quantizationReferenceJson from './documents/quantization-reference.json'
+import benchmarkDataJson from './documents/benchmark-data.json'
+import promptTemplatesJson from './documents/prompt-templates.json'
 
-export { default as logoFull } from './images/logo-full.svg'
-export { default as backgroundPattern } from './images/background-pattern.svg'
-export { default as heroBackground } from './images/hero-background.svg'
-
-export { default as exampleGGUFModels } from './documents/example-gguf-models.json'
-export { default as exampleHarnesses } from './documents/example-harness-manifests.json'
-export { default as exampleFineTuningDatasets } from './documents/example-finetuning-datasets.json'
-export { default as modelProviders } from './documents/model-providers.json'
-export { default as quantizationReference } from './documents/quantization-reference.json'
-export { default as benchmarkData } from './documents/benchmark-data.json'
-export { default as promptTemplates } from './documents/prompt-templates.json'
+export const exampleGGUFModels = exampleGGUFModelsJson
+export const exampleHarnesses = exampleHarnessesJson
+export const exampleFineTuningDatasets = exampleFineTuningDatasetsJson
+export const modelProviders = modelProvidersJson
+export const quantizationReference = quantizationReferenceJson
+export const benchmarkData = benchmarkDataJson
+export const promptTemplates = promptTemplatesJson
