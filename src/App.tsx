@@ -767,7 +767,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                   {...conversationsPullToRefresh.handlers}
                 >
                   <div className="space-y-2">
-                    {conversations.length === 0 && (
+                    {(!conversations || conversations.length === 0) && (
                       <EmptyState
                         illustration={emptyStateChat}
                         title="No conversations yet"
@@ -1155,7 +1155,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                   <TabsContent value="standard">
                     <Suspense fallback={<LoadingFallback />}>
                       <BenchmarkRunner 
-                        models={models}
+                        models={models || []}
                       />
                     </Suspense>
                   </TabsContent>
@@ -1163,7 +1163,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                   <TabsContent value="learning-rate">
                     <Suspense fallback={<LoadingFallback />}>
                       <LearningRateBenchmark
-                        models={models}
+                        models={models || []}
                         onModelUpdate={(updatedModel) => {
                           setModels(prev => 
                             (prev || []).map(m => m.id === updatedModel.id ? updatedModel : m)
@@ -1181,8 +1181,8 @@ Describe what input you would give to the ${tool} tool (one sentence).`
             <div className="space-y-6">
               <Suspense fallback={<LoadingFallback />}>
                 <AnalyticsDashboard 
-                  models={models}
-                  profiles={performanceProfiles}
+                  models={models || []}
+                  profiles={performanceProfiles || []}
                   onApplyOptimization={(insight) => {
                     if (insight.suggestedAction?.type === 'adjust_parameters' && insight.suggestedAction.details.modelId) {
                       const model = models?.find(m => m.id === insight.suggestedAction!.details.modelId)
@@ -1253,7 +1253,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
 
               <TabsContent value="ai-builder">
                 <Suspense fallback={<LoadingFallback />}>
-                  <AppBuilder models={models} />
+                  <AppBuilder models={models || []} />
                 </Suspense>
               </TabsContent>
 
@@ -1297,7 +1297,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {models.map(model => (
+                  {models?.map(model => (
                     <SelectItem key={model.id} value={model.id}>
                       {model.name}
                     </SelectItem>
