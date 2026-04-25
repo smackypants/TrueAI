@@ -62,7 +62,9 @@ export function AnalyticsDashboard({
   onCreateProfile,
   onModelUpdate
 }: AnalyticsDashboardProps = {}) {
-  const { getMetrics, events, sessions, clearData } = useAnalytics()
+  const analyticsHook = useAnalytics()
+  const { getMetrics, events, sessions, clearData } = analyticsHook || {}
+  
   const [metrics, setMetrics] = useState<AnalyticsMetrics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | 'all'>('7d')
@@ -74,6 +76,11 @@ export function AnalyticsDashboard({
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const countdownRef = useRef<NodeJS.Timeout | null>(null)
   const [thresholdConfig, setThresholdConfig] = useKV<ThresholdConfig>('threshold-config', thresholdManager.getConfig())
+
+  const safeEvents = events || []
+  const safeSessions = sessions || []
+  const safeModels = models || []
+  const safeProfiles = profiles || []
 
   useEffect(() => {
     loadMetrics()
@@ -124,15 +131,21 @@ export function AnalyticsDashboard({
   }, [autoRefresh, refreshInterval])
 
   useEffect(() => {
-    if (events.length > 0) {
-      const latestEventTime = Math.max(...events.map(e => e.timestamp))
+    if (safeEvents.length > 0) {
+      const latestEventTime = Math.max(...safeEvents.map(e => e.timestamp))
       if (latestEventTime > lastRefresh && !isLoading) {
         loadMetrics()
       }
     }
-  }, [events.length])
+  }, [safeEvents.length])
 
   const loadMetrics = async () => {
+    if (!getMetrics) {
+      console.warn('Analytics not ready')
+      setIsLoading(false)
+      return
+    }
+    
     setIsLoading(true)
     try {
       const now = Date.now()
@@ -178,6 +191,11 @@ export function AnalyticsDashboard({
   }
 
   const handleClearData = async () => {
+    if (!clearData) {
+      toast.error('Analytics not ready')
+      return
+    }
+    
     if (confirm('Are you sure you want to clear all analytics data? This cannot be undone.')) {
       await clearData()
       await loadMetrics()
@@ -186,7 +204,7 @@ export function AnalyticsDashboard({
   }
 
   const handleExportData = () => {
-    const dataStr = JSON.stringify({ events, sessions, metrics }, null, 2)
+    const dataStr = JSON.stringify({ events: safeEvents, sessions: safeSessions, metrics }, null, 2)
     const dataBlob = new Blob([dataStr], { type: 'application/json' })
     const url = URL.createObjectURL(dataBlob)
     const link = document.createElement('a')

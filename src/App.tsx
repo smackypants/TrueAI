@@ -23,6 +23,7 @@ import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ErrorBoundary } from 'react-error-boundary'
+import { ErrorFallback } from '@/components/ErrorFallback'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -62,32 +63,32 @@ const LoadingFallback = memo(() => (
 
 const TabErrorBoundary = ({ children, tabName }: { children: React.ReactNode; tabName: string }) => {
   const [hasError, setHasError] = useState(false)
+  const [errorCount, setErrorCount] = useState(0)
 
   useEffect(() => {
     setHasError(false)
   }, [tabName])
 
+  const handleError = useCallback((error: Error, info: { componentStack: string }) => {
+    console.error(`[TabError] ${tabName}:`, error, info)
+    setErrorCount(prev => prev + 1)
+    setHasError(true)
+  }, [tabName])
+
+  const handleReset = useCallback(() => {
+    setHasError(false)
+    setErrorCount(0)
+  }, [])
+
   if (hasError) {
-    return (
-      <Card className="p-8">
-        <div className="text-center">
-          <div className="text-4xl mb-4">⚠️</div>
-          <h3 className="text-lg font-semibold mb-2">Something went wrong in {tabName}</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            This tab encountered an error. Try switching to another tab and back.
-          </p>
-          <Button onClick={() => setHasError(false)}>
-            Try Again
-          </Button>
-        </div>
-      </Card>
-    )
+    return <ErrorFallback componentName={tabName} resetErrorBoundary={handleReset} />
   }
 
   return (
     <ErrorBoundary
-      fallback={<LoadingFallback />}
-      onError={() => setHasError(true)}
+      FallbackComponent={(props) => <ErrorFallback {...props} componentName={tabName} />}
+      onError={handleError}
+      onReset={handleReset}
     >
       {children}
     </ErrorBoundary>
@@ -120,6 +121,8 @@ function App() {
   const [editingModelId, setEditingModelId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('chat')
   const [isSwipeIndicatorVisible, setIsSwipeIndicatorVisible] = useState(false)
+  const [tabLoadingStates, setTabLoadingStates] = useState<Record<string, boolean>>({})
+  const [isTabSwitching, setIsTabSwitching] = useState(false)
 
   const [newAgentForm, setNewAgentForm] = useState({
     name: '',
@@ -153,6 +156,8 @@ function App() {
   const contentRef = useRef<HTMLDivElement>(null)
 
   const navigateToTab = useCallback((direction: 'left' | 'right') => {
+    if (isTabSwitching) return
+    
     const currentIndex = tabOrder.indexOf(activeTab)
     let newIndex: number
     
@@ -164,9 +169,9 @@ function App() {
       if (newIndex < 0) newIndex = tabOrder.length - 1
     }
     
-    setActiveTab(tabOrder[newIndex])
+    handleTabChange(tabOrder[newIndex])
     toast.success(`Switched to ${tabOrder[newIndex]}`)
-  }, [activeTab, tabOrder])
+  }, [activeTab, tabOrder, isTabSwitching, handleTabChange])
 
   const swipeHandlers = useSwipeGesture({
     onSwipeLeft: useCallback(() => navigateToTab('left'), [navigateToTab]),
@@ -698,6 +703,30 @@ Describe what input you would give to the ${tool} tool (one sentence).`
 
   const editingModel = models?.find(m => m.id === editingModelId)
 
+  const handleTabChange = useCallback((newTab: string) => {
+    if (isTabSwitching) return
+    
+    setIsTabSwitching(true)
+    setActiveTab(newTab)
+    
+    setTimeout(() => {
+      setIsTabSwitching(false)
+    }, 100)
+  }, [isTabSwitching])
+
+  useEffect(() => {
+    const currentTabs = ['chat', 'agents', 'models', 'analytics', 'builder']
+    if (currentTabs.includes(activeTab)) {
+      setTabLoadingStates(prev => ({ ...prev, [activeTab]: true }))
+      
+      const timer = setTimeout(() => {
+        setTabLoadingStates(prev => ({ ...prev, [activeTab]: false }))
+      }, 300)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [activeTab])
+
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background text-foreground">
@@ -753,7 +782,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
         onTouchStart={swipeHandlers.onTouchStart}
         onTouchEnd={swipeHandlers.onTouchEnd}
       >
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="hidden lg:grid w-full max-w-3xl mx-auto grid-cols-5 mb-6">
             <TabsTrigger value="chat" className="gap-2">
               <ChatCircle weight="fill" size={20} />
@@ -1263,7 +1292,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                   }}
                   onCreateProfile={(taskType) => {
                     toast.info('Navigate to Models > Config to create performance profiles')
-                    setActiveTab('models')
+                    handleTabChange('models')
                   }}
                 />
               </Suspense>
@@ -1463,35 +1492,35 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 label: 'Chat',
                 icon: <ChatCircle weight="fill" size={24} />,
                 active: activeTab === 'chat',
-                onClick: () => setActiveTab('chat')
+                onClick: () => handleTabChange('chat')
               },
               {
                 id: 'agents',
                 label: 'Agents',
                 icon: <Robot weight="fill" size={24} />,
                 active: activeTab === 'agents',
-                onClick: () => setActiveTab('agents')
+                onClick: () => handleTabChange('agents')
               },
               {
                 id: 'models',
                 label: 'Models',
                 icon: <Lightning weight="fill" size={24} />,
                 active: activeTab === 'models',
-                onClick: () => setActiveTab('models')
+                onClick: () => handleTabChange('models')
               },
               {
                 id: 'builder',
                 label: 'Builder',
                 icon: <Cube weight="fill" size={24} />,
                 active: activeTab === 'builder',
-                onClick: () => setActiveTab('builder')
+                onClick: () => handleTabChange('builder')
               },
               {
                 id: 'analytics',
                 label: 'Analytics',
                 icon: <ChartBar weight="fill" size={24} />,
                 active: activeTab === 'analytics',
-                onClick: () => setActiveTab('analytics')
+                onClick: () => handleTabChange('analytics')
               }
             ]}
           />
