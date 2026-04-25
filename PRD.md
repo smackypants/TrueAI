@@ -75,12 +75,12 @@ A browser-based AI assistant platform that enables local model integration, auto
 - **Progression**: System scans usage data → Detects 4 pattern types (temporal, contextual, sequential, frequency) → Calculates confidence scores → Suggests automation rules → User creates rules with priority/cooldown settings → Rules auto-execute when conditions match → Track success metrics and execution history → Export/import rule configurations
 - **Success criteria**: Pattern detection accuracy >80%, rules trigger at appropriate times, cooldown prevents excessive executions, clear execution history with success/failure tracking, configurable priority levels allow critical rules to execute first, automation improves workflow efficiency
 
-### 9. App Builder - Natural Language to Full Applications
-- **Functionality**: Complete application creation system that generates fully functional web apps from natural language descriptions, with built-in build tools, testing framework, and live preview capabilities
-- **Purpose**: Empower users to create standalone web applications without writing code, enabling rapid prototyping and app development directly within the platform
+### 9. App Builder - Natural Language to Full Applications with Live Preview
+- **Functionality**: Complete application creation system that generates fully functional web apps from natural language descriptions, with instant live preview in iframe, built-in build tools, and testing framework
+- **Purpose**: Empower users to create standalone web applications without writing code, enabling rapid prototyping and app development directly within the platform with real-time visual feedback
 - **Trigger**: User navigates to Builder tab and clicks "New App" to enter app description or select template
-- **Progression**: Enter app description/select template → AI generates complete code (HTML, JavaScript, CSS) → View generated files in code editor → Build project with validation → Run automated tests (HTML validation, JS syntax, CSS validation, responsive design) → Preview live app in iframe → Download standalone HTML file → Iterate by regenerating with refined prompts
-- **Success criteria**: Generated apps are functional and production-ready, build process validates all files, tests accurately detect issues, live preview renders correctly, downloaded files work independently, template library provides quick-start options (todo, calculator, timer, notes, games, dashboards), mobile-optimized interface supports on-device app creation
+- **Progression**: Enter app description/select template → AI generates complete code (HTML, JavaScript, CSS) → Automatic live preview renders in iframe instantly → View generated files in code editor → Edit code with live preview updates → Build project with validation → Run automated tests (HTML validation, JS syntax, CSS validation, responsive design) → Download standalone HTML file → Iterate by regenerating with refined prompts
+- **Success criteria**: Generated apps are functional and production-ready, live preview renders immediately without build step, preview updates when switching files, preview supports all frameworks (vanilla, React, Vue, Svelte), iframe sandbox ensures security, build process validates all files, tests accurately detect issues, downloaded files work independently, template library provides quick-start options (todo, calculator, timer, notes, games, dashboards), mobile-optimized interface supports on-device app creation with responsive preview
 
 ## Edge Case Handling
 

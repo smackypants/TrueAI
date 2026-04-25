@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -86,6 +86,8 @@ export function AppBuilder({ models }: AppBuilderProps) {
   const [newProjectDialog, setNewProjectDialog] = useState(false)
   const [frameworkInfoDialog, setFrameworkInfoDialog] = useState(false)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [previewKey, setPreviewKey] = useState(0)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
   
   const [newProjectForm, setNewProjectForm] = useState({
     name: '',
@@ -290,6 +292,20 @@ Return ONLY valid JSON in this exact format:
         size: f.content.length
       }))
 
+      const tempProject: AppProject = {
+        id: projectId,
+        name: '',
+        description: '',
+        prompt: '',
+        framework,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: 'ready',
+        files
+      }
+      
+      const previewUrl = generatePreviewUrl(tempProject)
+
       setProjects(prev => 
         prev.map(p => 
           p.id === projectId 
@@ -297,6 +313,7 @@ Return ONLY valid JSON in this exact format:
                 ...p, 
                 files, 
                 status: 'ready',
+                previewUrl,
                 updatedAt: Date.now()
               } 
             : p
@@ -376,21 +393,12 @@ Return ONLY valid JSON in this exact format:
       )
     }
 
-    const htmlFile = project.files.find(f => f.path === 'index.html')
-    let previewUrl = ''
-    
-    if (htmlFile) {
-      const blob = new Blob([htmlFile.content], { type: 'text/html' })
-      previewUrl = URL.createObjectURL(blob)
-    }
-
     setProjects(prev => 
       prev.map(p => 
         p.id === projectId 
           ? { 
               ...p, 
               status: 'ready',
-              previewUrl,
               updatedAt: Date.now()
             } 
           : p
@@ -486,6 +494,11 @@ Return ONLY valid JSON in this exact format:
 
   const deleteProject = (projectId: string) => {
     const project = projects.find(p => p.id === projectId)
+    
+    if (project?.previewUrl) {
+      URL.revokeObjectURL(project.previewUrl)
+    }
+    
     setProjects(prev => prev.filter(p => p.id !== projectId))
     
     if (activeProjectId === projectId) {
@@ -499,6 +512,76 @@ Return ONLY valid JSON in this exact format:
       metadata: { projectId, projectName: project?.name }
     })
   }
+
+  const generatePreviewUrl = (project: AppProject): string => {
+    const htmlFile = project.files.find(f => f.path === 'index.html')
+    const jsFiles = project.files.filter(f => f.language === 'javascript' || f.language === 'typescript' || f.language === 'jsx' || f.language === 'tsx')
+    const cssFiles = project.files.filter(f => f.language === 'css')
+    
+    if (!htmlFile) {
+      return ''
+    }
+
+    let htmlContent = htmlFile.content
+    
+    cssFiles.forEach(cssFile => {
+      const styleTag = `<style>\n${cssFile.content}\n</style>`
+      if (htmlContent.includes('</head>')) {
+        htmlContent = htmlContent.replace('</head>', `${styleTag}\n</head>`)
+      } else {
+        htmlContent = `<head>${styleTag}</head>${htmlContent}`
+      }
+    })
+    
+    jsFiles.forEach(jsFile => {
+      const scriptTag = `<script type="module">\n${jsFile.content}\n</script>`
+      if (htmlContent.includes('</body>')) {
+        htmlContent = htmlContent.replace('</body>', `${scriptTag}\n</body>`)
+      } else {
+        htmlContent = `${htmlContent}${scriptTag}`
+      }
+    })
+    
+    const blob = new Blob([htmlContent], { type: 'text/html' })
+    return URL.createObjectURL(blob)
+  }
+
+  const updateLivePreview = (projectId: string) => {
+    const project = projects.find(p => p.id === projectId)
+    if (!project || project.files.length === 0) return
+
+    if (project.previewUrl) {
+      URL.revokeObjectURL(project.previewUrl)
+    }
+
+    const newPreviewUrl = generatePreviewUrl(project)
+    
+    setProjects(prev => 
+      prev.map(p => 
+        p.id === projectId 
+          ? { ...p, previewUrl: newPreviewUrl } 
+          : p
+      )
+    )
+    
+    setPreviewKey(prev => prev + 1)
+  }
+
+  useEffect(() => {
+    if (activeProject && activeProject.files.length > 0 && !activeProject.previewUrl) {
+      updateLivePreview(activeProject.id)
+    }
+  }, [activeProject?.files.length])
+
+  useEffect(() => {
+    return () => {
+      projects.forEach(project => {
+        if (project.previewUrl) {
+          URL.revokeObjectURL(project.previewUrl)
+        }
+      })
+    }
+  }, [])
 
   const downloadProject = (projectId: string) => {
     const project = projects.find(p => p.id === projectId)
@@ -704,9 +787,9 @@ Return ONLY valid JSON in this exact format:
                     <FileCode size={18} />
                     Code
                   </TabsTrigger>
-                  <TabsTrigger value="preview" className="gap-2" disabled={!activeProject.previewUrl}>
+                  <TabsTrigger value="preview" className="gap-2">
                     <Eye size={18} />
-                    Preview
+                    Live Preview
                   </TabsTrigger>
                   <TabsTrigger value="tests" className="gap-2" disabled={!activeProject.testResults}>
                     <FlaskConical size={18} />
@@ -773,13 +856,50 @@ Return ONLY valid JSON in this exact format:
                   )}
                 </TabsContent>
 
-                <TabsContent value="preview" className="flex-1 mt-0">
-                  {activeProject.previewUrl && (
-                    <iframe
-                      src={activeProject.previewUrl}
-                      className="w-full h-full border border-border rounded-lg"
-                      title={`Preview of ${activeProject.name}`}
-                    />
+                <TabsContent value="preview" className="flex-1 mt-0 flex flex-col">
+                  {activeProject.files.length > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between mb-3 gap-2">
+                        <p className="text-sm text-muted-foreground">
+                          Live preview of your generated app
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            updateLivePreview(activeProject.id)
+                            toast.success('Preview refreshed')
+                          }}
+                        >
+                          <Sparkle size={16} className="mr-1" />
+                          Refresh
+                        </Button>
+                      </div>
+                      {activeProject.previewUrl ? (
+                        <iframe
+                          key={previewKey}
+                          ref={iframeRef}
+                          src={activeProject.previewUrl}
+                          className="w-full h-full border border-border rounded-lg bg-background"
+                          title={`Live preview of ${activeProject.name}`}
+                          sandbox="allow-scripts allow-same-origin allow-forms"
+                        />
+                      ) : (
+                        <div className="flex-1 flex items-center justify-center border border-border rounded-lg bg-muted/30">
+                          <div className="text-center">
+                            <Eye size={48} className="mx-auto mb-4 text-muted-foreground opacity-50" />
+                            <p className="text-sm text-muted-foreground">Generating preview...</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center border border-border rounded-lg bg-muted/30">
+                      <div className="text-center">
+                        <Eye size={48} className="mx-auto mb-4 text-muted-foreground opacity-50" />
+                        <p className="text-sm text-muted-foreground">No code to preview</p>
+                      </div>
+                    </div>
                   )}
                 </TabsContent>
 
