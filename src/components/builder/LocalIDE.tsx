@@ -28,7 +28,7 @@ import {
   Code,
   Lightning
 } from '@phosphor-icons/react'
-import { CodeEditor } from './CodeEditor'
+import { CodeEditor, type CodeTheme } from './CodeEditor'
 import { analytics } from '@/lib/analytics'
 
 interface IDEFile {
@@ -60,6 +60,7 @@ interface ConsoleMessage {
 
 export function LocalIDE() {
   const [projects, setProjects] = useKV<IDEProject[]>('ide-projects', [])
+  const [editorTheme, setEditorTheme] = useKV<CodeTheme>('ide-editor-theme', 'tomorrow')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [activeFileId, setActiveFileId] = useState<string | null>(null)
   const [consoleMessages, setConsoleMessages] = useState<ConsoleMessage[]>([])
@@ -698,6 +699,24 @@ render(<App />, document.getElementById('app'));`,
     }
   }
 
+  const handleThemeChange = (newTheme: CodeTheme) => {
+    setEditorTheme(newTheme)
+    toast.success(`Theme changed to ${newTheme}`)
+    analytics.track('ide_theme_changed', 'builder', 'change_editor_theme', {
+      metadata: { theme: newTheme }
+    })
+  }
+
+  const themeDisplayNames: Record<CodeTheme, string> = {
+    tomorrow: 'Tomorrow Night',
+    okaidia: 'Okaidia',
+    twilight: 'Twilight',
+    coy: 'Coy (Light)',
+    solarized: 'Solarized Light',
+    funky: 'Funky',
+    dark: 'Dark'
+  }
+
   return (
     <div className="flex flex-col gap-4 h-full">
       <div className="flex justify-between items-center">
@@ -706,6 +725,55 @@ render(<App />, document.getElementById('app'));`,
           <p className="text-sm text-muted-foreground">Build web apps with a full-featured code editor</p>
         </div>
         <div className="flex items-center gap-2">
+          <Select value={editorTheme} onValueChange={(value: CodeTheme) => handleThemeChange(value)}>
+            <SelectTrigger className="w-[180px] h-9">
+              <SelectValue placeholder="Select theme" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tomorrow">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#2d2d2d] border border-border" />
+                  Tomorrow Night
+                </div>
+              </SelectItem>
+              <SelectItem value="okaidia">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#272822] border border-border" />
+                  Okaidia
+                </div>
+              </SelectItem>
+              <SelectItem value="twilight">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#141414] border border-border" />
+                  Twilight
+                </div>
+              </SelectItem>
+              <SelectItem value="coy">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#fdfdfd] border border-border" />
+                  Coy (Light)
+                </div>
+              </SelectItem>
+              <SelectItem value="solarized">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#fdf6e3] border border-border" />
+                  Solarized Light
+                </div>
+              </SelectItem>
+              <SelectItem value="funky">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#000000] border border-border" />
+                  Funky
+                </div>
+              </SelectItem>
+              <SelectItem value="dark">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#1e1e1e] border border-border" />
+                  Dark
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
           <Button onClick={() => setNewProjectDialog(true)} size="sm">
             <Plus weight="bold" size={20} className="mr-2" />
             New Project
@@ -872,6 +940,7 @@ render(<App />, document.getElementById('app'));`,
                     onChange={handleCodeChange}
                     readOnly={false}
                     className="h-full"
+                    theme={editorTheme}
                   />
                 </div>
               </>

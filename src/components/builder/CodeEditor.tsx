@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import Prism from 'prismjs'
-import 'prismjs/themes/prism-tomorrow.css'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-jsx'
@@ -12,6 +11,8 @@ import 'prismjs/plugins/line-numbers/prism-line-numbers'
 import 'prismjs/plugins/line-numbers/prism-line-numbers.css'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
+export type CodeTheme = 'tomorrow' | 'okaidia' | 'twilight' | 'coy' | 'solarized' | 'funky' | 'dark'
+
 interface CodeEditorProps {
   code: string
   language: string
@@ -19,9 +20,10 @@ interface CodeEditorProps {
   className?: string
   onChange?: (code: string) => void
   showLineNumbers?: boolean
+  theme?: CodeTheme
 }
 
-export function CodeEditor({ code, language, readOnly = true, className = '', onChange, showLineNumbers = true }: CodeEditorProps) {
+export function CodeEditor({ code, language, readOnly = true, className = '', onChange, showLineNumbers = true, theme = 'tomorrow' }: CodeEditorProps) {
   const codeRef = useRef<HTMLElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [localCode, setLocalCode] = useState(code)
@@ -30,6 +32,40 @@ export function CodeEditor({ code, language, readOnly = true, className = '', on
   useEffect(() => {
     setLocalCode(code)
   }, [code])
+
+  useEffect(() => {
+    const loadTheme = async () => {
+      const existingTheme = document.querySelector('link[data-prism-theme]')
+      if (existingTheme) {
+        existingTheme.remove()
+      }
+
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.setAttribute('data-prism-theme', theme)
+      
+      try {
+        const themeMap: Record<CodeTheme, string> = {
+          tomorrow: 'prism-tomorrow.css',
+          okaidia: 'prism-okaidia.css',
+          twilight: 'prism-twilight.css',
+          coy: 'prism-coy.css',
+          solarized: 'prism-solarizedlight.css',
+          funky: 'prism-funky.css',
+          dark: 'prism-dark.css'
+        }
+        
+        const themeFile = themeMap[theme] || themeMap.tomorrow
+        const themeModule = await import(`prismjs/themes/${themeFile}`)
+        link.href = new URL(`prismjs/themes/${themeFile}`, import.meta.url).href
+        document.head.appendChild(link)
+      } catch (error) {
+        console.warn('Failed to load theme:', theme)
+      }
+    }
+
+    loadTheme()
+  }, [theme])
 
   useEffect(() => {
     if (codeRef.current) {
@@ -77,18 +113,43 @@ export function CodeEditor({ code, language, readOnly = true, className = '', on
     }
   }
 
+  const getThemeColors = (theme: CodeTheme) => {
+    const themeColors: Record<CodeTheme, { bg: string; lineNumbers: string; border: string; text: string }> = {
+      tomorrow: { bg: '#2d2d2d', lineNumbers: '#858585', border: '#404040', text: '#ccc' },
+      okaidia: { bg: '#272822', lineNumbers: '#8F908A', border: '#49483E', text: '#f8f8f2' },
+      twilight: { bg: '#141414', lineNumbers: '#777', border: '#333', text: '#f8f8f8' },
+      coy: { bg: '#fdfdfd', lineNumbers: '#999', border: '#e1e1e1', text: '#5e6687' },
+      solarized: { bg: '#fdf6e3', lineNumbers: '#93a1a1', border: '#eee8d5', text: '#657b83' },
+      funky: { bg: '#000000', lineNumbers: '#888', border: '#333', text: '#ffffff' },
+      dark: { bg: '#1e1e1e', lineNumbers: '#858585', border: '#404040', text: '#d4d4d4' }
+    }
+    return themeColors[theme] || themeColors.tomorrow
+  }
+
+  const themeColors = getThemeColors(theme)
+
   if (readOnly) {
     return (
       <ScrollArea className={`relative ${className}`}>
         <div className="flex">
           {showLineNumbers && (
-            <div className="bg-[#1e1e1e] text-[#858585] text-right p-4 pr-3 font-mono text-[13px] leading-[1.6] select-none border-r border-[#404040]">
+            <div 
+              className="text-right p-4 pr-3 font-mono text-[13px] leading-[1.6] select-none border-r"
+              style={{
+                backgroundColor: themeColors.bg,
+                color: themeColors.lineNumbers,
+                borderColor: themeColors.border
+              }}
+            >
               {Array.from({ length: lineCount }, (_, i) => (
                 <div key={i + 1}>{i + 1}</div>
               ))}
             </div>
           )}
-          <pre className={`!m-0 !bg-[#2d2d2d] !border-0 !rounded-none overflow-visible p-4 flex-1 ${showLineNumbers ? 'line-numbers' : ''}`}>
+          <pre 
+            className={`!m-0 !border-0 !rounded-none overflow-visible p-4 flex-1 ${showLineNumbers ? 'line-numbers' : ''}`}
+            style={{ backgroundColor: themeColors.bg }}
+          >
             <code 
               ref={codeRef}
               className={getLanguageClass(language)}
@@ -110,7 +171,14 @@ export function CodeEditor({ code, language, readOnly = true, className = '', on
     <div className={`relative ${className}`}>
       <div className="relative w-full h-full flex">
         {showLineNumbers && (
-          <div className="bg-[#1e1e1e] text-[#858585] text-right p-4 pr-3 font-mono text-[13px] leading-[1.6] select-none border-r border-[#404040] z-10">
+          <div 
+            className="text-right p-4 pr-3 font-mono text-[13px] leading-[1.6] select-none border-r z-10"
+            style={{
+              backgroundColor: themeColors.bg,
+              color: themeColors.lineNumbers,
+              borderColor: themeColors.border
+            }}
+          >
             {Array.from({ length: lineCount }, (_, i) => (
               <div key={i + 1}>{i + 1}</div>
             ))}
@@ -118,7 +186,9 @@ export function CodeEditor({ code, language, readOnly = true, className = '', on
         )}
         <div className="relative flex-1">
           <ScrollArea className="absolute inset-0 pointer-events-none">
-            <pre className="!m-0 !bg-transparent !border-0 !rounded-none overflow-visible p-4">
+            <pre 
+              className="!m-0 !bg-transparent !border-0 !rounded-none overflow-visible p-4"
+            >
               <code 
                 ref={codeRef}
                 className={getLanguageClass(language)}
@@ -137,10 +207,11 @@ export function CodeEditor({ code, language, readOnly = true, className = '', on
             value={localCode}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            className="absolute inset-0 w-full h-full p-4 font-mono text-[13px] leading-[1.6] bg-[#2d2d2d] text-transparent caret-white resize-none outline-none border-0"
+            className="absolute inset-0 w-full h-full p-4 font-mono text-[13px] leading-[1.6] text-transparent caret-white resize-none outline-none border-0"
             style={{ 
               tabSize: 2,
-              caretColor: 'white'
+              caretColor: 'white',
+              backgroundColor: themeColors.bg
             }}
             spellCheck={false}
           />
