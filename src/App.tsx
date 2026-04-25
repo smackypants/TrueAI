@@ -589,6 +589,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
     if (editingModelId) {
       const model = models.find(m => m.id === editingModelId)
       if (model) {
+        const { defaultProfilesByTaskType } = require('@/lib/performance-profiles')
         const optimalParams = defaultProfilesByTaskType[taskType]
         
         saveModelConfig({
@@ -925,29 +926,11 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 </div>
                 
                 {editingModel ? (
-                  <div className="space-y-4">
-                    <PerformanceProfileManager
-                      profiles={performanceProfiles || []}
-                      currentModelParams={{
-                        temperature: editingModel.temperature,
-                        maxTokens: editingModel.maxTokens,
-                        topP: editingModel.topP,
-                        frequencyPenalty: editingModel.frequencyPenalty,
-                        presencePenalty: editingModel.presencePenalty
-                      }}
-                      currentModelId={editingModel.id}
-                      onCreateProfile={createPerformanceProfile}
-                      onApplyProfile={applyPerformanceProfile}
-                      onDeleteProfile={deletePerformanceProfile}
-                      onAutoTune={autoTuneModel}
-                    />
-                    
-                    <ModelConfigPanel
-                      model={editingModel}
-                      onSave={saveModelConfig}
-                      onClose={() => setEditingModelId(null)}
-                    />
-                  </div>
+                  <ModelConfigPanel
+                    model={editingModel}
+                    onSave={saveModelConfig}
+                    onClose={() => setEditingModelId(null)}
+                  />
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {models.map(model => (
