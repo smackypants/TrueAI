@@ -810,7 +810,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                         onClick={() => deleteConversation(activeConversation.id)}
                       >
                         <span className="hidden sm:inline">Delete</span>
-                        <span className="sm:hidden">✕</span>
+                        <span className="sm:hidden">���</span>
                       </Button>
                     </div>
                     <Separator className="mb-4" />
