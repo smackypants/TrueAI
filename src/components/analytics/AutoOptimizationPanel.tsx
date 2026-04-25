@@ -37,6 +37,8 @@ interface AutoOptimizationPanelProps {
   onApplyOptimization: (insight: OptimizationInsight) => void
   onApplyAutoTune: (recommendation: AutoTuneRecommendation, modelId: string) => void
   onCreateProfile: (taskType: string) => void
+  thresholdConfig?: ThresholdConfig
+  onThresholdConfigChange?: (config: ThresholdConfig) => void
 }
 
 export function AutoOptimizationPanel({
@@ -44,14 +46,26 @@ export function AutoOptimizationPanel({
   profiles,
   onApplyOptimization,
   onApplyAutoTune,
-  onCreateProfile
+  onCreateProfile,
+  thresholdConfig: externalThresholdConfig,
+  onThresholdConfigChange
 }: AutoOptimizationPanelProps) {
   const { events } = useAnalytics()
   const [insights, setInsights] = useState<OptimizationInsight[]>([])
   const [autoTuneRecommendations, setAutoTuneRecommendations] = useState<AutoTuneRecommendation[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [autoLearnEnabled, setAutoLearnEnabled] = useState(true)
-  const [thresholdConfig, setThresholdConfig] = useState<ThresholdConfig>(thresholdManager.getConfig())
+  const [internalThresholdConfig, setInternalThresholdConfig] = useState<ThresholdConfig>(thresholdManager.getConfig())
+  
+  const thresholdConfig = externalThresholdConfig || internalThresholdConfig
+  const setThresholdConfig = (config: ThresholdConfig | ((prev: ThresholdConfig) => ThresholdConfig)) => {
+    const newConfig = typeof config === 'function' ? config(thresholdConfig) : config
+    if (onThresholdConfigChange) {
+      onThresholdConfigChange(newConfig)
+    } else {
+      setInternalThresholdConfig(newConfig)
+    }
+  }
   const [learningProgress, setLearningProgress] = useState(0)
   const [appliedInsights, setAppliedInsights] = useState<Set<string>>(new Set())
   const [autoImplementCount, setAutoImplementCount] = useState(0)

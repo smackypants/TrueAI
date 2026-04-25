@@ -25,7 +25,8 @@ import {
   ArrowsClockwise,
   Pause,
   Play,
-  Sparkle
+  Sparkle,
+  Brain
 } from '@phosphor-icons/react'
 import { useAnalytics } from '@/lib/analytics'
 import { MetricCard } from './MetricCard'
@@ -35,8 +36,11 @@ import { TimeSeriesChart } from './TimeSeriesChart'
 import { TopItemsList } from './TopItemsList'
 import { ModelUsageChart } from './ModelUsageChart'
 import { AutoOptimizationPanel } from './AutoOptimizationPanel'
+import { LearningDashboard } from './LearningDashboard'
+import { thresholdManager, type ThresholdConfig } from '@/lib/confidence-thresholds'
 import type { AnalyticsMetrics, AnalyticsFilter, ModelConfig, PerformanceProfile } from '@/lib/types'
 import { toast } from 'sonner'
+import { useKV } from '@github/spark/hooks'
 
 interface AnalyticsDashboardProps {
   models?: ModelConfig[]
@@ -64,6 +68,7 @@ export function AnalyticsDashboard({
   const [countdown, setCountdown] = useState<number>(0)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const countdownRef = useRef<NodeJS.Timeout | null>(null)
+  const [thresholdConfig, setThresholdConfig] = useKV<ThresholdConfig>('threshold-config', thresholdManager.getConfig())
 
   useEffect(() => {
     loadMetrics()
@@ -344,11 +349,15 @@ export function AnalyticsDashboard({
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full max-w-3xl grid-cols-5">
+        <TabsList className="grid w-full max-w-4xl grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="optimization">
             <Sparkle weight="fill" size={16} className="mr-2" />
             Auto Optimize
+          </TabsTrigger>
+          <TabsTrigger value="learning">
+            <Brain weight="fill" size={16} className="mr-2" />
+            Learning
           </TabsTrigger>
           <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
@@ -413,6 +422,15 @@ export function AnalyticsDashboard({
             onApplyOptimization={onApplyOptimization || (() => {})}
             onApplyAutoTune={onApplyAutoTune || (() => {})}
             onCreateProfile={onCreateProfile || (() => {})}
+            thresholdConfig={thresholdConfig}
+            onThresholdConfigChange={setThresholdConfig}
+          />
+        </TabsContent>
+
+        <TabsContent value="learning" className="space-y-4">
+          <LearningDashboard
+            thresholdConfig={thresholdConfig ||thresholdManager.getConfig()}
+            onThresholdConfigChange={setThresholdConfig}
           />
         </TabsContent>
 
