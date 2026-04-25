@@ -430,3 +430,80 @@ export interface AnalyticsFilter {
   userId?: string
   category?: string
 }
+
+export type TaskType = 
+  | 'creative_writing'
+  | 'code_generation'
+  | 'data_analysis'
+  | 'conversation'
+  | 'summarization'
+  | 'translation'
+  | 'question_answering'
+  | 'reasoning'
+  | 'instruction_following'
+  | 'brainstorming'
+
+export interface PerformanceProfile {
+  id: string
+  name: string
+  taskType: TaskType
+  description: string
+  parameters: ModelParameters
+  reasoning: string
+  createdAt: number
+  lastUsed?: number
+  usageCount: number
+  avgQualityScore?: number
+  benchmarkResults?: ProfileBenchmark[]
+}
+
+export interface ModelParameters {
+  temperature: number
+  maxTokens: number
+  topP: number
+  topK?: number
+  frequencyPenalty: number
+  presencePenalty: number
+  repeatPenalty?: number
+  minP?: number
+  typicalP?: number
+  seed?: number
+  stopSequences?: string[]
+}
+
+export interface ProfileBenchmark {
+  id: string
+  timestamp: number
+  taskType: TaskType
+  promptLength: number
+  responseLength: number
+  responseTime: number
+  tokensPerSecond: number
+  qualityScore?: number
+  parameters: ModelParameters
+  modelId: string
+}
+
+export interface AutoTuneRecommendation {
+  taskType: TaskType
+  currentParams: ModelParameters
+  recommendedParams: ModelParameters
+  reasoning: string
+  expectedImprovements: {
+    quality?: string
+    speed?: string
+    creativity?: string
+    consistency?: string
+  }
+  confidence: number
+}
+
+export interface TaskTypeMetrics {
+  taskType: TaskType
+  totalExecutions: number
+  avgResponseTime: number
+  avgQualityScore: number
+  avgTokensPerSecond: number
+  mostUsedProfile?: string
+  successRate: number
+}

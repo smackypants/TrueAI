@@ -26,6 +26,7 @@ import { GGUFLibrary } from '@/components/models/GGUFLibrary'
 import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard'
 import { HardwareOptimizer } from '@/components/models/HardwareOptimizer'
 import { QuickActionsMenu } from '@/components/models/QuickActionsMenu'
+import { PerformanceProfileManager } from '@/components/models/PerformanceProfileManager'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -36,7 +37,8 @@ import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { emptyStateChat, emptyStateAgents, emptyStateWorkflow } from '@/assets'
 import { analytics } from '@/lib/analytics'
-import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig, FineTuningDataset, FineTuningJob, QuantizationJob, HarnessManifest, HuggingFaceModel, GGUFModel } from '@/lib/types'
+import { defaultProfilesByTaskType } from '@/lib/performance-profiles'
+import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig, FineTuningDataset, FineTuningJob, QuantizationJob, HarnessManifest, HuggingFaceModel, GGUFModel, PerformanceProfile, TaskType, ModelParameters } from '@/lib/types'
 
 function App() {
   const isMobile = useIsMobile()
@@ -54,6 +56,7 @@ function App() {
   const [quantizationJobs, setQuantizationJobs] = useKV<QuantizationJob[]>('quantization-jobs', [])
   const [harnesses, setHarnesses] = useKV<HarnessManifest[]>('harnesses', [])
   const [ggufModels, setGgufModels] = useKV<GGUFModel[]>('gguf-models', [])
+  const [performanceProfiles, setPerformanceProfiles] = useKV<PerformanceProfile[]>('performance-profiles', [])
   
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [activeAgentRunId, setActiveAgentRunId] = useState<string | null>(null)
@@ -545,6 +548,59 @@ Describe what input you would give to the ${tool} tool (one sentence).`
     setGgufModels(prev => (prev || []).filter(m => m.id !== id))
   }
 
+  const createPerformanceProfile = (profile: Omit<PerformanceProfile, 'id' | 'createdAt'>) => {
+    const newProfile: PerformanceProfile = {
+      ...profile,
+      id: `profile-${Date.now()}`,
+      createdAt: Date.now()
+    }
+    setPerformanceProfiles(prev => [newProfile, ...(prev || [])])
+    toast.success('Performance profile created')
+  }
+
+  const applyPerformanceProfile = (profile: PerformanceProfile) => {
+    if (editingModelId) {
+      const model = models.find(m => m.id === editingModelId)
+      if (model) {
+        saveModelConfig({
+          ...model,
+          ...profile.parameters
+        })
+        
+        setPerformanceProfiles(prev => 
+          prev.map(p => 
+            p.id === profile.id 
+              ? { ...p, usageCount: p.usageCount + 1, lastUsed: Date.now() }
+              : p
+          )
+        )
+        
+        toast.success(`Applied ${profile.name} to ${model.name}`)
+      }
+    }
+  }
+
+  const deletePerformanceProfile = (id: string) => {
+    setPerformanceProfiles(prev => (prev || []).filter(p => p.id !== id))
+    toast.success('Profile deleted')
+  }
+
+  const autoTuneModel = (taskType: TaskType) => {
+    if (editingModelId) {
+      const model = models.find(m => m.id === editingModelId)
+      if (model) {
+        const optimalParams = defaultProfilesByTaskType[taskType]
+        
+        saveModelConfig({
+          ...model,
+          ...optimalParams
+        })
+        
+        toast.success(`Auto-tuned for ${taskType.replace('_', ' ')}`)
+      }
+    }
+  }
+
   const editingModel = models.find(m => m.id === editingModelId)
 
   return (
@@ -869,11 +925,29 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 </div>
                 
                 {editingModel ? (
-                  <ModelConfigPanel
-                    model={editingModel}
-                    onSave={saveModelConfig}
-                    onClose={() => setEditingModelId(null)}
-                  />
+                  <div className="space-y-4">
+                    <PerformanceProfileManager
+                      profiles={performanceProfiles || []}
+                      currentModelParams={{
+                        temperature: editingModel.temperature,
+                        maxTokens: editingModel.maxTokens,
+                        topP: editingModel.topP,
+                        frequencyPenalty: editingModel.frequencyPenalty,
+                        presencePenalty: editingModel.presencePenalty
+                      }}
+                      currentModelId={editingModel.id}
+                      onCreateProfile={createPerformanceProfile}
+                      onApplyProfile={applyPerformanceProfile}
+                      onDeleteProfile={deletePerformanceProfile}
+                      onAutoTune={autoTuneModel}
+                    />
+                    
+                    <ModelConfigPanel
+                      model={editingModel}
+                      onSave={saveModelConfig}
+                      onClose={() => setEditingModelId(null)}
+                    />
+                  </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {models.map(model => (
