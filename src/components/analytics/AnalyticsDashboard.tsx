@@ -37,6 +37,7 @@ import { TopItemsList } from './TopItemsList'
 import { ModelUsageChart } from './ModelUsageChart'
 import { AutoOptimizationPanel } from './AutoOptimizationPanel'
 import { LearningDashboard } from './LearningDashboard'
+import { PerformanceScanPanel } from './PerformanceScanPanel'
 import { thresholdManager, type ThresholdConfig } from '@/lib/confidence-thresholds'
 import type { AnalyticsMetrics, AnalyticsFilter, ModelConfig, PerformanceProfile } from '@/lib/types'
 import { toast } from 'sonner'
@@ -48,6 +49,7 @@ interface AnalyticsDashboardProps {
   onApplyOptimization?: (insight: any) => void
   onApplyAutoTune?: (recommendation: any, modelId: string) => void
   onCreateProfile?: (taskType: string) => void
+  onModelUpdate?: (models: ModelConfig[]) => void
 }
 
 export function AnalyticsDashboard({
@@ -55,7 +57,8 @@ export function AnalyticsDashboard({
   profiles = [],
   onApplyOptimization,
   onApplyAutoTune,
-  onCreateProfile
+  onCreateProfile,
+  onModelUpdate
 }: AnalyticsDashboardProps = {}) {
   const { getMetrics, events, sessions, clearData } = useAnalytics()
   const [metrics, setMetrics] = useState<AnalyticsMetrics | null>(null)
@@ -349,20 +352,37 @@ export function AnalyticsDashboard({
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full max-w-4xl grid-cols-6">
+        <TabsList className="grid w-full max-w-5xl grid-cols-7 gap-2">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="optimization">
-            <Sparkle weight="fill" size={16} className="mr-2" />
-            Auto Optimize
+          <TabsTrigger value="scanner" className="gap-1">
+            <Lightning weight="fill" size={16} />
+            <span className="hidden md:inline">Scan</span>
           </TabsTrigger>
-          <TabsTrigger value="learning">
-            <Brain weight="fill" size={16} className="mr-2" />
-            Learning
+          <TabsTrigger value="optimization" className="gap-1">
+            <Sparkle weight="fill" size={16} />
+            <span className="hidden md:inline">Optimize</span>
+          </TabsTrigger>
+          <TabsTrigger value="learning" className="gap-1">
+            <Brain weight="fill" size={16} />
+            <span className="hidden md:inline">Learn</span>
           </TabsTrigger>
           <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
           <TabsTrigger value="models">Models</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="scanner" className="space-y-4">
+          <PerformanceScanPanel
+            events={events}
+            models={models}
+            profiles={profiles}
+            onApplyOptimizations={(updatedModels) => {
+              if (onModelUpdate) {
+                onModelUpdate(updatedModels)
+              }
+            }}
+          />
+        </TabsContent>
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
