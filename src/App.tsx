@@ -22,6 +22,7 @@ import { ChatCircle, Robot, Lightning, Plus, Flask, Cube, Wrench, Download, Hard
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ErrorBoundary } from 'react-error-boundary'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -58,6 +59,40 @@ const LoadingFallback = memo(() => (
     <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
   </div>
 ))
+
+const TabErrorBoundary = ({ children, tabName }: { children: React.ReactNode; tabName: string }) => {
+  const [hasError, setHasError] = useState(false)
+
+  useEffect(() => {
+    setHasError(false)
+  }, [tabName])
+
+  if (hasError) {
+    return (
+      <Card className="p-8">
+        <div className="text-center">
+          <div className="text-4xl mb-4">⚠️</div>
+          <h3 className="text-lg font-semibold mb-2">Something went wrong in {tabName}</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            This tab encountered an error. Try switching to another tab and back.
+          </p>
+          <Button onClick={() => setHasError(false)}>
+            Try Again
+          </Button>
+        </div>
+      </Card>
+    )
+  }
+
+  return (
+    <ErrorBoundary
+      fallback={<LoadingFallback />}
+      onError={() => setHasError(true)}
+    >
+      {children}
+    </ErrorBoundary>
+  )
+}
 
 function App() {
   const isMobile = useIsMobile()
@@ -743,6 +778,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           </TabsList>
 
           <TabsContent value="chat" className="space-y-4">
+            <TabErrorBoundary tabName="Chat">
             <div className="flex justify-between items-center gap-2">
               <h2 className="text-lg sm:text-xl font-semibold truncate">Conversations</h2>
               <Button onClick={() => setNewConversationDialog(true)} size="sm" className="lg:hidden shrink-0 h-10 px-3 active:scale-95 transition-transform">
@@ -847,9 +883,11 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 )}
               </Card>
             </div>
+            </TabErrorBoundary>
           </TabsContent>
 
           <TabsContent value="agents" className="space-y-3 sm:space-y-4">
+            <TabErrorBoundary tabName="Agents">
             <div className="flex justify-between items-center gap-2">
               <h2 className="text-lg sm:text-xl font-semibold truncate">AI Agents</h2>
               <Button onClick={() => setNewAgentDialog(true)} size="sm" className="lg:hidden shrink-0">
@@ -917,9 +955,11 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 </ScrollArea>
               </Card>
             </div>
+            </TabErrorBoundary>
           </TabsContent>
 
           <TabsContent value="models" className="space-y-3 sm:space-y-4">
+            <TabErrorBoundary tabName="Models">
             <Tabs defaultValue="optimize" className="w-full">
               <ScrollArea className="w-full pb-2">
                 <TabsList className="inline-flex w-full sm:w-auto min-w-full sm:min-w-0 justify-start sm:justify-center mb-4 sm:mb-6 h-auto p-1">
@@ -1175,9 +1215,11 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 </Tabs>
               </TabsContent>
             </Tabs>
+            </TabErrorBoundary>
           </TabsContent>
 
           <TabsContent value="analytics">
+            <TabErrorBoundary tabName="Analytics">
             <div className="space-y-6">
               <Suspense fallback={<LoadingFallback />}>
                 <AnalyticsDashboard 
@@ -1236,9 +1278,11 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 </Suspense>
               </div>
             </div>
+            </TabErrorBoundary>
           </TabsContent>
 
           <TabsContent value="builder">
+            <TabErrorBoundary tabName="Builder">
             <Tabs defaultValue="ai-builder" className="w-full">
               <TabsList className="mb-4">
                 <TabsTrigger value="ai-builder" className="gap-2">
@@ -1263,6 +1307,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 </Suspense>
               </TabsContent>
             </Tabs>
+            </TabErrorBoundary>
           </TabsContent>
         </Tabs>
       </main>
