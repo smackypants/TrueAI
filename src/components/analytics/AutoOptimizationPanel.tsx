@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { 
   Sparkle, 
   TrendUp, 
@@ -19,10 +20,13 @@ import {
   Robot,
   ChartBar,
   Clock,
-  Target
+  Target,
+  Gear
 } from '@phosphor-icons/react'
 import { useAnalytics } from '@/lib/analytics'
 import { autoOptimizer, type OptimizationInsight } from '@/lib/auto-optimizer'
+import { thresholdManager, type ThresholdConfig } from '@/lib/confidence-thresholds'
+import { ConfidenceThresholdConfig } from './ConfidenceThresholdConfig'
 import type { ModelConfig, PerformanceProfile, AutoTuneRecommendation } from '@/lib/types'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -47,10 +51,13 @@ export function AutoOptimizationPanel({
   const [autoTuneRecommendations, setAutoTuneRecommendations] = useState<AutoTuneRecommendation[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [autoLearnEnabled, setAutoLearnEnabled] = useState(true)
-  const [autoImplementEnabled, setAutoImplementEnabled] = useState(false)
+  const [thresholdConfig, setThresholdConfig] = useState<ThresholdConfig>(thresholdManager.getConfig())
   const [learningProgress, setLearningProgress] = useState(0)
   const [appliedInsights, setAppliedInsights] = useState<Set<string>>(new Set())
   const [autoImplementCount, setAutoImplementCount] = useState(0)
+  const [showThresholdConfig, setShowThresholdConfig] = useState(false)
+  const [pendingInsight, setPendingInsight] = useState<OptimizationInsight | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   useEffect(() => {
     analyzePerformance()
@@ -67,10 +74,14 @@ export function AutoOptimizationPanel({
   }, [events.length])
 
   useEffect(() => {
-    if (autoImplementEnabled && insights.length > 0) {
+    if (thresholdConfig.autoImplementEnabled && insights.length > 0) {
       autoImplementInsights()
     }
-  }, [insights, autoImplementEnabled])
+  }, [insights, thresholdConfig.autoImplementEnabled])
+
+  useEffect(() => {
+    thresholdManager.setConfig(thresholdConfig)
+  }, [thresholdConfig])
 
   const analyzePerformance = async () => {
     if (events.length < 10) return
@@ -95,18 +106,23 @@ export function AutoOptimizationPanel({
 
   const autoImplementInsights = async () => {
     const unappliedInsights = insights.filter(i => !appliedInsights.has(i.id))
-    const highPriorityInsights = unappliedInsights.filter(i => 
-      (i.severity === 'critical' || i.severity === 'high') && i.suggestedAction
-    )
-
-    if (highPriorityInsights.length === 0) return
-
     let implementedCount = 0
 
-    for (const insight of highPriorityInsights) {
+    for (const insight of unappliedInsights) {
+      const decision = thresholdManager.shouldAutoImplement(insight)
+      
+      if (!decision.allowed) {
+        continue
+      }
+
+      if (decision.requiresConfirmation && thresholdConfig.requireConfirmation) {
+        continue
+      }
+
       try {
         onApplyOptimization(insight)
         setAppliedInsights(prev => new Set([...prev, insight.id]))
+        thresholdManager.recordImplementation(insight.id, insight.confidence, insight.severity, true)
         implementedCount++
         
         await new Promise(resolve => setTimeout(resolve, 500))
@@ -117,32 +133,60 @@ export function AutoOptimizationPanel({
 
     if (implementedCount > 0) {
       setAutoImplementCount(prev => prev + implementedCount)
-      toast.success(`Auto-implemented ${implementedCount} optimization${implementedCount > 1 ? 's' : ''}`, {
-        description: `${implementedCount} high-priority ${implementedCount > 1 ? 'insights have' : 'insight has'} been automatically applied`,
-        duration: 5000
-      })
+      
+      if (thresholdConfig.enableNotifications) {
+        toast.success(`Auto-implemented ${implementedCount} optimization${implementedCount > 1 ? 's' : ''}`, {
+          description: `${implementedCount} ${implementedCount > 1 ? 'insights have' : 'insight has'} been automatically applied`,
+          duration: 5000
+        })
+      }
     }
 
-    if (autoTuneRecommendations.length > 0 && models.length > 0) {
+    if (autoTuneRecommendations.length > 0 && models.length > 0 && implementedCount < thresholdConfig.maxAutoImplementPerSession) {
       const firstModel = models[0]
       const firstRecommendation = autoTuneRecommendations[0]
       
-      try {
-        onApplyAutoTune(firstRecommendation, firstModel.id)
-        toast.success('Auto-tune applied to primary model', {
-          description: `Optimized ${firstModel.name} for ${firstRecommendation.taskType.replace('_', ' ')}`,
-          duration: 5000
-        })
-      } catch (error) {
-        console.error('Failed to auto-tune:', error)
+      if (firstRecommendation.confidence >= thresholdConfig.globalMinConfidence) {
+        try {
+          onApplyAutoTune(firstRecommendation, firstModel.id)
+          thresholdManager.recordImplementation('auto-tune', firstRecommendation.confidence, 'high', true)
+          
+          if (thresholdConfig.enableNotifications) {
+            toast.success('Auto-tune applied to primary model', {
+              description: `Optimized ${firstModel.name} for ${firstRecommendation.taskType.replace('_', ' ')}`,
+              duration: 5000
+            })
+          }
+        } catch (error) {
+          console.error('Failed to auto-tune:', error)
+        }
       }
     }
   }
 
   const handleApplyInsight = (insight: OptimizationInsight) => {
+    const decision = thresholdManager.shouldAutoImplement(insight)
+    
+    if (decision.requiresConfirmation && thresholdConfig.requireConfirmation) {
+      setPendingInsight(insight)
+      setShowConfirmDialog(true)
+      return
+    }
+
+    applyInsight(insight)
+  }
+
+  const applyInsight = (insight: OptimizationInsight) => {
     onApplyOptimization(insight)
     setAppliedInsights(prev => new Set([...prev, insight.id]))
-    toast.success('Optimization applied')
+    thresholdManager.recordImplementation(insight.id, insight.confidence, insight.severity, false)
+    
+    if (thresholdConfig.enableNotifications) {
+      toast.success('Optimization applied')
+    }
+    
+    setShowConfirmDialog(false)
+    setPendingInsight(null)
   }
 
   const handleApplyAutoTune = (recommendation: AutoTuneRecommendation, modelId: string) => {
@@ -300,11 +344,13 @@ export function AutoOptimizationPanel({
               )}
               <Switch
                 id="auto-implement"
-                checked={autoImplementEnabled}
-                onCheckedChange={setAutoImplementEnabled}
+                checked={thresholdConfig.autoImplementEnabled}
+                onCheckedChange={(checked) => 
+                  setThresholdConfig(prev => ({ ...prev, autoImplementEnabled: checked }))
+                }
               />
               <Label htmlFor="auto-implement" className="text-sm cursor-pointer">
-                {autoImplementEnabled ? 'Enabled' : 'Disabled'}
+                {thresholdConfig.autoImplementEnabled ? 'Enabled' : 'Disabled'}
               </Label>
             </div>
           </div>
