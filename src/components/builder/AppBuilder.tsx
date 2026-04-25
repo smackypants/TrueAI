@@ -69,9 +69,63 @@ const APP_TEMPLATES: AppTemplate[] = [
     id: 'weather',
     name: 'Weather Dashboard',
     description: 'Weather information display',
-    category: 'utility',
+    category: 'dashboard',
     preview: '🌤️',
     basePrompt: 'Create a weather dashboard showing temperature, conditions, and forecast',
+    frameworks: ['vanilla', 'react', 'vue', 'svelte']
+  },
+  {
+    id: 'portfolio',
+    name: 'Portfolio Site',
+    description: 'Personal portfolio with projects showcase',
+    category: 'portfolio',
+    preview: '💼',
+    basePrompt: 'Create a personal portfolio website with sections for about, projects, skills, and contact information',
+    frameworks: ['vanilla', 'react', 'vue', 'svelte']
+  },
+  {
+    id: 'resume',
+    name: 'Resume/CV',
+    description: 'Professional resume layout',
+    category: 'portfolio',
+    preview: '📄',
+    basePrompt: 'Create a professional resume/CV layout with sections for experience, education, skills, and achievements',
+    frameworks: ['vanilla', 'react', 'vue', 'svelte']
+  },
+  {
+    id: 'analytics',
+    name: 'Analytics Dashboard',
+    description: 'Data visualization and metrics',
+    category: 'dashboard',
+    preview: '📊',
+    basePrompt: 'Create an analytics dashboard with charts, graphs, and key performance indicators for business metrics',
+    frameworks: ['vanilla', 'react', 'vue', 'svelte']
+  },
+  {
+    id: 'admin',
+    name: 'Admin Panel',
+    description: 'Admin dashboard with user management',
+    category: 'dashboard',
+    preview: '⚙️',
+    basePrompt: 'Create an admin dashboard with user management, data tables, and settings panel',
+    frameworks: ['vanilla', 'react', 'vue', 'svelte']
+  },
+  {
+    id: 'ecommerce',
+    name: 'E-commerce Store',
+    description: 'Product listing with shopping cart',
+    category: 'ecommerce',
+    preview: '🛒',
+    basePrompt: 'Create an e-commerce store with product listings, shopping cart, and checkout flow',
+    frameworks: ['vanilla', 'react', 'vue', 'svelte']
+  },
+  {
+    id: 'product-catalog',
+    name: 'Product Catalog',
+    description: 'Filterable product showcase',
+    category: 'ecommerce',
+    preview: '🏷️',
+    basePrompt: 'Create a product catalog with filtering, sorting, search, and detailed product views',
     frameworks: ['vanilla', 'react', 'vue', 'svelte']
   }
 ]
@@ -652,6 +706,1499 @@ Return ONLY valid JSON in this exact format:
 
   const generateTemplatePreview = (templateId: string): string => {
     const templates: Record<string, string> = {
+      portfolio: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>John Doe - Portfolio</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: #0a0a0a;
+      color: white;
+    }
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .hero h1 {
+      font-size: 64px;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+    .hero p {
+      font-size: 24px;
+      opacity: 0.9;
+      margin-bottom: 32px;
+    }
+    .hero button {
+      padding: 16px 40px;
+      background: white;
+      color: #667eea;
+      border: none;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .hero button:hover {
+      transform: scale(1.05);
+    }
+    .section {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 80px 20px;
+    }
+    .section h2 {
+      font-size: 42px;
+      margin-bottom: 48px;
+      text-align: center;
+    }
+    .projects {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 32px;
+    }
+    .project {
+      background: #1a1a1a;
+      border-radius: 16px;
+      overflow: hidden;
+      transition: transform 0.2s;
+    }
+    .project:hover {
+      transform: translateY(-8px);
+    }
+    .project-image {
+      width: 100%;
+      height: 200px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 64px;
+    }
+    .project-content {
+      padding: 24px;
+    }
+    .project h3 {
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+    .project p {
+      color: #999;
+      line-height: 1.6;
+    }
+    .skills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: center;
+    }
+    .skill {
+      background: #1a1a1a;
+      padding: 16px 32px;
+      border-radius: 12px;
+      font-size: 18px;
+      border: 2px solid #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <div>
+      <h1>John Doe</h1>
+      <p>Full-Stack Developer & Designer</p>
+      <button>View My Work</button>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>Featured Projects</h2>
+    <div class="projects">
+      <div class="project">
+        <div class="project-image">🚀</div>
+        <div class="project-content">
+          <h3>Project Alpha</h3>
+          <p>A modern web application built with React and TypeScript featuring real-time collaboration.</p>
+        </div>
+      </div>
+      <div class="project">
+        <div class="project-image">💼</div>
+        <div class="project-content">
+          <h3>Business Dashboard</h3>
+          <p>Analytics platform with interactive charts and data visualization tools.</p>
+        </div>
+      </div>
+      <div class="project">
+        <div class="project-image">🎨</div>
+        <div class="project-content">
+          <h3>Design System</h3>
+          <p>Complete UI component library with accessibility and theming support.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>Skills & Technologies</h2>
+    <div class="skills">
+      <div class="skill">React</div>
+      <div class="skill">TypeScript</div>
+      <div class="skill">Node.js</div>
+      <div class="skill">Python</div>
+      <div class="skill">SQL</div>
+      <div class="skill">AWS</div>
+    </div>
+  </div>
+</body>
+</html>`,
+      resume: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resume - Jane Smith</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Georgia', serif;
+      background: #f5f5f5;
+      padding: 40px 20px;
+    }
+    .resume {
+      max-width: 850px;
+      margin: 0 auto;
+      background: white;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 48px;
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 42px;
+      margin-bottom: 8px;
+    }
+    .header p {
+      font-size: 18px;
+      opacity: 0.95;
+    }
+    .contact {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+    .content {
+      padding: 48px;
+    }
+    .section {
+      margin-bottom: 40px;
+    }
+    .section h2 {
+      font-size: 24px;
+      color: #667eea;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 8px;
+      margin-bottom: 24px;
+    }
+    .experience-item {
+      margin-bottom: 32px;
+    }
+    .experience-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .experience-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+    .experience-company {
+      font-style: italic;
+      color: #666;
+    }
+    .experience-date {
+      color: #999;
+      font-size: 14px;
+    }
+    .experience-description {
+      color: #555;
+      line-height: 1.6;
+      margin-left: 16px;
+    }
+    .experience-description li {
+      margin-bottom: 8px;
+    }
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .skill-category {
+      background: #f9f9f9;
+      padding: 16px;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+    .skill-category h3 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #333;
+    }
+    .skill-category ul {
+      list-style: none;
+      color: #666;
+      font-size: 14px;
+    }
+    .skill-category li {
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="resume">
+    <div class="header">
+      <h1>Jane Smith</h1>
+      <p>Senior Software Engineer</p>
+      <div class="contact">
+        <span>📧 jane@example.com</span>
+        <span>📱 (555) 123-4567</span>
+        <span>📍 San Francisco, CA</span>
+      </div>
+    </div>
+    
+    <div class="content">
+      <div class="section">
+        <h2>Professional Summary</h2>
+        <p style="color: #555; line-height: 1.6;">
+          Experienced software engineer with 8+ years of expertise in full-stack development, cloud architecture, 
+          and team leadership. Proven track record of delivering scalable solutions and mentoring junior developers.
+        </p>
+      </div>
+      
+      <div class="section">
+        <h2>Experience</h2>
+        <div class="experience-item">
+          <div class="experience-header">
+            <div>
+              <div class="experience-title">Senior Software Engineer</div>
+              <div class="experience-company">TechCorp Inc.</div>
+            </div>
+            <div class="experience-date">2020 - Present</div>
+          </div>
+          <ul class="experience-description">
+            <li>Led development of microservices architecture serving 2M+ daily active users</li>
+            <li>Mentored team of 5 junior developers and conducted code reviews</li>
+            <li>Reduced API response time by 40% through optimization initiatives</li>
+          </ul>
+        </div>
+        
+        <div class="experience-item">
+          <div class="experience-header">
+            <div>
+              <div class="experience-title">Software Engineer</div>
+              <div class="experience-company">StartupXYZ</div>
+            </div>
+            <div class="experience-date">2018 - 2020</div>
+          </div>
+          <ul class="experience-description">
+            <li>Built and maintained React-based web applications</li>
+            <li>Implemented CI/CD pipelines reducing deployment time by 60%</li>
+            <li>Collaborated with design team to create responsive user interfaces</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h2>Education</h2>
+        <div class="experience-item">
+          <div class="experience-header">
+            <div>
+              <div class="experience-title">B.S. Computer Science</div>
+              <div class="experience-company">University of Technology</div>
+            </div>
+            <div class="experience-date">2014 - 2018</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h2>Skills</h2>
+        <div class="skills-grid">
+          <div class="skill-category">
+            <h3>Frontend</h3>
+            <ul>
+              <li>React, Vue.js</li>
+              <li>TypeScript</li>
+              <li>HTML/CSS</li>
+            </ul>
+          </div>
+          <div class="skill-category">
+            <h3>Backend</h3>
+            <ul>
+              <li>Node.js, Python</li>
+              <li>PostgreSQL, MongoDB</li>
+              <li>REST & GraphQL</li>
+            </ul>
+          </div>
+          <div class="skill-category">
+            <h3>DevOps</h3>
+            <ul>
+              <li>AWS, Docker</li>
+              <li>CI/CD</li>
+              <li>Kubernetes</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`,
+      analytics: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: #0f1419;
+      color: white;
+      padding: 20px;
+    }
+    .header {
+      margin-bottom: 32px;
+    }
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+    .header p {
+      color: #8b949e;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+    .metric-card {
+      background: #161b22;
+      padding: 24px;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+    }
+    .metric-label {
+      color: #8b949e;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .metric-value {
+      font-size: 36px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .metric-change {
+      font-size: 14px;
+      color: #3fb950;
+    }
+    .metric-change.negative {
+      color: #f85149;
+    }
+    .charts {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+    .chart-card {
+      background: #161b22;
+      padding: 24px;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+    }
+    .chart-card h2 {
+      font-size: 18px;
+      margin-bottom: 24px;
+    }
+    .chart {
+      height: 300px;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      padding: 20px 0;
+    }
+    .bar {
+      flex: 1;
+      background: linear-gradient(to top, #667eea, #764ba2);
+      border-radius: 4px 4px 0 0;
+      min-height: 40px;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+    .bar:hover {
+      opacity: 1;
+    }
+    .pie-chart {
+      width: 200px;
+      height: 200px;
+      margin: 0 auto;
+      border-radius: 50%;
+      background: conic-gradient(
+        #667eea 0deg 120deg,
+        #764ba2 120deg 240deg,
+        #4caf50 240deg 300deg,
+        #ff9800 300deg 360deg
+      );
+    }
+    .legend {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+    }
+    .table-card {
+      background: #161b22;
+      padding: 24px;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+    }
+    .table-card h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid #30363d;
+      color: #8b949e;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #21262d;
+    }
+    tr:hover {
+      background: #0d1117;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Analytics Dashboard</h1>
+    <p>Real-time business metrics and insights</p>
+  </div>
+  
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="metric-label">Total Revenue</div>
+      <div class="metric-value">$124.5K</div>
+      <div class="metric-change">↑ 12.5% from last month</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Active Users</div>
+      <div class="metric-value">8,429</div>
+      <div class="metric-change">↑ 8.2% from last month</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Conversion Rate</div>
+      <div class="metric-value">3.24%</div>
+      <div class="metric-change negative">↓ 0.5% from last month</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg. Session</div>
+      <div class="metric-value">4m 32s</div>
+      <div class="metric-change">↑ 15s from last month</div>
+    </div>
+  </div>
+  
+  <div class="charts">
+    <div class="chart-card">
+      <h2>Revenue Overview (Last 7 Days)</h2>
+      <div class="chart">
+        <div class="bar" style="height: 65%"></div>
+        <div class="bar" style="height: 80%"></div>
+        <div class="bar" style="height: 75%"></div>
+        <div class="bar" style="height: 90%"></div>
+        <div class="bar" style="height: 85%"></div>
+        <div class="bar" style="height: 70%"></div>
+        <div class="bar" style="height: 95%"></div>
+      </div>
+    </div>
+    
+    <div class="chart-card">
+      <h2>Traffic Sources</h2>
+      <div class="pie-chart"></div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-color" style="background: #667eea"></div>
+          <span>Direct (33%)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #764ba2"></div>
+          <span>Social (33%)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #4caf50"></div>
+          <span>Search (17%)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #ff9800"></div>
+          <span>Referral (17%)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="table-card">
+    <h2>Top Pages</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Page</th>
+          <th>Views</th>
+          <th>Unique</th>
+          <th>Avg. Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>/dashboard</td>
+          <td>24,582</td>
+          <td>18,429</td>
+          <td>3m 42s</td>
+        </tr>
+        <tr>
+          <td>/products</td>
+          <td>18,234</td>
+          <td>14,223</td>
+          <td>2m 18s</td>
+        </tr>
+        <tr>
+          <td>/pricing</td>
+          <td>12,456</td>
+          <td>10,234</td>
+          <td>4m 05s</td>
+        </tr>
+        <tr>
+          <td>/about</td>
+          <td>8,923</td>
+          <td>7,456</td>
+          <td>1m 52s</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>`,
+      admin: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: #f5f7fa;
+      display: flex;
+      min-height: 100vh;
+    }
+    .sidebar {
+      width: 250px;
+      background: #1e293b;
+      color: white;
+      padding: 24px 0;
+      position: fixed;
+      height: 100vh;
+    }
+    .logo {
+      padding: 0 24px;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 32px;
+    }
+    .nav-item {
+      padding: 12px 24px;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nav-item:hover {
+      background: rgba(255,255,255,0.1);
+    }
+    .nav-item.active {
+      background: #667eea;
+      border-right: 4px solid #fff;
+    }
+    .main {
+      margin-left: 250px;
+      flex: 1;
+      padding: 32px;
+    }
+    .header {
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 {
+      font-size: 32px;
+      color: #1e293b;
+    }
+    .btn {
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 8px;
+    }
+    .stat-label {
+      color: #64748b;
+      font-size: 14px;
+    }
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .card h2 {
+      font-size: 20px;
+      margin-bottom: 24px;
+      color: #1e293b;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 2px solid #e2e8f0;
+      color: #64748b;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      margin-right: 12px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge.active {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .badge.inactive {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+    .icon-btn {
+      padding: 8px;
+      background: #f1f5f9;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .icon-btn:hover {
+      background: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="logo">⚙️ Admin</div>
+    <div class="nav-item active">📊 Dashboard</div>
+    <div class="nav-item">👥 Users</div>
+    <div class="nav-item">📦 Products</div>
+    <div class="nav-item">💳 Orders</div>
+    <div class="nav-item">⚙️ Settings</div>
+  </div>
+  
+  <div class="main">
+    <div class="header">
+      <h1>Dashboard</h1>
+      <button class="btn">+ Add New</button>
+    </div>
+    
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-value">2,543</div>
+        <div class="stat-label">Total Users</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">1,829</div>
+        <div class="stat-label">Active Sessions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">$45.2K</div>
+        <div class="stat-label">Revenue</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">94.5%</div>
+        <div class="stat-label">Satisfaction</div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <h2>Recent Users</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Joined</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div style="display: flex; align-items: center;">
+                <div class="user-avatar">JD</div>
+                <span>John Doe</span>
+              </div>
+            </td>
+            <td>john@example.com</td>
+            <td><span class="badge active">Active</span></td>
+            <td>Jan 15, 2024</td>
+            <td>
+              <div class="actions">
+                <button class="icon-btn">✏️</button>
+                <button class="icon-btn">🗑️</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div style="display: flex; align-items: center;">
+                <div class="user-avatar">JS</div>
+                <span>Jane Smith</span>
+              </div>
+            </td>
+            <td>jane@example.com</td>
+            <td><span class="badge active">Active</span></td>
+            <td>Jan 14, 2024</td>
+            <td>
+              <div class="actions">
+                <button class="icon-btn">✏️</button>
+                <button class="icon-btn">🗑️</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div style="display: flex; align-items: center;">
+                <div class="user-avatar">BJ</div>
+                <span>Bob Johnson</span>
+              </div>
+            </td>
+            <td>bob@example.com</td>
+            <td><span class="badge inactive">Inactive</span></td>
+            <td>Jan 10, 2024</td>
+            <td>
+              <div class="actions">
+                <button class="icon-btn">✏️</button>
+                <button class="icon-btn">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>`,
+      ecommerce: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-commerce Store</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: #f9fafb;
+    }
+    .header {
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .nav {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+    }
+    .nav a {
+      text-decoration: none;
+      color: #4b5563;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav a:hover {
+      color: #667eea;
+    }
+    .cart {
+      background: #667eea;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .hero {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 80px 40px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .hero p {
+      font-size: 20px;
+      opacity: 0.9;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 40px;
+    }
+    .section-title {
+      font-size: 32px;
+      margin-bottom: 32px;
+      color: #1f2937;
+    }
+    .products {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .product {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+    .product:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    }
+    .product-image {
+      width: 100%;
+      height: 240px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 64px;
+    }
+    .product-info {
+      padding: 20px;
+    }
+    .product-name {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #1f2937;
+    }
+    .product-description {
+      color: #6b7280;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .product-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .price {
+      font-size: 24px;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .btn-add {
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-add:hover {
+      background: #5568d3;
+    }
+    .rating {
+      color: #fbbf24;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🛍️ ShopHub</div>
+    <div class="nav">
+      <a href="#">Home</a>
+      <a href="#">Products</a>
+      <a href="#">Categories</a>
+      <a href="#">About</a>
+      <div class="cart">🛒 Cart (3)</div>
+    </div>
+  </div>
+  
+  <div class="hero">
+    <h1>Summer Sale</h1>
+    <p>Up to 50% off on selected items</p>
+  </div>
+  
+  <div class="container">
+    <h2 class="section-title">Featured Products</h2>
+    <div class="products">
+      <div class="product">
+        <div class="product-image">👕</div>
+        <div class="product-info">
+          <div class="rating">⭐⭐⭐⭐⭐ (128)</div>
+          <div class="product-name">Premium T-Shirt</div>
+          <div class="product-description">Comfortable cotton blend with modern fit</div>
+          <div class="product-footer">
+            <div class="price">$29.99</div>
+            <button class="btn-add">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="product">
+        <div class="product-image">👟</div>
+        <div class="product-info">
+          <div class="rating">⭐⭐⭐⭐ (94)</div>
+          <div class="product-name">Running Shoes</div>
+          <div class="product-description">Lightweight and breathable design</div>
+          <div class="product-footer">
+            <div class="price">$89.99</div>
+            <button class="btn-add">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="product">
+        <div class="product-image">🎧</div>
+        <div class="product-info">
+          <div class="rating">⭐⭐⭐⭐⭐ (256)</div>
+          <div class="product-name">Wireless Headphones</div>
+          <div class="product-description">Crystal clear sound with noise cancellation</div>
+          <div class="product-footer">
+            <div class="price">$149.99</div>
+            <button class="btn-add">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="product">
+        <div class="product-image">💼</div>
+        <div class="product-info">
+          <div class="rating">⭐⭐⭐⭐ (76)</div>
+          <div class="product-name">Laptop Bag</div>
+          <div class="product-description">Durable and spacious with multiple pockets</div>
+          <div class="product-footer">
+            <div class="price">$59.99</div>
+            <button class="btn-add">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="product">
+        <div class="product-image">⌚</div>
+        <div class="product-info">
+          <div class="rating">⭐⭐⭐⭐⭐ (189)</div>
+          <div class="product-name">Smart Watch</div>
+          <div class="product-description">Track fitness and notifications</div>
+          <div class="product-footer">
+            <div class="price">$199.99</div>
+            <button class="btn-add">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="product">
+        <div class="product-image">📱</div>
+        <div class="product-info">
+          <div class="rating">⭐⭐⭐⭐ (142)</div>
+          <div class="product-name">Phone Case</div>
+          <div class="product-description">Protective and stylish design</div>
+          <div class="product-footer">
+            <div class="price">$24.99</div>
+            <button class="btn-add">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`,
+      'product-catalog': `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Catalog</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background: #ffffff;
+    }
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 40px;
+    }
+    .header {
+      margin-bottom: 40px;
+    }
+    .header h1 {
+      font-size: 40px;
+      margin-bottom: 16px;
+      color: #1f2937;
+    }
+    .controls {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+    .search {
+      flex: 1;
+      min-width: 300px;
+      padding: 14px 20px;
+      border: 2px solid #e5e7eb;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: border-color 0.2s;
+    }
+    .search:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .filter-group {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .filter-label {
+      font-weight: 600;
+      color: #4b5563;
+    }
+    select {
+      padding: 12px 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 10px;
+      font-size: 15px;
+      cursor: pointer;
+      background: white;
+    }
+    .tags {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+    .tag {
+      padding: 10px 20px;
+      background: #f3f4f6;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    .tag:hover {
+      background: #667eea;
+      color: white;
+    }
+    .tag.active {
+      background: #667eea;
+      color: white;
+    }
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 32px;
+    }
+    .product-card {
+      background: white;
+      border: 2px solid #f3f4f6;
+      border-radius: 16px;
+      overflow: hidden;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    .product-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 12px 24px rgba(102, 126, 234, 0.15);
+      transform: translateY(-4px);
+    }
+    .product-image {
+      width: 100%;
+      height: 280px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 80px;
+      position: relative;
+    }
+    .badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: #ef4444;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .product-details {
+      padding: 24px;
+    }
+    .product-category {
+      color: #667eea;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .product-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 8px;
+    }
+    .product-desc {
+      color: #6b7280;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .product-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .rating {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #fbbf24;
+      font-size: 14px;
+    }
+    .rating span {
+      color: #9ca3af;
+    }
+    .price-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .price {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1f2937;
+    }
+    .old-price {
+      color: #9ca3af;
+      text-decoration: line-through;
+      font-size: 16px;
+      margin-left: 8px;
+    }
+    .btn-view {
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-view:hover {
+      background: #5568d3;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Product Catalog</h1>
+      <p style="color: #6b7280; font-size: 16px;">Discover our collection of premium products</p>
+    </div>
+    
+    <div class="controls">
+      <input type="text" class="search" placeholder="Search products..." />
+      <div class="filter-group">
+        <span class="filter-label">Sort by:</span>
+        <select>
+          <option>Featured</option>
+          <option>Price: Low to High</option>
+          <option>Price: High to Low</option>
+          <option>Newest</option>
+          <option>Rating</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Category:</span>
+        <select>
+          <option>All Categories</option>
+          <option>Electronics</option>
+          <option>Fashion</option>
+          <option>Home & Living</option>
+          <option>Sports</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="tags">
+      <div class="tag active">All</div>
+      <div class="tag">New Arrivals</div>
+      <div class="tag">Best Sellers</div>
+      <div class="tag">On Sale</div>
+      <div class="tag">Premium</div>
+    </div>
+    
+    <div class="product-grid">
+      <div class="product-card">
+        <div class="product-image">
+          🎮
+          <div class="badge">-20%</div>
+        </div>
+        <div class="product-details">
+          <div class="product-category">Electronics</div>
+          <div class="product-title">Gaming Console</div>
+          <div class="product-desc">Next-gen gaming experience with 4K graphics</div>
+          <div class="product-meta">
+            <div class="rating">
+              ⭐⭐⭐⭐⭐ <span>(234)</span>
+            </div>
+          </div>
+          <div class="price-row">
+            <div>
+              <span class="price">$399</span>
+              <span class="old-price">$499</span>
+            </div>
+            <button class="btn-view">View</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="product-card">
+        <div class="product-image">📸</div>
+        <div class="product-details">
+          <div class="product-category">Electronics</div>
+          <div class="product-title">Digital Camera</div>
+          <div class="product-desc">Professional quality photos and 4K video</div>
+          <div class="product-meta">
+            <div class="rating">
+              ⭐⭐⭐⭐ <span>(178)</span>
+            </div>
+          </div>
+          <div class="price-row">
+            <div>
+              <span class="price">$849</span>
+            </div>
+            <button class="btn-view">View</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="product-card">
+        <div class="product-image">
+          🏃
+          <div class="badge">NEW</div>
+        </div>
+        <div class="product-details">
+          <div class="product-category">Sports</div>
+          <div class="product-title">Athletic Sneakers</div>
+          <div class="product-desc">Comfort and performance for your workout</div>
+          <div class="product-meta">
+            <div class="rating">
+              ⭐⭐⭐⭐⭐ <span>(412)</span>
+            </div>
+          </div>
+          <div class="price-row">
+            <div>
+              <span class="price">$129</span>
+            </div>
+            <button class="btn-view">View</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="product-card">
+        <div class="product-image">🎨</div>
+        <div class="product-details">
+          <div class="product-category">Home & Living</div>
+          <div class="product-title">Art Print Set</div>
+          <div class="product-desc">Gallery-quality prints for your space</div>
+          <div class="product-meta">
+            <div class="rating">
+              ⭐⭐⭐⭐ <span>(89)</span>
+            </div>
+          </div>
+          <div class="price-row">
+            <div>
+              <span class="price">$79</span>
+            </div>
+            <button class="btn-view">View</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="product-card">
+        <div class="product-image">🎧</div>
+        <div class="product-details">
+          <div class="product-category">Electronics</div>
+          <div class="product-title">Pro Headphones</div>
+          <div class="product-desc">Studio-quality sound with active noise cancellation</div>
+          <div class="product-meta">
+            <div class="rating">
+              ⭐⭐⭐⭐⭐ <span>(567)</span>
+            </div>
+          </div>
+          <div class="price-row">
+            <div>
+              <span class="price">$299</span>
+            </div>
+            <button class="btn-view">View</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="product-card">
+        <div class="product-image">
+          ☕
+          <div class="badge">-15%</div>
+        </div>
+        <div class="product-details">
+          <div class="product-category">Home & Living</div>
+          <div class="product-title">Coffee Maker</div>
+          <div class="product-desc">Barista-quality coffee at home</div>
+          <div class="product-meta">
+            <div class="rating">
+              ⭐⭐⭐⭐ <span>(203)</span>
+            </div>
+          </div>
+          <div class="price-row">
+            <div>
+              <span class="price">$169</span>
+              <span class="old-price">$199</span>
+            </div>
+            <button class="btn-view">View</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`,
       todo: `<!DOCTYPE html>
 <html lang="en">
 <head>
