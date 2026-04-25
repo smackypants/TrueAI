@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
@@ -25,6 +25,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { emptyStateChat, emptyStateAgents, emptyStateWorkflow } from '@/assets'
+import { analytics } from '@/lib/analytics'
 import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig, FineTuningDataset, FineTuningJob, QuantizationJob, HarnessManifest, HuggingFaceModel, GGUFModel } from '@/lib/types'
 
 function App() {
@@ -67,6 +68,12 @@ function App() {
   const conversationMessages = messages?.filter(m => m.conversationId === activeConversationId) || []
   const activeAgentRun = agentRuns?.find(r => r.id === activeAgentRunId)
 
+  useEffect(() => {
+    analytics.track('page_view', 'app', 'load', {
+      metadata: { timestamp: Date.now() }
+    })
+  }, [])
+
   const createConversation = () => {
     const now = Date.now()
     const newConv: Conversation = {
@@ -83,11 +90,17 @@ function App() {
     setNewConversationDialog(false)
     setNewConversationForm({ title: '', systemPrompt: '', model: 'gpt-4o-mini' })
     toast.success('Conversation created')
+    
+    analytics.track('conversation_created', 'chat', 'create_conversation', {
+      label: newConv.title,
+      metadata: { model: newConv.model, hasSystemPrompt: !!newConv.systemPrompt }
+    })
   }
 
   const sendMessage = async (content: string) => {
     if (!activeConversationId) return
 
+    const startTime = Date.now()
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
       conversationId: activeConversationId,
@@ -98,6 +111,10 @@ function App() {
 
     setMessages(prev => [...(prev || []), userMessage])
     setIsStreaming(true)
+
+    analytics.track('chat_message_sent', 'chat', 'send_message', {
+      metadata: { conversationId: activeConversationId, messageLength: content.length }
+    })
 
     try {
       const conversation = conversations?.find(c => c.id === activeConversationId)
@@ -136,9 +153,22 @@ assistant:`
           ? { ...c, updatedAt: Date.now() }
           : c
       ))
+
+      const responseTime = Date.now() - startTime
+      analytics.track('chat_message_received', 'chat', 'receive_response', {
+        duration: responseTime,
+        metadata: {
+          model: conversation?.model,
+          responseLength: response.length,
+          tokenCount: Math.ceil(response.length / 4)
+        }
+      })
     } catch (error) {
       toast.error('Failed to get response')
       console.error(error)
+      analytics.track('error_occurred', 'chat', 'send_message_failed', {
+        metadata: { error: String(error), conversationId: activeConversationId }
+      })
     } finally {
       setIsStreaming(false)
     }
@@ -160,12 +190,19 @@ assistant:`
     setNewAgentDialog(false)
     setNewAgentForm({ name: '', goal: '', model: 'gpt-4o-mini', tools: [] })
     toast.success('Agent created')
+    
+    analytics.track('agent_created', 'agent', 'create_agent', {
+      label: newAgent.name,
+      metadata: { model: newAgent.model, tools: newAgent.tools, hasGoal: !!newAgent.goal }
+    })
   }
 
   const runAgent = async (agentId: string) => {
     const agent = agents.find(a => a.id === agentId)
     if (!agent) return
 
+    const startTime = Date.now()
+    
     setAgents(prev => prev.map(a => 
       a.id === agentId ? { ...a, status: 'running' as const } : a
     ))
@@ -181,6 +218,11 @@ assistant:`
 
     setAgentRuns(prev => [newRun, ...prev])
     setActiveAgentRunId(runId)
+
+    analytics.track('agent_run_started', 'agent', 'run_agent', {
+      label: agent.name,
+      metadata: { agentId, agentName: agent.name, toolsCount: agent.tools.length }
+    })
 
     try {
       const steps: AgentRun['steps'] = []
@@ -269,6 +311,13 @@ Describe what input you would give to the ${tool} tool (one sentence).`
       ))
 
       toast.success('Agent completed successfully')
+      
+      const executionTime = Date.now() - startTime
+      analytics.track('agent_run_completed', 'agent', 'complete_agent_run', {
+        label: agent.name,
+        duration: executionTime,
+        metadata: { agentId, stepsCount: steps.length }
+      })
     } catch (error) {
       setAgentRuns(prev => prev.map(r => 
         r.id === runId ? { 
@@ -285,6 +334,13 @@ Describe what input you would give to the ${tool} tool (one sentence).`
 
       toast.error('Agent execution failed')
       console.error(error)
+      
+      const executionTime = Date.now() - startTime
+      analytics.track('agent_run_failed', 'agent', 'agent_run_error', {
+        label: agent.name,
+        duration: executionTime,
+        metadata: { agentId, error: String(error) }
+      })
     }
   }
 
@@ -292,6 +348,10 @@ Describe what input you would give to the ${tool} tool (one sentence).`
     setAgents(prev => prev.filter(a => a.id !== agentId))
     setAgentRuns(prev => prev.filter(r => r.agentId !== agentId))
     toast.success('Agent deleted')
+    
+    analytics.track('agent_deleted', 'agent', 'delete_agent', {
+      metadata: { agentId }
+    })
   }
 
   const deleteConversation = (convId: string) => {

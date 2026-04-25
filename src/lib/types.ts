@@ -296,3 +296,96 @@ export interface GGUFMetadata {
   modelLicense?: string
   tags?: string[]
 }
+
+export interface AnalyticsEvent {
+  id: string
+  type: AnalyticsEventType
+  timestamp: number
+  userId?: string
+  sessionId: string
+  category: string
+  action: string
+  label?: string
+  value?: number
+  metadata?: Record<string, any>
+  duration?: number
+}
+
+export type AnalyticsEventType =
+  | 'chat_message_sent'
+  | 'chat_message_received'
+  | 'conversation_created'
+  | 'conversation_deleted'
+  | 'agent_created'
+  | 'agent_run_started'
+  | 'agent_run_completed'
+  | 'agent_run_failed'
+  | 'agent_deleted'
+  | 'model_configured'
+  | 'model_downloaded'
+  | 'model_deleted'
+  | 'harness_created'
+  | 'harness_deleted'
+  | 'harness_exported'
+  | 'dataset_created'
+  | 'dataset_deleted'
+  | 'finetuning_started'
+  | 'finetuning_completed'
+  | 'quantization_started'
+  | 'quantization_completed'
+  | 'gguf_model_added'
+  | 'gguf_model_deleted'
+  | 'tool_used'
+  | 'error_occurred'
+  | 'page_view'
+  | 'feature_used'
+
+export interface AnalyticsSession {
+  id: string
+  startedAt: number
+  endedAt?: number
+  duration?: number
+  eventCount: number
+  userId?: string
+  userAgent?: string
+  platform?: string
+}
+
+export interface AnalyticsMetrics {
+  totalEvents: number
+  totalSessions: number
+  averageSessionDuration: number
+  activeUsers: number
+  eventsByType: { type: string; count: number }[]
+  eventsByDay: { date: string; count: number }[]
+  topActions: { action: string; count: number }[]
+  errorRate: number
+  chatMetrics: {
+    totalMessages: number
+    totalConversations: number
+    averageMessagesPerConversation: number
+    averageResponseTime: number
+    mostUsedModels: { model: string; count: number }[]
+  }
+  agentMetrics: {
+    totalAgents: number
+    totalRuns: number
+    successRate: number
+    averageExecutionTime: number
+    mostUsedTools: { tool: string; count: number }[]
+  }
+  modelMetrics: {
+    totalModels: number
+    totalDownloads: number
+    mostPopularModels: { model: string; downloads: number }[]
+    storageUsed: number
+  }
+}
+
+export interface AnalyticsFilter {
+  startDate?: number
+  endDate?: number
+  eventTypes?: AnalyticsEventType[]
+  userId?: string
+  category?: string
+}
