@@ -24,6 +24,7 @@ import { HarnessCreator } from '@/components/harness/HarnessCreator'
 import { HuggingFaceModelBrowser } from '@/components/models/HuggingFaceModelBrowser'
 import { GGUFLibrary } from '@/components/models/GGUFLibrary'
 import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard'
+import { QuickActionsMenu } from '@/components/models/QuickActionsMenu'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -832,13 +833,25 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               </TabsContent>
 
               <TabsContent value="config" className="space-y-3 sm:space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <h2 className="text-lg sm:text-xl font-semibold">Model Configuration</h2>
-                  {editingModel && (
-                    <Button variant="ghost" size="sm" onClick={() => setEditingModelId(null)} className="h-8 sm:h-9">
-                      Back
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {!editingModel && isMobile && models.length > 0 && (
+                      <QuickActionsMenu
+                        model={models[0]}
+                        onUpdate={(updatedModel) => {
+                          setModels(prev => 
+                            prev.map(m => m.id === updatedModel.id ? updatedModel : m)
+                          )
+                        }}
+                      />
+                    )}
+                    {editingModel && (
+                      <Button variant="ghost" size="sm" onClick={() => setEditingModelId(null)} className="h-8 sm:h-9">
+                        Back
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 
                 {editingModel ? (
@@ -871,13 +884,25 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                               <span className="font-mono">{model.topP}</span>
                             </div>
                           </div>
-                          <Button
-                            variant="outline"
-                            className="w-full h-9 text-sm"
-                            onClick={() => setEditingModelId(model.id)}
-                          >
-                            Configure
-                          </Button>
+                          <div className="flex gap-2">
+                            {isMobile && (
+                              <QuickActionsMenu
+                                model={model}
+                                onUpdate={(updatedModel) => {
+                                  setModels(prev => 
+                                    prev.map(m => m.id === updatedModel.id ? updatedModel : m)
+                                  )
+                                }}
+                              />
+                            )}
+                            <Button
+                              variant="outline"
+                              className={`${isMobile ? 'flex-1' : 'w-full'} h-9 text-sm`}
+                              onClick={() => setEditingModelId(model.id)}
+                            >
+                              {isMobile ? 'Advanced' : 'Configure'}
+                            </Button>
+                          </div>
                         </div>
                       </Card>
                     ))}
