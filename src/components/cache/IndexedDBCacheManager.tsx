@@ -304,3 +304,5 @@ export function IndexedDBCacheManager() {
     </Card>
   )
 }
+
+export default IndexedDBCacheManager

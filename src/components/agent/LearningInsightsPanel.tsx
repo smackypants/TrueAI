@@ -266,3 +266,5 @@ export function LearningInsightsPanel({
     </div>
   )
 }
+
+export default LearningInsightsPanel

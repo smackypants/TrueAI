@@ -63,9 +63,9 @@ const AgentStepView = lazy(() => import('@/components/agent/AgentStepView'))
 const AgentTemplates = lazy(() => import('@/components/agent/AgentTemplates'))
 const AgentPerformanceMonitor = lazy(() => import('@/components/agent/AgentPerformanceMonitor'))
 const CollaborativeAgentManager = lazy(() => import('@/components/agent/CollaborativeAgentManager'))
-const FeedbackDialog = lazy(() => import('@/components/agent/FeedbackDialog').then(m => ({ default: m.FeedbackDialog })))
-const LearningInsightsPanel = lazy(() => import('@/components/agent/LearningInsightsPanel').then(m => ({ default: m.LearningInsightsPanel })))
-const AgentVersionHistory = lazy(() => import('@/components/agent/AgentVersionHistory').then(m => ({ default: m.AgentVersionHistory })))
+const FeedbackDialog = lazy(() => import('@/components/agent/FeedbackDialog'))
+const LearningInsightsPanel = lazy(() => import('@/components/agent/LearningInsightsPanel'))
+const AgentVersionHistory = lazy(() => import('@/components/agent/AgentVersionHistory'))
 const ModelConfigPanel = lazy(() => import('@/components/models/ModelConfigPanel'))
 const FineTuningUI = lazy(() => import('@/components/models/FineTuningUI'))
 const QuantizationTools = lazy(() => import('@/components/models/QuantizationTools'))
@@ -82,10 +82,10 @@ const AppBuilder = lazy(() => import('@/components/builder/AppBuilder'))
 const LocalIDE = lazy(() => import('@/components/builder/LocalIDE'))
 const CacheManager = lazy(() => import('@/components/notifications/CacheManager'))
 const OfflineQueuePanel = lazy(() => import('@/components/notifications/OfflineQueuePanel'))
-const IndexedDBCacheManager = lazy(() => import('@/components/cache/IndexedDBCacheManager').then(m => ({ default: m.IndexedDBCacheManager })))
-const WorkflowBuilder = lazy(() => import('@/components/workflow/WorkflowBuilder').then(m => ({ default: m.WorkflowBuilder })))
-const WorkflowTemplates = lazy(() => import('@/components/workflow/WorkflowTemplates').then(m => ({ default: m.WorkflowTemplates })))
-const CostTracking = lazy(() => import('@/components/cost/CostTracking').then(m => ({ default: m.CostTracking })))
+const IndexedDBCacheManager = lazy(() => import('@/components/cache/IndexedDBCacheManager'))
+const WorkflowBuilder = lazy(() => import('@/components/workflow/WorkflowBuilder'))
+const WorkflowTemplates = lazy(() => import('@/components/workflow/WorkflowTemplates'))
+const CostTracking = lazy(() => import('@/components/cost/CostTracking'))
 
 const LoadingFallback = memo(({ message = 'Loading...' }: { message?: string }) => (
   <motion.div 
@@ -401,6 +401,12 @@ function App() {
       return () => clearTimeout(debouncedSync)
     }
   }, [messages, indexedDBCache.isInitialized])
+
+  useEffect(() => {
+    if (activeTab === 'chat' && conversations && conversations.length > 0 && !activeConversationId) {
+      setActiveConversationId(conversations[0].id)
+    }
+  }, [activeTab, conversations, activeConversationId])
 
   const createConversation = useCallback(() => {
     const now = Date.now()
@@ -1703,15 +1709,16 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                         />
                       </Card>
                     )}
-                    {agents?.map(agent => {
-                      const hasRecentRun = agentRuns?.some(r => 
-                        r.agentId === agent.id && 
-                        r.status === 'completed' &&
-                        !r.feedback
-                      )
-                      return (
-                        <LazyErrorBoundary key={agent.id} componentName="Agent Card">
+                    <Suspense fallback={<LoadingFallback message="Loading agents..." />}>
+                      {agents?.map(agent => {
+                        const hasRecentRun = agentRuns?.some(r => 
+                          r.agentId === agent.id && 
+                          r.status === 'completed' &&
+                          !r.feedback
+                        )
+                        return (
                           <AgentCard
+                            key={agent.id}
                             agent={agent}
                             onRun={runAgent}
                             onDelete={deleteAgent}
@@ -1722,9 +1729,9 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                             onFeedback={handleProvideFeedback}
                             hasRecentRun={hasRecentRun}
                           />
-                        </LazyErrorBoundary>
-                      )
-                    })}
+                        )
+                      })}
+                    </Suspense>
                   </div>
 
                   <div className="lg:col-span-1 space-y-3 sm:space-y-4">
@@ -1732,13 +1739,13 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                       <h3 className="font-semibold mb-3 sm:mb-4 text-sm sm:text-base">Execution History</h3>
                       <ScrollArea className="h-[250px] sm:h-[300px]">
                         {activeAgentRun ? (
-                          <div className="space-y-2">
-                            {activeAgentRun.steps?.map((step, index) => (
-                              <LazyErrorBoundary key={step.id} componentName="Agent Step">
-                                <AgentStepView step={step} index={index} />
-                              </LazyErrorBoundary>
-                            ))}
-                          </div>
+                          <Suspense fallback={<LoadingFallback message="Loading steps..." />}>
+                            <div className="space-y-2">
+                              {activeAgentRun.steps?.map((step, index) => (
+                                <AgentStepView key={step.id} step={step} index={index} />
+                              ))}
+                            </div>
+                          </Suspense>
                         ) : (
                           <EmptyState
                             illustration={emptyStateWorkflow}

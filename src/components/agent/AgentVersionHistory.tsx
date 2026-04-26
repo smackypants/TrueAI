@@ -202,3 +202,5 @@ export function AgentVersionHistory({ versions, onRestore }: AgentVersionHistory
     </Card>
   )
 }
+
+export default AgentVersionHistory

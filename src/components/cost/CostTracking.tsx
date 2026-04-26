@@ -451,3 +451,5 @@ export function CostTracking({
     </div>
   )
 }
+
+export default CostTracking

@@ -391,3 +391,5 @@ export function WorkflowTemplates({ onUseTemplate }: WorkflowTemplatesProps) {
     </div>
   )
 }
+
+export default WorkflowTemplates

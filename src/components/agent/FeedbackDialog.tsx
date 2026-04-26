@@ -265,3 +265,5 @@ export function FeedbackDialog({ open, onOpenChange, agentRun, onSubmit }: Feedb
     </Dialog>
   )
 }
+
+export default FeedbackDialog

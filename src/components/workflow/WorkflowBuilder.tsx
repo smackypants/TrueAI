@@ -591,3 +591,5 @@ export function WorkflowBuilder({
     </div>
   )
 }
+
+export default WorkflowBuilder
