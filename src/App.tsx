@@ -33,6 +33,8 @@ import { useIndexedDBCache } from '@/hooks/use-indexeddb-cache'
 import { useDebounce } from '@/lib/mobile-performance'
 import { useDynamicUI } from '@/hooks/use-dynamic-ui'
 import { useContextualUI } from '@/hooks/use-contextual-ui'
+import { useTabPreloader } from '@/hooks/use-tab-preloader'
+import { useSmartPrefetch } from '@/hooks/use-data-prefetcher'
 import { DynamicUICustomizer } from '@/components/ui/dynamic-ui-customizer'
 import { DynamicUIDashboard } from '@/components/ui/dynamic-ui-dashboard'
 import { ContextualSuggestionsPanel } from '@/components/ui/contextual-suggestions'
@@ -57,6 +59,8 @@ import { defaultProfilesByTaskType } from '@/lib/performance-profiles'
 import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig, FineTuningDataset, FineTuningJob, QuantizationJob, HarnessManifest, HuggingFaceModel, GGUFModel, PerformanceProfile, TaskType, ModelParameters, AppSettings, AgentFeedback, AgentLearningMetrics, LearningInsight, AgentVersion, LearningSession } from '@/lib/types'
 import type { Workflow, WorkflowTemplate, CostEntry, Budget } from '@/lib/workflow-types'
 import { AgentLearningEngine } from '@/lib/agent-learning'
+import { PrefetchManager } from '@/components/PrefetchManager'
+import { PrefetchStatusIndicator } from '@/components/PrefetchIndicator'
 
 const AgentCard = lazy(() => import('@/components/agent/AgentCard'))
 const AgentStepView = lazy(() => import('@/components/agent/AgentStepView'))
@@ -174,6 +178,7 @@ function App() {
   const performanceOptimization = useAutoPerformanceOptimization()
   const dynamicUI = useDynamicUI()
   const contextualUI = useContextualUI()
+  const smartPrefetch = useSmartPrefetch(activeTab)
   const [conversations, setConversations] = useKV<Conversation[]>('conversations', [])
   const [messages, setMessages] = useKV<Message[]>('messages', [])
   const [agents, setAgents] = useKV<Agent[]>('agents', [])
@@ -276,6 +281,8 @@ function App() {
   const [isTabSwitching, setIsTabSwitching] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [uiCustomizerOpen, setUiCustomizerOpen] = useState(false)
+  const [isPrefetching, setIsPrefetching] = useState(false)
+  const [prefetchingTabs, setPrefetchingTabs] = useState<string[]>([])
   
   const [conversationSettingsOpen, setConversationSettingsOpen] = useState(false)
   const [chatSearchOpen, setChatSearchOpen] = useState(false)
@@ -314,6 +321,33 @@ function App() {
 
   const tabOrder = useMemo(() => ['chat', 'agents', 'workflows', 'models', 'analytics', 'builder'], [])
   const contentRef = useRef<HTMLDivElement>(null)
+
+  const handlePreloadTab = useCallback(async (tabName: string) => {
+    const componentMap: Record<string, () => Promise<any>> = {
+      'agents': () => import('@/components/agent/AgentCard'),
+      'models': () => import('@/components/models/ModelConfigPanel'),
+      'analytics': () => import('@/components/analytics/AnalyticsDashboard'),
+      'workflows': () => import('@/components/workflow/WorkflowBuilder'),
+      'builder': () => import('@/components/builder/AppBuilder')
+    }
+
+    if (componentMap[tabName]) {
+      setIsPrefetching(true)
+      setPrefetchingTabs(prev => [...prev, tabName])
+      
+      try {
+        await componentMap[tabName]()
+      } finally {
+        setPrefetchingTabs(prev => prev.filter(t => t !== tabName))
+        
+        setTimeout(() => {
+          setIsPrefetching(false)
+        }, 500)
+      }
+    }
+  }, [])
+
+  const tabPreloader = useTabPreloader(tabOrder, activeTab, handlePreloadTab)
 
   const handleTabChange = useCallback((newTab: string) => {
     if (isTabSwitching) return
@@ -1418,27 +1452,57 @@ Describe what input you would give to the ${tool} tool (one sentence).`
             transition={{ delay: 0.2, duration: 0.3 }}
           >
             <TabsList className="hidden lg:grid w-full max-w-4xl mx-auto grid-cols-6 mb-6 bg-card/50 backdrop-blur-sm border border-border/50 p-1.5 shadow-lg shadow-primary/5">
-              <TabsTrigger value="chat" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+              <TabsTrigger 
+                value="chat" 
+                className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200"
+                onMouseEnter={() => tabPreloader.handleTabHover('chat')}
+                onMouseLeave={tabPreloader.handleTabLeave}
+              >
                 <ChatCircle weight="fill" size={20} />
                 <span className="hidden sm:inline">Chat</span>
               </TabsTrigger>
-              <TabsTrigger value="agents" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+              <TabsTrigger 
+                value="agents" 
+                className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200"
+                onMouseEnter={() => tabPreloader.handleTabHover('agents')}
+                onMouseLeave={tabPreloader.handleTabLeave}
+              >
                 <Robot weight="fill" size={20} />
                 <span className="hidden sm:inline">Agents</span>
               </TabsTrigger>
-              <TabsTrigger value="workflows" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+              <TabsTrigger 
+                value="workflows" 
+                className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200"
+                onMouseEnter={() => tabPreloader.handleTabHover('workflows')}
+                onMouseLeave={tabPreloader.handleTabLeave}
+              >
                 <ArrowsClockwise weight="fill" size={20} />
                 <span className="hidden sm:inline">Workflows</span>
               </TabsTrigger>
-              <TabsTrigger value="models" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+              <TabsTrigger 
+                value="models" 
+                className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200"
+                onMouseEnter={() => tabPreloader.handleTabHover('models')}
+                onMouseLeave={tabPreloader.handleTabLeave}
+              >
                 <Lightning weight="fill" size={20} />
                 <span className="hidden sm:inline">Models</span>
               </TabsTrigger>
-              <TabsTrigger value="analytics" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+              <TabsTrigger 
+                value="analytics" 
+                className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200"
+                onMouseEnter={() => tabPreloader.handleTabHover('analytics')}
+                onMouseLeave={tabPreloader.handleTabLeave}
+              >
                 <ChartBar weight="fill" size={20} />
                 <span className="hidden sm:inline">Analytics</span>
               </TabsTrigger>
-              <TabsTrigger value="builder" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200">
+              <TabsTrigger 
+                value="builder" 
+                className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:shadow-md transition-all duration-200"
+                onMouseEnter={() => tabPreloader.handleTabHover('builder')}
+                onMouseLeave={tabPreloader.handleTabLeave}
+              >
                 <Cube weight="fill" size={20} />
                 <span className="hidden sm:inline">Builder</span>
               </TabsTrigger>
@@ -2637,6 +2701,12 @@ Describe what input you would give to the ${tool} tool (one sentence).`
       <ServiceWorkerUpdate />
       <InstallPrompt />
       <ContextualSuggestionsPanel />
+      <PrefetchManager currentTab={activeTab} />
+      <PrefetchStatusIndicator 
+        isActive={isPrefetching} 
+        tabsPreloading={prefetchingTabs}
+        show={appSettings?.debugMode}
+      />
       
       {performanceOptimization.isOptimized && appSettings?.debugMode && (
         <PerformanceMonitor />
