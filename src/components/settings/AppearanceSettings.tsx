@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Moon, Sun, Monitor, Palette, Sliders } from '@phosphor-icons/react'
 import { ThemeSwitcher } from './ThemeSwitcher'
+import { useTheme } from '@/hooks/use-theme'
 import type { AppSettings } from '@/lib/types'
 
 interface AppearanceSettingsProps {
@@ -16,6 +17,8 @@ interface AppearanceSettingsProps {
 }
 
 export function AppearanceSettings({ settings, onSettingsChange }: AppearanceSettingsProps) {
+  const { theme, setTheme } = useTheme()
+  
   const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     onSettingsChange({ ...settings, [key]: value })
   }
@@ -54,27 +57,27 @@ export function AppearanceSettings({ settings, onSettingsChange }: AppearanceSet
               
               <div className="grid grid-cols-3 gap-3">
                 <Button
-                  variant={settings.theme === 'light' ? 'default' : 'outline'}
+                  variant={theme === 'light' ? 'default' : 'outline'}
                   className="flex flex-col items-center gap-2 h-auto py-4"
-                  onClick={() => updateSetting('theme', 'light')}
+                  onClick={() => setTheme('light')}
                 >
                   <Sun size={24} weight="fill" />
                   <span className="text-xs">Light</span>
                 </Button>
                 
                 <Button
-                  variant={settings.theme === 'dark' ? 'default' : 'outline'}
+                  variant={theme === 'dark' ? 'default' : 'outline'}
                   className="flex flex-col items-center gap-2 h-auto py-4"
-                  onClick={() => updateSetting('theme', 'dark')}
+                  onClick={() => setTheme('dark')}
                 >
                   <Moon size={24} weight="fill" />
                   <span className="text-xs">Dark</span>
                 </Button>
                 
                 <Button
-                  variant={settings.theme === 'system' ? 'default' : 'outline'}
+                  variant={theme === 'system' ? 'default' : 'outline'}
                   className="flex flex-col items-center gap-2 h-auto py-4"
-                  onClick={() => updateSetting('theme', 'system')}
+                  onClick={() => setTheme('system')}
                 >
                   <Monitor size={24} weight="fill" />
                   <span className="text-xs">System</span>

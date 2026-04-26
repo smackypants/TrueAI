@@ -11,6 +11,7 @@ import { KeyboardShortcutsHelper } from '@/components/ui/keyboard-shortcuts'
 import { MobileBottomNav } from '@/components/ui/mobile-bottom-nav'
 import { FloatingActionButton } from '@/components/ui/floating-action-button'
 import { PullToRefreshIndicator } from '@/components/ui/pull-to-refresh-indicator'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { OfflineIndicator } from '@/components/notifications/OfflineIndicator'
 import { OfflineQueueIndicator } from '@/components/notifications/OfflineQueueIndicator'
 import { ServiceWorkerUpdate } from '@/components/notifications/ServiceWorkerUpdate'
@@ -1334,6 +1335,17 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 transition={{ delay: 0.2, duration: 0.3 }}
               >
                 <IndexedDBStatus />
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <ThemeToggle />
+                    </motion.div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Toggle theme</p>
+                  </TooltipContent>
+                </Tooltip>
                 
                 <Tooltip>
                   <TooltipTrigger asChild>
