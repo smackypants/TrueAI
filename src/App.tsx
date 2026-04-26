@@ -175,6 +175,7 @@ const TabErrorBoundary = ({ children, tabName }: { children: React.ReactNode; ta
 
 function App() {
   const isMobile = useIsMobile()
+  const [activeTab, setActiveTab] = useState('chat')
   const performanceOptimization = useAutoPerformanceOptimization()
   const dynamicUI = useDynamicUI()
   const contextualUI = useContextualUI()
@@ -275,7 +276,6 @@ function App() {
   const [newAgentDialog, setNewAgentDialog] = useState(false)
   const [newConversationDialog, setNewConversationDialog] = useState(false)
   const [editingModelId, setEditingModelId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState('chat')
   const [isSwipeIndicatorVisible, setIsSwipeIndicatorVisible] = useState(false)
   const [tabLoadingStates, setTabLoadingStates] = useState<Record<string, boolean>>({})
   const [isTabSwitching, setIsTabSwitching] = useState(false)
