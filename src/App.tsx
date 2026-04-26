@@ -1758,31 +1758,35 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                     </Card>
 
                     {agents && agents.length > 0 && (
-                      <LazyErrorBoundary componentName="Agent Performance Monitor">
-                        <AgentPerformanceMonitor 
-                          agent={agents[0]} 
-                          runs={agentRuns || []} 
-                        />
-                      </LazyErrorBoundary>
+                      <Suspense fallback={<LoadingFallback message="Loading performance data..." />}>
+                        <LazyErrorBoundary componentName="Agent Performance Monitor">
+                          <AgentPerformanceMonitor 
+                            agent={agents[0]} 
+                            runs={agentRuns || []} 
+                          />
+                        </LazyErrorBoundary>
+                      </Suspense>
                     )}
                   </div>
                 </div>
               </TabsContent>
 
               <TabsContent value="templates">
-                <LazyErrorBoundary componentName="Agent Templates">
-                  <AgentTemplates 
-                    onSelectTemplate={(template) => {
-                      setNewAgentForm({
-                        name: template.name,
-                        goal: template.goal,
-                        model: 'gpt-4o-mini',
-                        tools: template.tools
-                      })
-                      setNewAgentDialog(true)
-                    }}
-                  />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading templates..." />}>
+                  <LazyErrorBoundary componentName="Agent Templates">
+                    <AgentTemplates 
+                      onSelectTemplate={(template) => {
+                        setNewAgentForm({
+                          name: template.name,
+                          goal: template.goal,
+                          model: 'gpt-4o-mini',
+                          tools: template.tools
+                        })
+                        setNewAgentDialog(true)
+                      }}
+                    />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="learning">
@@ -1821,15 +1825,17 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                           <>
                             <div className="space-y-4">
                               {selectedAgent && metrics ? (
-                                <LazyErrorBoundary componentName="Learning Insights">
-                                  <LearningInsightsPanel
-                                    agent={selectedAgent}
-                                    metrics={metrics}
-                                    onApplyInsight={(insight) => applyInsight(selectedAgentId, insight)}
-                                    onTriggerLearning={() => triggerLearning(selectedAgentId)}
-                                    isLearning={isLearning && activeLearningAgentId === selectedAgentId}
-                                  />
-                                </LazyErrorBoundary>
+                                <Suspense fallback={<LoadingFallback message="Loading insights..." />}>
+                                  <LazyErrorBoundary componentName="Learning Insights">
+                                    <LearningInsightsPanel
+                                      agent={selectedAgent}
+                                      metrics={metrics}
+                                      onApplyInsight={(insight) => applyInsight(selectedAgentId, insight)}
+                                      onTriggerLearning={() => triggerLearning(selectedAgentId)}
+                                      isLearning={isLearning && activeLearningAgentId === selectedAgentId}
+                                    />
+                                  </LazyErrorBoundary>
+                                </Suspense>
                               ) : (
                                 <Card className="p-12 text-center">
                                   <Brain size={48} className="mx-auto text-muted-foreground mb-4" />
@@ -1848,21 +1854,23 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                             </div>
 
                             <div className="space-y-4">
-                              <LazyErrorBoundary componentName="Version History">
-                                <AgentVersionHistory
-                                  versions={versions}
-                                  onRestore={(version) => {
-                                    if (selectedAgent) {
-                                      setAgents(prev => (prev || []).map(a =>
-                                        a.id === selectedAgentId
-                                          ? { ...a, ...version.changes.reduce((acc, change) => ({ ...acc, [change.field]: change.newValue }), {}) }
-                                          : a
-                                      ))
-                                      toast.success(`Restored to version ${version.version}`)
-                                    }
-                                  }}
-                                />
-                              </LazyErrorBoundary>
+                              <Suspense fallback={<LoadingFallback message="Loading version history..." />}>
+                                <LazyErrorBoundary componentName="Version History">
+                                  <AgentVersionHistory
+                                    versions={versions}
+                                    onRestore={(version) => {
+                                      if (selectedAgent) {
+                                        setAgents(prev => (prev || []).map(a =>
+                                          a.id === selectedAgentId
+                                            ? { ...a, ...version.changes.reduce((acc, change) => ({ ...acc, [change.field]: change.newValue }), {}) }
+                                            : a
+                                        ))
+                                        toast.success(`Restored to version ${version.version}`)
+                                      }
+                                    }}
+                                  />
+                                </LazyErrorBoundary>
+                              </Suspense>
                             </div>
                           </>
                         )
@@ -1885,17 +1893,19 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               </TabsContent>
 
               <TabsContent value="collaborative">
-                <LazyErrorBoundary componentName="Collaborative Agent Manager">
-                  <CollaborativeAgentManager 
-                    agents={agents || []}
-                    onRunCollaboration={async (agentIds, objective) => {
-                      for (const agentId of agentIds) {
-                        await runAgent(agentId)
-                        await new Promise(resolve => setTimeout(resolve, 1000))
-                      }
-                    }}
-                  />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading collaborative features..." />}>
+                  <LazyErrorBoundary componentName="Collaborative Agent Manager">
+                    <CollaborativeAgentManager 
+                      agents={agents || []}
+                      onRunCollaboration={async (agentIds, objective) => {
+                        for (const agentId of agentIds) {
+                          await runAgent(agentId)
+                          await new Promise(resolve => setTimeout(resolve, 1000))
+                        }
+                      }}
+                    />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
             </Tabs>
             </TabErrorBoundary>
@@ -1950,29 +1960,35 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               </ScrollArea>
 
               <TabsContent value="optimize">
-                <LazyErrorBoundary componentName="Hardware Optimizer">
-                  <HardwareOptimizer 
-                    onSettingsApplied={(settings) => {
-                      toast.success(`Optimization applied: ${settings.tier.toUpperCase()} tier`)
-                    }}
-                  />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading optimizer..." />}>
+                  <LazyErrorBoundary componentName="Hardware Optimizer">
+                    <HardwareOptimizer 
+                      onSettingsApplied={(settings) => {
+                        toast.success(`Optimization applied: ${settings.tier.toUpperCase()} tier`)
+                      }}
+                    />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="browse">
-                <LazyErrorBoundary componentName="Model Browser">
-                  <HuggingFaceModelBrowser onDownload={handleHuggingFaceDownload} />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading model browser..." />}>
+                  <LazyErrorBoundary componentName="Model Browser">
+                    <HuggingFaceModelBrowser onDownload={handleHuggingFaceDownload} />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="library">
-                <LazyErrorBoundary componentName="GGUF Library">
-                  <GGUFLibrary
-                    models={ggufModels || []}
-                    onAddModel={addGGUFModel}
-                    onDeleteModel={deleteGGUFModel}
-                  />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading GGUF library..." />}>
+                  <LazyErrorBoundary componentName="GGUF Library">
+                    <GGUFLibrary
+                      models={ggufModels || []}
+                      onAddModel={addGGUFModel}
+                      onDeleteModel={deleteGGUFModel}
+                    />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="config" className="space-y-3 sm:space-y-4">
@@ -2000,13 +2016,15 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 </div>
                 
                 {editingModel ? (
-                  <LazyErrorBoundary componentName="Model Configuration">
-                    <ModelConfigPanel
-                      model={editingModel}
-                      onSave={saveModelConfig}
-                      onClose={() => setEditingModelId(null)}
-                    />
-                  </LazyErrorBoundary>
+                  <Suspense fallback={<LoadingFallback message="Loading configuration..." />}>
+                    <LazyErrorBoundary componentName="Model Configuration">
+                      <ModelConfigPanel
+                        model={editingModel}
+                        onSave={saveModelConfig}
+                        onClose={() => setEditingModelId(null)}
+                      />
+                    </LazyErrorBoundary>
+                  </Suspense>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {models?.map(model => (
@@ -2033,16 +2051,18 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                           </div>
                           <div className="flex gap-2">
                             {isMobile && (
-                              <LazyErrorBoundary componentName="Quick Actions">
-                                <QuickActionsMenu
-                                  model={model}
-                                  onUpdate={(updatedModel) => {
-                                    setModels(prev => 
-                                      (prev || []).map(m => m.id === updatedModel.id ? updatedModel : m)
-                                    )
-                                  }}
-                                />
-                              </LazyErrorBoundary>
+                              <Suspense fallback={null}>
+                                <LazyErrorBoundary componentName="Quick Actions">
+                                  <QuickActionsMenu
+                                    model={model}
+                                    onUpdate={(updatedModel) => {
+                                      setModels(prev => 
+                                        (prev || []).map(m => m.id === updatedModel.id ? updatedModel : m)
+                                      )
+                                    }}
+                                  />
+                                </LazyErrorBoundary>
+                              </Suspense>
                             )}
                             <Button
                               variant="outline"
@@ -2060,29 +2080,33 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               </TabsContent>
 
               <TabsContent value="finetuning">
-                <LazyErrorBoundary componentName="Fine-Tuning UI">
-                  <FineTuningUI
-                    models={models || []}
-                    datasets={fineTuningDatasets || []}
-                    jobs={fineTuningJobs || []}
-                    onCreateDataset={createFineTuningDataset}
-                    onStartJob={startFineTuningJob}
-                    onDeleteDataset={deleteFineTuningDataset}
-                    onDeleteJob={deleteFineTuningJob}
-                  />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading fine-tuning tools..." />}>
+                  <LazyErrorBoundary componentName="Fine-Tuning UI">
+                    <FineTuningUI
+                      models={models || []}
+                      datasets={fineTuningDatasets || []}
+                      jobs={fineTuningJobs || []}
+                      onCreateDataset={createFineTuningDataset}
+                      onStartJob={startFineTuningJob}
+                      onDeleteDataset={deleteFineTuningDataset}
+                      onDeleteJob={deleteFineTuningJob}
+                    />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="quantization">
-                <LazyErrorBoundary componentName="Quantization Tools">
-                  <QuantizationTools
-                    models={models || []}
-                    jobs={quantizationJobs || []}
-                    onStartJob={startQuantizationJob}
-                    onDeleteJob={deleteQuantizationJob}
-                    onDownloadModel={downloadQuantizedModel}
-                  />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading quantization tools..." />}>
+                  <LazyErrorBoundary componentName="Quantization Tools">
+                    <QuantizationTools
+                      models={models || []}
+                      jobs={quantizationJobs || []}
+                      onStartJob={startQuantizationJob}
+                      onDeleteJob={deleteQuantizationJob}
+                      onDownloadModel={downloadQuantizedModel}
+                    />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="harness">
@@ -2099,25 +2123,29 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                   </TabsList>
 
                   <TabsContent value="creator">
-                    <LazyErrorBoundary componentName="Harness Creator">
-                      <HarnessCreator
-                        harnesses={harnesses || []}
-                        onCreateHarness={createHarness}
-                        onDeleteHarness={deleteHarness}
-                        onExportHarness={exportHarness}
-                      />
-                    </LazyErrorBoundary>
+                    <Suspense fallback={<LoadingFallback message="Loading harness creator..." />}>
+                      <LazyErrorBoundary componentName="Harness Creator">
+                        <HarnessCreator
+                          harnesses={harnesses || []}
+                          onCreateHarness={createHarness}
+                          onDeleteHarness={deleteHarness}
+                          onExportHarness={exportHarness}
+                        />
+                      </LazyErrorBoundary>
+                    </Suspense>
                   </TabsContent>
 
                   <TabsContent value="automation">
-                    <LazyErrorBoundary componentName="Bundle Automation">
-                      <BundleAutomationPanel
-                        messages={messages || []}
-                        agents={agents || []}
-                        agentRuns={agentRuns || []}
-                        harnesses={harnesses || []}
-                      />
-                    </LazyErrorBoundary>
+                    <Suspense fallback={<LoadingFallback message="Loading automation tools..." />}>
+                      <LazyErrorBoundary componentName="Bundle Automation">
+                        <BundleAutomationPanel
+                          messages={messages || []}
+                          agents={agents || []}
+                          agentRuns={agentRuns || []}
+                          harnesses={harnesses || []}
+                        />
+                      </LazyErrorBoundary>
+                    </Suspense>
                   </TabsContent>
                 </Tabs>
               </TabsContent>
@@ -2136,24 +2164,28 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                   </TabsList>
 
                   <TabsContent value="standard">
-                    <LazyErrorBoundary componentName="Benchmark Runner">
-                      <BenchmarkRunner 
-                        models={models || []}
-                      />
-                    </LazyErrorBoundary>
+                    <Suspense fallback={<LoadingFallback message="Loading benchmark runner..." />}>
+                      <LazyErrorBoundary componentName="Benchmark Runner">
+                        <BenchmarkRunner 
+                          models={models || []}
+                        />
+                      </LazyErrorBoundary>
+                    </Suspense>
                   </TabsContent>
 
                   <TabsContent value="learning-rate">
-                    <LazyErrorBoundary componentName="Learning Rate Benchmark">
-                      <LearningRateBenchmark
-                        models={models || []}
-                        onModelUpdate={(updatedModel) => {
-                          setModels(prev => 
-                            (prev || []).map(m => m.id === updatedModel.id ? updatedModel : m)
-                          )
-                        }}
-                      />
-                    </LazyErrorBoundary>
+                    <Suspense fallback={<LoadingFallback message="Loading learning rate tools..." />}>
+                      <LazyErrorBoundary componentName="Learning Rate Benchmark">
+                        <LearningRateBenchmark
+                          models={models || []}
+                          onModelUpdate={(updatedModel) => {
+                            setModels(prev => 
+                              (prev || []).map(m => m.id === updatedModel.id ? updatedModel : m)
+                            )
+                          }}
+                        />
+                      </LazyErrorBoundary>
+                    </Suspense>
                   </TabsContent>
                 </Tabs>
               </TabsContent>
@@ -2164,75 +2196,83 @@ Describe what input you would give to the ${tool} tool (one sentence).`
           <TabsContent value="analytics">
             <TabErrorBoundary tabName="Analytics">
             <div className="space-y-6">
-              <LazyErrorBoundary componentName="Analytics Dashboard">
-                <AnalyticsDashboard 
-                  models={models || []}
-                  profiles={performanceProfiles || []}
-                  onApplyOptimization={(insight) => {
-                    if (insight.suggestedAction?.type === 'adjust_parameters' && insight.suggestedAction.details.modelId) {
-                      const model = models?.find(m => m.id === insight.suggestedAction!.details.modelId)
+              <Suspense fallback={<LoadingFallback message="Loading analytics..." />}>
+                <LazyErrorBoundary componentName="Analytics Dashboard">
+                  <AnalyticsDashboard 
+                    models={models || []}
+                    profiles={performanceProfiles || []}
+                    onApplyOptimization={(insight) => {
+                      if (insight.suggestedAction?.type === 'adjust_parameters' && insight.suggestedAction.details.modelId) {
+                        const model = models?.find(m => m.id === insight.suggestedAction!.details.modelId)
+                        if (model) {
+                          const updatedModel = {
+                            ...model,
+                            ...insight.suggestedAction.details.parameters
+                          }
+                          setModels(prev => (prev || []).map(m => m.id === model.id ? updatedModel : m))
+                          toast.success('Optimization applied successfully')
+                          analytics.track('optimization_applied', 'analytics', 'apply_insight', {
+                            metadata: { insightId: insight.id, insightType: insight.type }
+                          })
+                        }
+                      } else if (insight.suggestedAction?.type === 'add_profile') {
+                        toast.info('Navigate to Performance Profiles to create task-specific profiles')
+                      }
+                    }}
+                    onApplyAutoTune={(recommendation, modelId) => {
+                      const model = models?.find(m => m.id === modelId)
                       if (model) {
                         const updatedModel = {
                           ...model,
-                          ...insight.suggestedAction.details.parameters
+                          ...recommendation.recommendedParams
                         }
-                        setModels(prev => (prev || []).map(m => m.id === model.id ? updatedModel : m))
-                        toast.success('Optimization applied successfully')
-                        analytics.track('optimization_applied', 'analytics', 'apply_insight', {
-                          metadata: { insightId: insight.id, insightType: insight.type }
+                        setModels(prev => (prev || []).map(m => m.id === modelId ? updatedModel : m))
+                        toast.success(`Model auto-tuned for ${recommendation.taskType.replace('_', ' ')}`)
+                        analytics.track('auto_tune_applied', 'analytics', 'apply_auto_tune', {
+                          metadata: { 
+                            modelId, 
+                            taskType: recommendation.taskType,
+                            confidence: recommendation.confidence
+                          }
                         })
                       }
-                    } else if (insight.suggestedAction?.type === 'add_profile') {
-                      toast.info('Navigate to Performance Profiles to create task-specific profiles')
-                    }
-                  }}
-                  onApplyAutoTune={(recommendation, modelId) => {
-                    const model = models?.find(m => m.id === modelId)
-                    if (model) {
-                      const updatedModel = {
-                        ...model,
-                        ...recommendation.recommendedParams
-                      }
-                      setModels(prev => (prev || []).map(m => m.id === modelId ? updatedModel : m))
-                      toast.success(`Model auto-tuned for ${recommendation.taskType.replace('_', ' ')}`)
-                      analytics.track('auto_tune_applied', 'analytics', 'apply_auto_tune', {
-                        metadata: { 
-                          modelId, 
-                          taskType: recommendation.taskType,
-                          confidence: recommendation.confidence
-                        }
-                      })
-                    }
-                  }}
-                  onCreateProfile={(taskType) => {
-                    toast.info('Navigate to Models > Config to create performance profiles')
-                    handleTabChange('models')
-                  }}
-                />
-              </LazyErrorBoundary>
+                    }}
+                    onCreateProfile={(taskType) => {
+                      toast.info('Navigate to Models > Config to create performance profiles')
+                      handleTabChange('models')
+                    }}
+                  />
+                </LazyErrorBoundary>
+              </Suspense>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <LazyErrorBoundary componentName="IndexedDB Cache Manager">
-                  <IndexedDBCacheManager />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading cache manager..." />}>
+                  <LazyErrorBoundary componentName="IndexedDB Cache Manager">
+                    <IndexedDBCacheManager />
+                  </LazyErrorBoundary>
+                </Suspense>
 
-                <LazyErrorBoundary componentName="Offline Queue">
-                  <OfflineQueuePanel />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading offline queue..." />}>
+                  <LazyErrorBoundary componentName="Offline Queue">
+                    <OfflineQueuePanel />
+                  </LazyErrorBoundary>
+                </Suspense>
                 
-                <LazyErrorBoundary componentName="Cache Manager">
-                  <CacheManager />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading cache..." />}>
+                  <LazyErrorBoundary componentName="Cache Manager">
+                    <CacheManager />
+                  </LazyErrorBoundary>
+                </Suspense>
 
               <Separator className="my-6" />
 
               <div>
                 <h3 className="text-xl font-semibold mb-4">Dynamic UI Analytics</h3>
-                <LazyErrorBoundary componentName="Dynamic UI Dashboard">
-                  <Suspense fallback={<LoadingFallback message="Loading UI analytics..." />}>
+                <Suspense fallback={<LoadingFallback message="Loading UI analytics..." />}>
+                  <LazyErrorBoundary componentName="Dynamic UI Dashboard">
                     <DynamicUIDashboard />
-                  </Suspense>
-                </LazyErrorBoundary>
+                  </LazyErrorBoundary>
+                </Suspense>
               </div>
               </div>
             </div>
@@ -2258,32 +2298,38 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               </TabsList>
 
               <TabsContent value="builder">
-                <LazyErrorBoundary componentName="Workflow Builder">
-                  <WorkflowBuilder
-                    workflows={workflows || []}
-                    agents={agents || []}
-                    onSaveWorkflow={saveWorkflow}
-                    onDeleteWorkflow={deleteWorkflow}
-                    onExecuteWorkflow={executeWorkflow}
-                  />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading workflow builder..." />}>
+                  <LazyErrorBoundary componentName="Workflow Builder">
+                    <WorkflowBuilder
+                      workflows={workflows || []}
+                      agents={agents || []}
+                      onSaveWorkflow={saveWorkflow}
+                      onDeleteWorkflow={deleteWorkflow}
+                      onExecuteWorkflow={executeWorkflow}
+                    />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="templates">
-                <LazyErrorBoundary componentName="Workflow Templates">
-                  <WorkflowTemplates onUseTemplate={useWorkflowTemplate} />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading templates..." />}>
+                  <LazyErrorBoundary componentName="Workflow Templates">
+                    <WorkflowTemplates onUseTemplate={useWorkflowTemplate} />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="cost">
-                <LazyErrorBoundary componentName="Cost Tracking">
-                  <CostTracking
-                    costEntries={costEntries || []}
-                    budgets={budgets || []}
-                    onCreateBudget={createBudget}
-                    onDeleteBudget={deleteBudget}
-                  />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading cost tracking..." />}>
+                  <LazyErrorBoundary componentName="Cost Tracking">
+                    <CostTracking
+                      costEntries={costEntries || []}
+                      budgets={budgets || []}
+                      onCreateBudget={createBudget}
+                      onDeleteBudget={deleteBudget}
+                    />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
             </Tabs>
             </TabErrorBoundary>
@@ -2304,15 +2350,19 @@ Describe what input you would give to the ${tool} tool (one sentence).`
               </TabsList>
 
               <TabsContent value="ai-builder">
-                <LazyErrorBoundary componentName="AI Builder">
-                  <AppBuilder models={models || []} />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading AI builder..." />}>
+                  <LazyErrorBoundary componentName="AI Builder">
+                    <AppBuilder models={models || []} />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="local-ide">
-                <LazyErrorBoundary componentName="Local IDE">
-                  <LocalIDE />
-                </LazyErrorBoundary>
+                <Suspense fallback={<LoadingFallback message="Loading IDE..." />}>
+                  <LazyErrorBoundary componentName="Local IDE">
+                    <LocalIDE />
+                  </LazyErrorBoundary>
+                </Suspense>
               </TabsContent>
             </Tabs>
             </TabErrorBoundary>
@@ -2461,18 +2511,20 @@ Describe what input you would give to the ${tool} tool (one sentence).`
       </Dialog>
       
       {selectedRunForFeedback && (
-        <LazyErrorBoundary componentName="Feedback Dialog">
-          <FeedbackDialog
-            open={feedbackDialogOpen}
-            onOpenChange={setFeedbackDialogOpen}
-            agentRun={selectedRunForFeedback}
-            onSubmit={(feedback) => {
-              submitFeedback(feedback)
-              setFeedbackDialogOpen(false)
-              setSelectedRunForFeedback(null)
-            }}
-          />
-        </LazyErrorBoundary>
+        <Suspense fallback={null}>
+          <LazyErrorBoundary componentName="Feedback Dialog">
+            <FeedbackDialog
+              open={feedbackDialogOpen}
+              onOpenChange={setFeedbackDialogOpen}
+              agentRun={selectedRunForFeedback}
+              onSubmit={(feedback) => {
+                submitFeedback(feedback)
+                setFeedbackDialogOpen(false)
+                setSelectedRunForFeedback(null)
+              }}
+            />
+          </LazyErrorBoundary>
+        </Suspense>
       )}
 
       {activeConversation && (
