@@ -2,7 +2,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { usePerformanceOptimization } from '@/hooks/use-performance-optimization'
-import { Lightning, BatteryCharging, WifiHigh, Cpu } from '@phosphor-icons/react'
+import { Lightning, BatteryCharging, BatteryFull, WifiHigh, Cpu } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export function PerformanceIndicator() {
@@ -88,7 +88,10 @@ export function PerformanceIndicator() {
             >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                  <BatteryCharging size={16} className={isLowBattery ? 'text-orange-500' : 'text-muted-foreground'} weight={capabilities.isCharging ? 'fill' : 'regular'} />
+                  {capabilities.isCharging
+                    ? <BatteryCharging size={16} className={isLowBattery ? 'text-orange-500' : 'text-muted-foreground'} weight="fill" />
+                    : <BatteryFull size={16} className={isLowBattery ? 'text-orange-500' : 'text-muted-foreground'} />
+                  }
                   <span className="text-xs font-medium">Battery</span>
                 </div>
                 <span className="text-xs font-medium">
