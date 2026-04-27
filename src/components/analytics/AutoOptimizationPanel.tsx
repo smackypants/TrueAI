@@ -652,7 +652,7 @@ interface AutoTuneCardProps {
 
 function AutoTuneCard({ recommendation, models, onApply }: AutoTuneCardProps) {
   const [expanded, setExpanded] = useState(false)
-  const [selectedModel, setSelectedModel] = useState<string>(models[0]?.id || '')
+  const [selectedModel, _setSelectedModel] = useState<string>(models[0]?.id || '')
 
   const parameterChanges = [
     {

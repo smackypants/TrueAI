@@ -48,7 +48,7 @@ export class MobilePerformanceOptimizer {
           batteryLevel = battery.level
           charging = battery.charging
         }
-      } catch (e) {
+      } catch (_e) {
         console.warn('Battery API not available')
       }
     }
@@ -287,6 +287,7 @@ export function useIntersectionObserver(
     observer.observe(element)
 
     return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elementRef, options.threshold, options.rootMargin])
 
   return isIntersecting

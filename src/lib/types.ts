@@ -82,7 +82,7 @@ export interface AgentRun {
   tokensUsed?: number
   costEstimate?: number
   iterations?: number
-  memorySnapshot?: Record<string, any>
+  memorySnapshot?: Record<string, unknown>
   feedback?: AgentFeedback
   qualityScore?: number
   improvementSuggestions?: string[]
@@ -244,7 +244,7 @@ export interface FineTuningSample {
   id: string
   prompt: string
   completion: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface FineTuningJob {
@@ -308,7 +308,7 @@ export interface HarnessParameter {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array'
   description: string
   required: boolean
-  default?: any
+  default?: unknown
 }
 
 export interface GGUFModel {
@@ -357,7 +357,7 @@ export interface AnalyticsEvent {
   action: string
   label?: string
   value?: number
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   duration?: number
 }
 
@@ -579,7 +579,7 @@ export interface LearningInsight {
   actionable: boolean
   action?: {
     type: 'adjust_parameter' | 'change_tool' | 'modify_prompt' | 'add_capability'
-    details: Record<string, any>
+    details: Record<string, unknown>
   }
   createdAt: number
   applied?: boolean
@@ -601,8 +601,8 @@ export interface AgentVersion {
 
 export interface VersionChange {
   field: string
-  oldValue: any
-  newValue: any
+  oldValue: unknown
+  newValue: unknown
   reason: string
 }
 

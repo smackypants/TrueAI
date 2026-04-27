@@ -176,7 +176,7 @@ export async function registerPeriodicSync(tag: string = 'periodic-sync', minInt
     })
     
     if (status.state === 'granted') {
-      await (registration as any).periodicSync.register(tag, {
+      await (registration as ServiceWorkerRegistration & { periodicSync: { register(tag: string, options: { minInterval: number }): Promise<void> } }).periodicSync.register(tag, {
         minInterval
       })
       console.log(`[ServiceWorker] Periodic sync registered: ${tag}`)

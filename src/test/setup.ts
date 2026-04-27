@@ -47,7 +47,7 @@ const indexedDB = {
   deleteDatabase: vi.fn(),
   databases: vi.fn(),
 }
-globalThis.indexedDB = indexedDB as any
+globalThis.indexedDB = indexedDB as IDBFactory
 
 // Mock spark global
 globalThis.spark = {
@@ -57,4 +57,5 @@ globalThis.spark = {
     delete: vi.fn(),
   },
   user: vi.fn(),
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any

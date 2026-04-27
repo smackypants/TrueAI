@@ -43,7 +43,7 @@ export interface OptimizedSettings {
 
 export async function scanHardware(): Promise<HardwareSpecs> {
   const hardwareConcurrency = navigator.hardwareConcurrency || 4
-  const deviceMemory = (navigator as any).deviceMemory || undefined
+  const deviceMemory = (navigator as { deviceMemory?: number }).deviceMemory || undefined
   const maxTouchPoints = navigator.maxTouchPoints || 0
   const platform = navigator.platform
   const userAgent = navigator.userAgent
@@ -60,11 +60,11 @@ export async function scanHardware(): Promise<HardwareSpecs> {
     const canvas = document.createElement('canvas')
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
     if (gl) {
-      const debugInfo = (gl as any).getExtension('WEBGL_debug_renderer_info')
+      const debugInfo = (gl as WebGLRenderingContext & { getExtension(name: string): { UNMASKED_VENDOR_WEBGL: number; UNMASKED_RENDERER_WEBGL: number } | null }).getExtension('WEBGL_debug_renderer_info')
       if (debugInfo) {
         gpu = {
-          vendor: (gl as any).getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
-          renderer: (gl as any).getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+          vendor: (gl as WebGLRenderingContext & { getParameter(pname: number): string }).getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+          renderer: (gl as WebGLRenderingContext & { getParameter(pname: number): string }).getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
         }
       }
     }
@@ -75,10 +75,12 @@ export async function scanHardware(): Promise<HardwareSpecs> {
   let battery: HardwareSpecs['battery'] = undefined
   try {
     if ('getBattery' in navigator) {
-      const batteryManager = await (navigator as any).getBattery()
-      battery = {
-        level: batteryManager.level,
-        charging: batteryManager.charging
+      const batteryManager = await (navigator as { getBattery?: () => Promise<{ level: number; charging: boolean }> }).getBattery?.()
+      if (batteryManager) {
+        battery = {
+          level: batteryManager.level,
+          charging: batteryManager.charging
+        }
       }
     }
   } catch (_e) {
@@ -87,7 +89,7 @@ export async function scanHardware(): Promise<HardwareSpecs> {
 
   let connection: HardwareSpecs['connection'] = undefined
   try {
-    const conn = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection
+    const conn = (navigator as { connection?: { effectiveType?: string; downlink?: number; rtt?: number; saveData?: boolean }; mozConnection?: { effectiveType?: string; downlink?: number; rtt?: number; saveData?: boolean }; webkitConnection?: { effectiveType?: string; downlink?: number; rtt?: number; saveData?: boolean } }).connection || (navigator as { mozConnection?: { effectiveType?: string; downlink?: number; rtt?: number; saveData?: boolean } }).mozConnection || (navigator as { webkitConnection?: { effectiveType?: string; downlink?: number; rtt?: number; saveData?: boolean } }).webkitConnection
     if (conn) {
       connection = {
         effectiveType: conn.effectiveType || 'unknown',

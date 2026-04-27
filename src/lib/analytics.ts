@@ -202,7 +202,7 @@ class AnalyticsService {
   }
 
   private calculateChatMetrics(events: AnalyticsEvent[]) {
-    const chatEvents = events.filter(e => e.category === 'chat')
+    const _chatEvents = events.filter(e => e.category === 'chat')
     const messagesSent = events.filter(e => e.type === 'chat_message_sent').length
     const messagesReceived = events.filter(e => e.type === 'chat_message_received').length
     const conversationsCreated = events.filter(e => e.type === 'conversation_created').length
@@ -240,11 +240,11 @@ class AnalyticsService {
   }
 
   private calculateAgentMetrics(events: AnalyticsEvent[]) {
-    const agentEvents = events.filter(e => e.category === 'agent')
+    const _agentEvents = events.filter(e => e.category === 'agent')
     const agentsCreated = events.filter(e => e.type === 'agent_created').length
     const runsStarted = events.filter(e => e.type === 'agent_run_started').length
     const runsCompleted = events.filter(e => e.type === 'agent_run_completed').length
-    const runsFailed = events.filter(e => e.type === 'agent_run_failed').length
+    const _runsFailed = events.filter(e => e.type === 'agent_run_failed').length
 
     const successRate = runsStarted > 0 ? (runsCompleted / runsStarted) * 100 : 0
 

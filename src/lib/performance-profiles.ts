@@ -2,7 +2,6 @@ import type { TaskType, PerformanceProfile, ModelParameters, AutoTuneRecommendat
 
 export const taskTypeDescriptions: Record<TaskType, string> = {
   creative_writing: 'Generate creative content like stories, poems, and narratives',
-  code_generation: 'Write, debug, and explain code across programming languages',
   data_analysis: 'Analyze datasets, extract insights, and identify patterns',
   conversation: 'Natural dialogue and general-purpose chat interactions',
   summarization: 'Condense long text into concise summaries',
@@ -142,7 +141,7 @@ export const taskTypeReasonings: Record<TaskType, string> = {
 export function generateAutoTuneRecommendation(
   taskType: TaskType,
   currentParams: ModelParameters,
-  benchmarkData?: { avgQualityScore?: number; avgResponseTime?: number }
+  _benchmarkData?: { avgQualityScore?: number; avgResponseTime?: number }
 ): AutoTuneRecommendation {
   const recommendedParams = defaultProfilesByTaskType[taskType]
   const reasoning = taskTypeReasonings[taskType]
@@ -214,7 +213,7 @@ export function createDefaultProfile(taskType: TaskType): Omit<PerformanceProfil
 export function analyzeParameterImpact(
   paramName: keyof ModelParameters,
   value: number,
-  taskType: TaskType
+  _taskType: TaskType
 ): string {
   if (paramName === 'temperature') {
     if (value < 0.3) return 'Very deterministic - best for factual tasks'

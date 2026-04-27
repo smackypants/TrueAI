@@ -366,7 +366,7 @@ export class ConfidenceThresholdManager {
     }
   }
 
-  private validateConfig(config: any): config is ThresholdConfig {
+  private validateConfig(config: unknown): config is ThresholdConfig {
     return (
       typeof config === 'object' &&
       typeof config.autoImplementEnabled === 'boolean' &&

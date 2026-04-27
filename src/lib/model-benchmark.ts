@@ -1,4 +1,4 @@
-import type { ModelConfig, TaskType, ModelParameters, ProfileBenchmark } from './types'
+import type { ModelConfig, TaskType, ModelParameters } from './types'
 
 export interface BenchmarkTest {
   id: string
@@ -238,7 +238,7 @@ Return ONLY a JSON object with these four scores. No explanation.`
       creativity: Math.min(100, Math.max(0, scores.creativity || scores.Creativity || 50)),
       accuracy: Math.min(100, Math.max(0, scores.accuracy || scores.Accuracy || 50))
     }
-  } catch (error) {
+  } catch (_error) {
     return {
       relevance: 50,
       coherence: 50,

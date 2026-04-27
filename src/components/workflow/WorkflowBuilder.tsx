@@ -38,7 +38,7 @@ import {
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
-import type { Workflow, WorkflowNode as WFNode, WorkflowEdge as WFEdge, Agent } from '@/lib/types'
+import type { Workflow, WorkflowNode as _WFNode, WorkflowEdge as _WFEdge, Agent } from '@/lib/types'
 
 interface WorkflowBuilderProps {
   workflows: Workflow[]
@@ -189,7 +189,7 @@ export function WorkflowBuilder({
       description: workflowDescription,
       nodes: nodes.map((node) => ({
         id: node.id,
-        type: node.type as any,
+        type: node.type as unknown,
         position: node.position,
         data: node.data,
       })),

@@ -1,6 +1,6 @@
 import type { OptimizationInsight } from './auto-optimizer'
 import type { ThresholdConfig } from './confidence-thresholds'
-import type { AnalyticsEvent } from './types'
+// import type { AnalyticsEvent } from './types'
 
 export interface UserFeedback {
   id: string
@@ -15,7 +15,7 @@ export interface UserFeedback {
   responseTime?: number
   satisfactionScore?: number
   modelId?: string
-  parameters?: Record<string, any>
+  parameters?: Record<string, unknown>
 }
 
 export interface LearningMetrics {

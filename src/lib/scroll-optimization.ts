@@ -8,10 +8,10 @@ export function useScrollOptimization(elementRef: RefObject<HTMLElement>) {
     if (!element) return
 
     let ticking = false
-    let lastScrollY = element.scrollTop
+    const _lastScrollY = element.scrollTop
 
     const handleScroll = () => {
-      lastScrollY = element.scrollTop
+      _lastScrollY = element.scrollTop
 
       if (!ticking) {
         rafRef.current = requestAnimationFrame(() => {

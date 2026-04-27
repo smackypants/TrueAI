@@ -6,7 +6,7 @@ export interface WorkflowNode {
   position: { x: number; y: number }
   data: {
     label: string
-    config?: any
+    config?: Record<string, unknown>
     agentId?: string
     toolName?: string
     condition?: string
@@ -28,7 +28,7 @@ export interface Workflow {
   description: string
   nodes: WorkflowNode[]
   edges: WorkflowEdge[]
-  variables: Record<string, any>
+  variables: Record<string, unknown>
   createdAt: number
   updatedAt: number
   category?: string
@@ -42,7 +42,7 @@ export interface WorkflowExecution {
   completedAt?: number
   status: 'running' | 'completed' | 'error' | 'cancelled'
   currentNodeId?: string
-  results: Record<string, any>
+  results: Record<string, unknown>
   error?: string
 }
 
@@ -69,7 +69,7 @@ export interface ToolParameter {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array'
   description: string
   required: boolean
-  default?: any
+  default?: unknown
 }
 
 export interface KnowledgeBase {
@@ -128,7 +128,7 @@ export interface TemplateParameter {
   type: 'string' | 'number' | 'boolean' | 'select'
   description: string
   required: boolean
-  default?: any
+  default?: unknown
   options?: string[]
 }
 
@@ -175,7 +175,7 @@ export interface MarketplaceItem {
   category: string
   tags: string[]
   thumbnail?: string
-  data: any
+  data: unknown
   version: string
   publishedAt: number
   updatedAt: number
@@ -189,7 +189,7 @@ export interface APIEndpoint {
   url: string
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
   authType: 'none' | 'apikey' | 'bearer' | 'basic' | 'oauth'
-  authConfig: Record<string, any>
+  authConfig: Record<string, unknown>
   headers: Record<string, string>
   queryParams?: Record<string, string>
   bodyTemplate?: string

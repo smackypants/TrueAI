@@ -4,8 +4,8 @@ import type {
   PerformanceProfile,
   ModelParameters
 } from './types'
-import { scanHardware, generateOptimizedSettings, type HardwareSpecs } from './hardware-scanner'
-import { autoOptimizer } from './auto-optimizer'
+import { scanHardware, _generateOptimizedSettings, type HardwareSpecs } from './hardware-scanner'
+import { _autoOptimizer } from './auto-optimizer'
 
 export interface PerformanceScanResult {
   id: string
@@ -59,7 +59,7 @@ export interface OptimizationAction {
   priority: 'critical' | 'high' | 'medium' | 'low'
   description: string
   targetModel?: string
-  changes: Record<string, any>
+  changes: Record<string, unknown>
   expectedGain: string
   confidence: number
   autoApplicable: boolean
@@ -80,7 +80,7 @@ export class PerformanceScanner {
   async performComprehensiveScan(
     events: AnalyticsEvent[],
     models: ModelConfig[],
-    profiles: PerformanceProfile[]
+    _profiles: PerformanceProfile[]
   ): Promise<PerformanceScanResult> {
     if (this.isScanning) {
       throw new Error('Scan already in progress')
@@ -192,8 +192,8 @@ export class PerformanceScanner {
       }
     })
     
-    const memoryUsage = (navigator as any).deviceMemory 
-      ? ((navigator as any).deviceMemory / 16) * 100 
+    const memoryUsage = (navigator as { deviceMemory?: number }).deviceMemory
+      ? ((navigator as { deviceMemory: number }).deviceMemory / 16) * 100
       : 50
     
     const systemLoad = Math.min(100, (avgResponseTime / 5000) * 100)

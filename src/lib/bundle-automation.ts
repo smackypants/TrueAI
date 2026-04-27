@@ -8,12 +8,12 @@ export interface UsagePattern {
   confidence: number
   triggers: PatternTrigger[]
   suggestedHarness: string[]
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
 }
 
 export interface PatternTrigger {
   type: 'time_of_day' | 'keyword' | 'tool_sequence' | 'frequency_threshold' | 'context_switch'
-  value: any
+  value: unknown
   weight: number
 }
 
@@ -37,14 +37,14 @@ export interface AutoExecutionRule {
 export interface ExecutionCondition {
   type: 'time_range' | 'keyword_match' | 'tool_used' | 'agent_status' | 'message_count' | 'model_type'
   operator: 'equals' | 'contains' | 'greater_than' | 'less_than' | 'in_range' | 'matches'
-  value: any
+  value: unknown
   negate?: boolean
 }
 
 export interface ExecutionAction {
   type: 'run_harness' | 'notify' | 'log' | 'store_context' | 'update_agent'
   target: string
-  parameters?: Record<string, any>
+  parameters?: Record<string, unknown>
 }
 
 export interface BundleExecutionResult {
@@ -53,9 +53,9 @@ export interface BundleExecutionResult {
   success: boolean
   timestamp: number
   duration: number
-  output?: any
+  output?: unknown
   error?: string
-  contextCaptured: Record<string, any>
+  contextCaptured: Record<string, unknown>
 }
 
 export interface AutomationMetrics {
@@ -86,16 +86,16 @@ export class BundleAutomationEngine {
 
   analyzeUsagePatterns(
     messages: Message[],
-    _agents: Agent[],
+    agents: Agent[],
     agentRuns: AgentRun[],
     _harnesses: HarnessManifest[]
   ): UsagePattern[] {
     const newPatterns: UsagePattern[] = []
 
     newPatterns.push(...this.detectTemporalPatterns(messages, agentRuns))
-    newPatterns.push(...this.detectContextualPatterns(messages, _agents))
+    newPatterns.push(...this.detectContextualPatterns(messages, agents))
     newPatterns.push(...this.detectSequentialPatterns(agentRuns))
-    newPatterns.push(...this.detectFrequencyPatterns(messages, _agents))
+    newPatterns.push(...this.detectFrequencyPatterns(messages, agents))
 
     this.patterns = newPatterns
     this.metrics.lastAnalyzed = Date.now()
@@ -281,7 +281,7 @@ export class BundleAutomationEngine {
 
   createRuleFromPattern(
     pattern: UsagePattern,
-    _harnesses: HarnessManifest[],
+    harnesses: HarnessManifest[],
     options: {
       autoEnable?: boolean
       priority?: AutoExecutionRule['priority']
@@ -458,7 +458,7 @@ export class BundleAutomationEngine {
 
   async executeRule(
     rule: AutoExecutionRule,
-    context: Record<string, any>
+    context: Record<string, unknown>
   ): Promise<BundleExecutionResult[]> {
     const results: BundleExecutionResult[] = []
     const startTime = Date.now()
@@ -502,8 +502,8 @@ export class BundleAutomationEngine {
 
   private async executeHarness(
     harnessId: string,
-    context: Record<string, any>
-  ): Promise<{ success: boolean; output?: any; error?: string }> {
+    context: Record<string, unknown>
+  ): Promise<{ success: boolean; output?: unknown; error?: string }> {
     try {
       await new Promise(resolve => setTimeout(resolve, 500))
       

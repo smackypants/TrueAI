@@ -212,7 +212,7 @@ export function ConfidenceThresholdConfig({
             onConfigChange(imported)
             setActivePreset('custom')
             toast.success('Configuration imported')
-          } catch (error) {
+          } catch (_error) {
             toast.error('Invalid configuration file')
           }
         }

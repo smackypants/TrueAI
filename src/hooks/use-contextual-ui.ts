@@ -86,6 +86,7 @@ export function useContextualUI() {
     }))
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const generateSuggestions = () => {
     if (!behavior) return []
 

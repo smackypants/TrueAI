@@ -16,6 +16,7 @@ declare module '*.svg?url' {
 }
 
 declare module '*.json' {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const content: any
   export default content
 }
@@ -23,10 +24,13 @@ declare module '*.json' {
 // Global spark declaration
 declare const spark: {
   kv: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     get: <T = any>(key: string) => Promise<T | undefined>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     set: (key: string, value: any) => Promise<void>;
     delete: (key: string) => Promise<void>;
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   llmPrompt: (strings: TemplateStringsArray, ...values: any[]) => string;
   llm: (prompt: string, model?: string) => Promise<string>;
 }

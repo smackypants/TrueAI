@@ -241,7 +241,6 @@ export function ThemeSwitcher() {
     } else if (activeTheme) {
       applyThemeColors(activeTheme.colors)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewTheme, activeTheme])
 
   const handleActivateTheme = (theme: CustomTheme) => {

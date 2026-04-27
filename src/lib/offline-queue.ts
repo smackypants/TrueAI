@@ -53,7 +53,7 @@ class OfflineQueue {
 
   private setupSyncRegistration() {
     if ('serviceWorker' in navigator && 'sync' in ServiceWorkerRegistration.prototype) {
-      navigator.serviceWorker.ready.then((registration) => {
+      navigator.serviceWorker.ready.then((_registration) => {
         console.log('[OfflineQueue] Background Sync API available')
       })
     } else {
