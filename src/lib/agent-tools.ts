@@ -55,9 +55,13 @@ export class AgentToolExecutor {
 
   private executeCalculator(input: string): ToolResult {
     try {
+      // Remove all non-math characters for safety
       const sanitizedInput = input.replace(/[^0-9+\-*/().\s]/g, '')
-      const result = eval(sanitizedInput)
-      
+
+      // Use Function constructor with strict validation instead of eval
+      // This is safer as it doesn't have access to the local scope
+      const result = this.safeEvaluateExpression(sanitizedInput)
+
       return {
         success: true,
         output: `Result: ${result}`,
@@ -69,6 +73,33 @@ export class AgentToolExecutor {
         output: 'Invalid mathematical expression'
       }
     }
+  }
+
+  private safeEvaluateExpression(expr: string): number {
+    // Validate that the expression only contains safe characters
+    if (!/^[\d+\-*/().\s]+$/.test(expr)) {
+      throw new Error('Invalid characters in expression')
+    }
+
+    // Check for balanced parentheses
+    let depth = 0
+    for (const char of expr) {
+      if (char === '(') depth++
+      if (char === ')') depth--
+      if (depth < 0) throw new Error('Unbalanced parentheses')
+    }
+    if (depth !== 0) throw new Error('Unbalanced parentheses')
+
+    // Use Function constructor in strict mode (safer than eval)
+    // It doesn't have access to the local scope
+    const fn = new Function('return (' + expr + ')')
+    const result = fn()
+
+    if (typeof result !== 'number' || !isFinite(result)) {
+      throw new Error('Invalid result')
+    }
+
+    return result
   }
 
   private executeDatetime(input: string): ToolResult {
@@ -154,26 +185,12 @@ export class AgentToolExecutor {
     }
   }
 
-  private executeCodeInterpreter(input: string): ToolResult {
-    try {
-      if (input.includes('function') || input.includes('=>')) {
-        return {
-          success: false,
-          output: 'Function definitions are not allowed for security reasons'
-        }
-      }
-
-      const result = eval(input)
-      return {
-        success: true,
-        output: `Executed code successfully. Result: ${JSON.stringify(result)}`,
-        metadata: { codeLength: input.length, resultType: typeof result }
-      }
-    } catch (_error) {
-      return {
-        success: false,
-        output: `Code execution error: ${_error instanceof Error ? _error.message : String(_error)}`
-      }
+  private executeCodeInterpreter(_input: string): ToolResult {
+    // Code execution is inherently dangerous and should be disabled
+    // in production environments or heavily sandboxed
+    return {
+      success: false,
+      output: 'Code execution has been disabled for security reasons. Please use safe alternatives like the calculator tool for mathematical expressions.'
     }
   }
 
