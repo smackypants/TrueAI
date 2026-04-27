@@ -4,7 +4,6 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Label } from '@/components/ui/label'
@@ -705,7 +704,7 @@ render(<App />, document.getElementById('app'));`,
     if (activeFile) {
       editorContentRef.current = activeFile.content
     }
-  }, [activeFileId])
+  }, [activeFileId, activeFile])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -752,7 +751,7 @@ render(<App />, document.getElementById('app'));`,
     })
   }
 
-  const themeDisplayNames: Record<CodeTheme, string> = {
+  const _themeDisplayNames: Record<CodeTheme, string> = {
     tomorrow: 'Tomorrow Night',
     okaidia: 'Okaidia',
     twilight: 'Twilight',
@@ -1033,7 +1032,7 @@ render(<App />, document.getElementById('app'));`,
                       </AnimatePresence>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      {!autoSaveEnabled && (
+                      {!safeAutoSaveEnabled && (
                         <Button
                           variant="ghost"
                           size="sm"

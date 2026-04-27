@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { FloppyDisk, X } from '@phosphor-icons/react'
 import type { ModelConfig } from '@/lib/types'
 

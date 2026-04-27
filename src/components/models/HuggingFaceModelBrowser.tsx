@@ -43,6 +43,7 @@ export function HuggingFaceModelBrowser({ onDownload }: HuggingFaceModelBrowserP
     if (popularModels.length > 0 && !hasSearched) {
       performSearch(popularModels[0])
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const performSearch = async (query?: string) => {

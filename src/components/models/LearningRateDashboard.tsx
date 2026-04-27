@@ -10,17 +10,19 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Progress } from '@/components/ui/progress'
-import { 
-  TrendUp, 
-  TrendDown, 
-  ChartLine, 
-  Target, 
+import {
+  TrendUp,
+  TrendDown,
+  ChartLine,
+  Target,
   Brain,
   ArrowUp,
   ArrowDown,
   Equals,
   CheckCircle,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Zap,
+  Warning as AlertCircle
 } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -89,7 +91,7 @@ export function LearningRateDashboard({
         }
       }
     }
-  }, [selectedJob, autoTuneEnabled, onUpdateJobLearningRate, selectedJobId])
+  }, [selectedJob?.id, selectedJob?.metrics, selectedJob?.learningRate, selectedJob?.progress, selectedJob?.startedAt, autoTuneEnabled, onUpdateJobLearningRate])
 
   const generateSchedule = () => {
     if (!selectedJob) return

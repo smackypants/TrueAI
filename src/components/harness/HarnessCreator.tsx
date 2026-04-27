@@ -34,7 +34,7 @@ export function HarnessCreator({
   const [addParameterDialog, setAddParameterDialog] = useState(false)
   const [previewDialog, setPreviewDialog] = useState(false)
   const [selectedHarnessId, setSelectedHarnessId] = useState<string | null>(null)
-  const [selectedToolIndex, setSelectedToolIndex] = useState<number | null>(null)
+  const [_selectedToolIndex, _setSelectedToolIndex] = useState<number | null>(null)
 
   const [harnessForm, setHarnessForm] = useState({
     name: '',

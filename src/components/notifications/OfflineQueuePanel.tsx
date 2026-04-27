@@ -40,12 +40,12 @@ export function OfflineQueuePanel() {
     }
   }
 
-  const handleClearCompleted = async () => {
+  const _handleClearCompleted = async () => {
     await clearCompleted()
     toast.success('Cleared completed actions')
   }
 
-  const handleClearFailed = async () => {
+  const _handleClearFailed = async () => {
     await clearFailed()
     toast.success('Cleared failed actions')
   }

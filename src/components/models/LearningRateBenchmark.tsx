@@ -82,7 +82,7 @@ export function LearningRateBenchmark({ models, onModelUpdate, recentBenchmarks 
       const optimalRate = learningRateTuner.getOptimalRateForTask(selectedTaskType, 'medium')
       setCurrentLearningRate(optimalRate)
     }
-  }, [selectedTaskType, selectedModel])
+  }, [selectedTaskType, selectedModel?.id])
 
   const generateSchedule = () => {
     if (!selectedModel) return

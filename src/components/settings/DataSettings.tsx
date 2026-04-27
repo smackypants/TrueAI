@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
@@ -13,7 +12,7 @@ interface DataSettingsProps {
   onSettingsChange: (_settings: AppSettings) => void
 }
 
-export function DataSettings({ onSettingsChange }: DataSettingsProps) {
+export function DataSettings({ onSettingsChange: _onSettingsChange }: DataSettingsProps) {
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isClearing, setIsClearing] = useState(false)

@@ -36,6 +36,7 @@ export function HardwareOptimizer({ onSettingsApplied }: HardwareOptimizerProps)
     if (!hardwareSpecs && autoOptimize) {
       performScan()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const performScan = async () => {

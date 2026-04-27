@@ -8,11 +8,10 @@ import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DialogFooter } from '@/components/ui/dialog'
-import { 
-  Sparkle, 
-  TrendUp, 
-  Lightning, 
+import {
+  Sparkle,
+  TrendUp,
+  Lightning,
   Brain,
   CheckCircle,
   Warning,
@@ -23,11 +22,11 @@ import {
   Clock,
   Target,
   Gear,
-  Eye} from '@phosphor-icons/react'
+  Eye
+} from '@phosphor-icons/react'
 import { useAnalytics } from '@/lib/analytics'
 import { autoOptimizer, type OptimizationInsight } from '@/lib/auto-optimizer'
 import { thresholdManager, type ThresholdConfig } from '@/lib/confidence-thresholds'
-import { ConfidenceThresholdConfig } from './ConfidenceThresholdConfig'
 import { OptimizationRecommendationsViewer } from './OptimizationRecommendationsViewer'
 import type { ModelConfig, PerformanceProfile, AutoTuneRecommendation } from '@/lib/types'
 import { toast } from 'sonner'
@@ -57,7 +56,7 @@ export function AutoOptimizationPanel({
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [autoLearnEnabled, setAutoLearnEnabled] = useState(true)
   const [internalThresholdConfig, setInternalThresholdConfig] = useState<ThresholdConfig>(thresholdManager.getConfig())
-  
+
   const thresholdConfig = externalThresholdConfig || internalThresholdConfig
   const setThresholdConfig = (config: ThresholdConfig | ((prev: ThresholdConfig) => ThresholdConfig)) => {
     const newConfig = typeof config === 'function' ? config(thresholdConfig) : config
@@ -70,28 +69,27 @@ export function AutoOptimizationPanel({
   const [learningProgress, setLearningProgress] = useState(0)
   const [appliedInsights, setAppliedInsights] = useState<Set<string>>(new Set())
   const [autoImplementCount, setAutoImplementCount] = useState(0)
-  const [showThresholdConfig, setShowThresholdConfig] = useState(false)
-  const [pendingInsight, setPendingInsight] = useState<OptimizationInsight | null>(null)
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   useEffect(() => {
     analyzePerformance()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events.length, models.length])
 
   useEffect(() => {
-    const totalInteractions = events.filter(e => 
-      e.type === 'chat_message_sent' || 
+    const totalInteractions = events.filter(e =>
+      e.type === 'chat_message_sent' ||
       e.type === 'agent_run_started'
     ).length
-    
+
     const progress = Math.min(100, (totalInteractions / 50) * 100)
     setLearningProgress(progress)
-  }, [events.length])
+  }, [events])
 
   useEffect(() => {
     if (thresholdConfig.autoImplementEnabled && insights.length > 0) {
       autoImplementInsights()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [insights, thresholdConfig.autoImplementEnabled])
 
   useEffect(() => {
