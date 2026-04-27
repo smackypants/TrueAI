@@ -34,22 +34,25 @@ export function useTabPreloader(
   const hoverTimer = useRef<NodeJS.Timeout | null>(null)
 
   const recordMetric = useCallback((tabName: string, metric: Partial<TabMetrics>) => {
-    setMetrics(current => ({
-      ...current,
-      [tabName]: {
-        ...current[tabName],
-        ...metric,
-        lastPreloaded: Date.now()
+    setMetrics(current => {
+      const base = current || {}
+      return {
+        ...base,
+        [tabName]: {
+          ...(base[tabName] || {}),
+          ...metric,
+          lastPreloaded: Date.now()
+        }
       }
-    }))
+    })
   }, [setMetrics])
 
   const preloadTab = useCallback(async (tabName: string, priority: 'high' | 'low' = 'low') => {
-    if (preloadQueue.current.has(tabName) || isPreloading.current) {
+    if (preloadQueue.current?.has(tabName) || isPreloading.current) {
       return
     }
 
-    preloadQueue.current.add(tabName)
+    preloadQueue.current?.add(tabName)
 
     if (priority === 'high' || !isPreloading.current) {
       isPreloading.current = true
@@ -62,14 +65,14 @@ export function useTabPreloader(
       } catch (error) {
         console.warn(`[TabPreloader] Failed to preload ${tabName}:`, error)
       } finally {
-        preloadQueue.current.delete(tabName)
+        preloadQueue.current?.delete(tabName)
         isPreloading.current = false
       }
     }
   }, [onPreload, recordMetric])
 
   const preloadAdjacentTabs = useCallback(() => {
-    if (!config.preloadAdjacentTabs) return
+    if (!config?.preloadAdjacentTabs) return
 
     const currentIndex = tabs.indexOf(currentTab)
     if (currentIndex === -1) return
@@ -80,12 +83,12 @@ export function useTabPreloader(
     ].filter(Boolean)
 
     adjacent.forEach(tab => {
-      setTimeout(() => preloadTab(tab, 'low'), config.delayMs)
+      setTimeout(() => preloadTab(tab, 'low'), config?.delayMs)
     })
   }, [tabs, currentTab, config, preloadTab])
 
   const handleTabHover = useCallback((tabName: string) => {
-    if (!config.preloadOnHover || tabName === currentTab) return
+    if (!config?.preloadOnHover || tabName === currentTab) return
 
     if (hoverTimer.current) {
       clearTimeout(hoverTimer.current)
@@ -93,7 +96,7 @@ export function useTabPreloader(
 
     hoverTimer.current = setTimeout(() => {
       preloadTab(tabName, 'high')
-    }, config.delayMs)
+    }, config?.delayMs)
   }, [config, currentTab, preloadTab])
 
   const handleTabLeave = useCallback(() => {
@@ -121,7 +124,7 @@ export function useTabPreloader(
     preloadTab,
     metrics: metrics || {},
     isPreloading: isPreloading.current,
-    queueSize: preloadQueue.current.size
+    queueSize: preloadQueue.current?.size
   }
 }
 
@@ -129,14 +132,14 @@ export function useResourcePreloader() {
   const preloadedResources = useRef<Set<string>>(new Set())
 
   const preloadImage = useCallback((src: string): Promise<void> => {
-    if (preloadedResources.current.has(src)) {
+    if (preloadedResources.current?.has(src)) {
       return Promise.resolve()
     }
 
     return new Promise((resolve, reject) => {
       const img = new Image()
       img.onload = () => {
-        preloadedResources.current.add(src)
+        preloadedResources.current?.add(src)
         resolve()
       }
       img.onerror = reject
@@ -149,7 +152,7 @@ export function useResourcePreloader() {
   }, [preloadImage])
 
   const preloadScript = useCallback((src: string): Promise<void> => {
-    if (preloadedResources.current.has(src)) {
+    if (preloadedResources.current?.has(src)) {
       return Promise.resolve()
     }
 
@@ -158,7 +161,7 @@ export function useResourcePreloader() {
       script.src = src
       script.async = true
       script.onload = () => {
-        preloadedResources.current.add(src)
+        preloadedResources.current?.add(src)
         resolve()
       }
       script.onerror = reject
@@ -167,7 +170,7 @@ export function useResourcePreloader() {
   }, [])
 
   const preloadStyle = useCallback((href: string): Promise<void> => {
-    if (preloadedResources.current.has(href)) {
+    if (preloadedResources.current?.has(href)) {
       return Promise.resolve()
     }
 
@@ -176,7 +179,7 @@ export function useResourcePreloader() {
       link.rel = 'stylesheet'
       link.href = href
       link.onload = () => {
-        preloadedResources.current.add(href)
+        preloadedResources.current?.add(href)
         resolve()
       }
       link.onerror = reject
@@ -186,7 +189,7 @@ export function useResourcePreloader() {
 
   const preloadFont = useCallback((fontFamily: string, url: string): Promise<void> => {
     const key = `font:${fontFamily}`
-    if (preloadedResources.current.has(key)) {
+    if (preloadedResources.current?.has(key)) {
       return Promise.resolve()
     }
 
@@ -195,7 +198,7 @@ export function useResourcePreloader() {
       fontFace.load()
         .then(loadedFont => {
           document.fonts.add(loadedFont)
-          preloadedResources.current.add(key)
+          preloadedResources.current?.add(key)
           resolve()
         })
         .catch(reject)
@@ -203,7 +206,7 @@ export function useResourcePreloader() {
   }, [])
 
   const isPreloaded = useCallback((resource: string): boolean => {
-    return preloadedResources.current.has(resource)
+    return preloadedResources.current?.has(resource)
   }, [])
 
   return {

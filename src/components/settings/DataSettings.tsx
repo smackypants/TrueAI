@@ -12,6 +12,27 @@ interface DataSettingsProps {
   onSettingsChange: (_settings: AppSettings) => void
 }
 
+// Shared list of all KV keys persisted by the app. Keep in sync with useKV calls
+// across the codebase so backups/clears stay complete.
+const KNOWN_KV_KEYS = [
+  'conversations',
+  'messages',
+  'agents',
+  'agent-runs',
+  'models',
+  'settings',
+  'cache',
+  'analytics-events',
+  'analytics-sessions',
+  'lr-experiments',
+  'performance-scan-history',
+  'user-behavior',
+  'dynamic-ui-preferences',
+  'ui-usage-analytics',
+  'dismissed-suggestions',
+  'agent-memory-index',
+] as const
+
 export function DataSettings({ onSettingsChange: _onSettingsChange }: DataSettingsProps) {
   const [isExporting, setIsExporting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -21,15 +42,17 @@ export function DataSettings({ onSettingsChange: _onSettingsChange }: DataSettin
     setIsExporting(true)
     try {
       await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const allKeys = await spark.kv.keys()
+
+      // Note: spark.kv doesn't expose a keys() method, so we export known keys only
       const exportData: Record<string, unknown> = {}
-      
-      for (const key of allKeys) {
+
+      for (const key of KNOWN_KV_KEYS) {
         const value = await spark.kv.get(key)
-        exportData[key] = value
+        if (value !== undefined) {
+          exportData[key] = value
+        }
       }
-      
+
       const dataStr = JSON.stringify(exportData, null, 2)
       const dataBlob = new Blob([dataStr], { type: 'application/json' })
       const url = URL.createObjectURL(dataBlob)
@@ -84,11 +107,11 @@ export function DataSettings({ onSettingsChange: _onSettingsChange }: DataSettin
 
     setIsClearing(true)
     try {
-      const allKeys = await spark.kv.keys()
-      for (const key of allKeys) {
+      // Note: spark.kv doesn't expose a keys() method, so we clear known keys only
+      for (const key of KNOWN_KV_KEYS) {
         await spark.kv.delete(key)
       }
-      
+
       toast.success('All data cleared')
       window.location.reload()
     } catch (error) {

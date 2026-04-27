@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { WifiSlash, Wifi, ArrowsClockwise } from '@phosphor-icons/react'
+import { WifiX as WifiSlash, WifiHigh as Wifi, ArrowsClockwise } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { onOnlineStatusChange, isOffline } from '@/lib/serviceWorker'

@@ -89,7 +89,7 @@ class AnalyticsService {
         duration: options?.duration
       }
 
-      const user = await spark.user()
+      const user = await (spark as any).user() // eslint-disable-line @typescript-eslint/no-explicit-any
       if (user) {
         event.userId = user.id
       }
@@ -218,7 +218,7 @@ class AnalyticsService {
     const modelUsage = events
       .filter(e => e.type === 'chat_message_received' && e.metadata?.model)
       .reduce((acc, e) => {
-        const model = e.metadata!.model
+        const model = String(e.metadata!.model)
         acc[model] = (acc[model] || 0) + 1
         return acc
       }, {} as Record<string, number>)
@@ -259,7 +259,7 @@ class AnalyticsService {
     const toolUsage = events
       .filter(e => e.type === 'tool_used' && e.metadata?.tool)
       .reduce((acc, e) => {
-        const tool = e.metadata!.tool
+        const tool = String(e.metadata!.tool)
         acc[tool] = (acc[tool] || 0) + 1
         return acc
       }, {} as Record<string, number>)
@@ -287,7 +287,7 @@ class AnalyticsService {
     ).size
 
     const downloadsByModel = modelDownloads.reduce((acc, e) => {
-      const model = e.metadata?.modelName || 'unknown'
+      const model = String(e.metadata?.modelName || 'unknown')
       acc[model] = (acc[model] || 0) + 1
       return acc
     }, {} as Record<string, number>)
@@ -298,7 +298,7 @@ class AnalyticsService {
       .map(([model, downloads]) => ({ model, downloads }))
 
     const storageUsed = modelDownloads.reduce((sum, e) => {
-      return sum + (e.metadata?.size || 0)
+      return sum + (Number(e.metadata?.size) || 0)
     }, 0)
 
     return {

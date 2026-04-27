@@ -38,7 +38,7 @@ import {
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
-import type { Workflow, WorkflowNode as _WFNode, WorkflowEdge as _WFEdge, Agent } from '@/lib/types'
+import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowNodeType, Agent } from '@/lib/types'
 
 interface WorkflowBuilderProps {
   workflows: Workflow[]
@@ -143,8 +143,8 @@ export function WorkflowBuilder({
   onDeleteWorkflow,
   onExecuteWorkflow,
 }: WorkflowBuilderProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null)
   const [newWorkflowDialog, setNewWorkflowDialog] = useState(false)
   const [workflowName, setWorkflowName] = useState('')
@@ -189,16 +189,23 @@ export function WorkflowBuilder({
       description: workflowDescription,
       nodes: nodes.map((node) => ({
         id: node.id,
-        type: node.type as unknown,
+        type: node.type as WorkflowNodeType,
         position: node.position,
-        data: node.data,
-      })),
+        data: node.data as {
+          label: string
+          config?: Record<string, unknown>
+          agentId?: string
+          toolName?: string
+          condition?: string
+          iterations?: number
+        },
+      })) as WorkflowNode[],
       edges: edges.map((edge) => ({
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        label: edge.label,
-      })),
+        label: edge.label as string | undefined,
+      })) as WorkflowEdge[],
       variables: {},
       createdAt: selectedWorkflow?.createdAt || Date.now(),
       updatedAt: Date.now(),
@@ -211,15 +218,15 @@ export function WorkflowBuilder({
   const loadWorkflow = (workflow: Workflow) => {
     setSelectedWorkflow(workflow)
     setWorkflowName(workflow.name)
-    setWorkflowDescription(workflow.description)
-    
+    setWorkflowDescription(workflow.description || '')
+
     const loadedNodes: Node[] = workflow.nodes.map((node) => ({
       id: node.id,
       type: node.type,
       position: node.position,
       data: node.data,
     }))
-    
+
     const loadedEdges: Edge[] = workflow.edges.map((edge) => ({
       id: edge.id,
       source: edge.source,
@@ -492,7 +499,7 @@ export function WorkflowBuilder({
               <Label>Label</Label>
               <Input
                 placeholder="Node label"
-                defaultValue={selectedNode?.data.label}
+                defaultValue={selectedNode?.data.label as string}
                 onChange={(e) => {
                   if (selectedNode) {
                     setSelectedNode({
@@ -508,7 +515,7 @@ export function WorkflowBuilder({
               <div className="space-y-2">
                 <Label>Agent</Label>
                 <Select
-                  value={selectedNode.data.agentId}
+                  value={selectedNode.data.agentId as string}
                   onValueChange={(value) => {
                     if (selectedNode) {
                       setSelectedNode({
@@ -536,7 +543,7 @@ export function WorkflowBuilder({
               <div className="space-y-2">
                 <Label>Tool</Label>
                 <Select
-                  value={selectedNode.data.toolName}
+                  value={selectedNode.data.toolName as string}
                   onValueChange={(value) => {
                     if (selectedNode) {
                       setSelectedNode({
@@ -564,7 +571,7 @@ export function WorkflowBuilder({
                 <Label>Condition</Label>
                 <Input
                   placeholder="e.g., result > 100"
-                  defaultValue={selectedNode.data.condition}
+                  defaultValue={selectedNode.data.condition as string}
                   onChange={(e) => {
                     if (selectedNode) {
                       setSelectedNode({

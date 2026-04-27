@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -532,8 +532,8 @@ interface InsightCardProps {
   onApply: (insight: OptimizationInsight) => void
   isApplied: boolean
   getSeverityColor: (severity: OptimizationInsight['severity']) => string
-  getSeverityIcon: (severity: OptimizationInsight['severity']) => JSX.Element
-  getTypeIcon: (type: OptimizationInsight['type']) => JSX.Element
+  getSeverityIcon: (severity: OptimizationInsight['severity']) => React.ReactElement
+  getTypeIcon: (type: OptimizationInsight['type']) => React.ReactElement
 }
 
 function InsightCard({

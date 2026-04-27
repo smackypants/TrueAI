@@ -62,7 +62,7 @@ interface LearningRateExperiment {
 export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks = [] }: LearningRateBenchmarkProps) {
   const [experiments, setExperiments] = useKV<LearningRateExperiment[]>('lr-experiments', [])
   const [selectedModelId, setSelectedModelId] = useState<string>(models[0]?.id || '')
-  const [selectedTaskType, setSelectedTaskType] = useState<TaskType>('chat')
+  const [selectedTaskType, setSelectedTaskType] = useState<TaskType>('creative_writing')
   const [currentLearningRate, setCurrentLearningRate] = useState(0.001)
   const [autoTuneEnabled, setAutoTuneEnabled] = useState(true)
   const [isRunning, setIsRunning] = useState(false)
@@ -74,7 +74,7 @@ export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks
   const [baselineExperimentId, setBaselineExperimentId] = useState<string | null>(null)
 
   const selectedModel = models.find(m => m.id === selectedModelId)
-  const taskTypes: TaskType[] = ['chat', 'code_generation', 'summarization', 'creative_writing', 'question_answering']
+  const taskTypes: TaskType[] = ['creative_writing', 'code_generation', 'summarization', 'question_answering', 'conversation']
 
   useEffect(() => {
     if (selectedModel) {
@@ -183,7 +183,9 @@ export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks
         successRate: benchmark.tests.filter(t => !t.error).length / benchmark.tests.length
       }
 
-      setExperiments(prev => [experiment, ...prev])
+      setExperiments(prev => (prev ? [experiment, ...prev] : [experiment]))
+
+      const nextExperiments: LearningRateExperiment[] = [experiment, ...(experiments ?? [])]
 
       learningRateTuner.recordPerformanceMetrics({
         modelId: selectedModel.id,
@@ -191,7 +193,9 @@ export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks
         avgLoss: trainingLoss[trainingLoss.length - 1],
         lossVariance: calculateVariance(trainingLoss),
         avgResponseTime: benchmark.averageResponseTime,
-        successRate: experiment.successRate,
+        successRate: nextExperiments.length > 0 ?
+          nextExperiments.reduce((sum, e) => sum + (e.successRate || 0), 0) / nextExperiments.length :
+          benchmark.overallScore / 100,
         userSatisfaction: benchmark.overallScore / 100,
         convergenceSpeed: (trainingLoss[0] - trainingLoss[trainingLoss.length - 1]) / epochs,
         stabilityIndex: learningRateTuner.getLearningRateMetrics(
@@ -244,8 +248,8 @@ export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks
   }
 
   const compareExperiments = (exp1Id: string, exp2Id: string) => {
-    const exp1 = experiments.find(e => e.id === exp1Id)
-    const exp2 = experiments.find(e => e.id === exp2Id)
+    const exp1 = experiments?.find(e => e.id === exp1Id)
+    const exp2 = experiments?.find(e => e.id === exp2Id)
 
     if (!exp1 || !exp2) return null
 
@@ -287,8 +291,8 @@ export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks
     return <ArrowRight weight="bold" className="text-muted-foreground" size={16} />
   }
 
-  const baseline = baselineExperimentId ? experiments.find(e => e.id === baselineExperimentId) : null
-  const modelExperiments = experiments.filter(e => e.modelId === selectedModelId)
+  const baseline = baselineExperimentId ? experiments?.find(e => e.id === baselineExperimentId) : null
+  const modelExperiments = experiments?.filter(e => e.modelId === selectedModelId)
 
   return (
     <div className="space-y-4">
@@ -305,7 +309,7 @@ export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={exportExperiments} disabled={experiments.length === 0}>
+              <Button variant="outline" size="sm" onClick={exportExperiments} disabled={experiments?.length === 0}>
                 <Download weight="bold" size={18} className="mr-2" />
                 Export
               </Button>
@@ -491,7 +495,7 @@ export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks
         </div>
       </Card>
 
-      {experiments.length > 0 && (
+      {experiments && experiments.length > 0 && (
         <Card className="p-6">
           <Tabs defaultValue="results" className="w-full">
             <div className="flex justify-between items-center mb-4">
@@ -514,7 +518,7 @@ export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks
             <TabsContent value="results" className="space-y-4">
               <ScrollArea className="h-96">
                 <div className="space-y-3">
-                  {modelExperiments.map(exp => (
+                  {modelExperiments?.map(exp => (
                     <Card key={exp.id} className="p-4">
                       <div className="space-y-3">
                         <div className="flex justify-between items-start">
@@ -579,7 +583,7 @@ export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks
                       <SelectValue placeholder="Select baseline" />
                     </SelectTrigger>
                     <SelectContent>
-                      {modelExperiments.map(exp => (
+                      {modelExperiments?.map(exp => (
                         <SelectItem key={exp.id} value={exp.id}>
                           LR {exp.learningRate.toFixed(6)} - {exp.benchmarkScore.toFixed(1)}
                         </SelectItem>
@@ -589,7 +593,7 @@ export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks
                 </div>
               </div>
 
-              {baseline && (
+              {baseline && modelExperiments && (
                 <ScrollArea className="h-80">
                   <div className="space-y-3">
                     {modelExperiments

@@ -20,8 +20,8 @@ import {
   Equals,
   CheckCircle,
   InfoIcon,
-  Zap,
-  AlertCircle
+  Lightning,
+  WarningCircle
 } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -169,7 +169,7 @@ export function LearningRateDashboard({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold flex items-center gap-2">
-                <Zap weight="fill" className="text-accent" size={24} />
+                <Lightning weight="fill" className="text-accent" size={24} />
                 Learning Rate Fine-Tuning
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
@@ -184,7 +184,7 @@ export function LearningRateDashboard({
                 {autoTuneEnabled ? (
                   <CheckCircle weight="fill" size={16} />
                 ) : (
-                  <AlertCircle weight="fill" size={16} />
+                  <WarningCircle weight="fill" size={16} />
                 )}
                 Auto-Tune {autoTuneEnabled ? 'On' : 'Off'}
               </Badge>

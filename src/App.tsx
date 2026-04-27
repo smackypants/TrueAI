@@ -837,7 +837,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
     const agent = agents?.find(a => a.id === agentId)
     if (!agent) return
 
-    const metrics = agentLearningMetrics[agentId]
+    const metrics = agentLearningMetrics?.[agentId]
     if (!metrics) return
 
     const { agent: updatedAgent, changes } = AgentLearningEngine.applyLearning(
@@ -940,7 +940,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
     if (!message || message.role !== 'assistant' || !activeConversationId) return
 
     const messageIndex = messages?.findIndex(m => m.id === messageId)
-    if (messageIndex === undefined || messageIndex < 1) return
+    if (messageIndex === undefined || messageIndex < 1 || !messages) return
 
     const previousMessage = messages[messageIndex - 1]
     if (!previousMessage || previousMessage.role !== 'user') return
@@ -1885,8 +1885,8 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                       {(() => {
                         const selectedAgentId = activeLearningAgentId || agents[0].id
                         const selectedAgent = agents.find(a => a.id === selectedAgentId)
-                        const metrics = agentLearningMetrics[selectedAgentId]
-                        const versions = agentVersions.filter(v => v.agentId === selectedAgentId)
+                        const metrics = agentLearningMetrics?.[selectedAgentId]
+                        const versions = agentVersions?.filter(v => v.agentId === selectedAgentId)
 
                         return (
                           <>
@@ -1924,7 +1924,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                               <Suspense fallback={<LoadingFallback message="Loading version history..." />}>
                                 <LazyErrorBoundary componentName="Version History">
                                   <AgentVersionHistory
-                                    versions={versions}
+                                    versions={versions || []}
                                     onRestore={(version) => {
                                       if (selectedAgent) {
                                         setAgents(prev => (prev || []).map(a =>
@@ -2272,9 +2272,10 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                       if (insight.suggestedAction?.type === 'adjust_parameters' && insight.suggestedAction.details.modelId) {
                         const model = models?.find(m => m.id === insight.suggestedAction!.details.modelId)
                         if (model) {
+                          const params = insight.suggestedAction.details.parameters
                           const updatedModel = {
                             ...model,
-                            ...insight.suggestedAction.details.parameters
+                            ...(typeof params === 'object' && params !== null ? params : {})
                           }
                           setModels(prev => (prev || []).map(m => m.id === model.id ? updatedModel : m))
                           toast.success('Optimization applied successfully')

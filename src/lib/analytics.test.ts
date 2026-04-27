@@ -1,15 +1,35 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type { AnalyticsEvent } from './types'
 
 // Mock the global spark object
+declare global {
+  // @ts-expect-error - spark is a test mock
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  var spark: any
+}
+
 const mockKVStore = new Map<string, unknown>()
 
 describe('AnalyticsService', () => {
-  let analyticsInstance: unknown
+  let analyticsInstance: {
+    track: (
+      type: string,
+      category: string,
+      action: string,
+      options?: {
+        label?: string
+        value?: number
+        metadata?: Record<string, unknown>
+        duration?: number
+      }
+    ) => Promise<void>
+  }
 
   beforeEach(async () => {
     vi.resetModules()
     mockKVStore.clear()
 
+    // @ts-expect-error - spark is a test mock
     globalThis.spark = {
       kv: {
         get: vi.fn((key: string) => Promise.resolve(mockKVStore.get(key))),
@@ -23,7 +43,7 @@ describe('AnalyticsService', () => {
         }),
       },
       user: vi.fn(() => Promise.resolve({ id: 'test-user-123' })),
-    } as unknown
+    }
 
     // Mock console methods
     vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -43,7 +63,7 @@ describe('AnalyticsService', () => {
     it('should track an event with basic information', async () => {
       await analyticsInstance.track('page_viewed', 'navigation', 'view_home')
 
-      const events = await spark.kv.get('analytics-events')
+      const events = (await spark.kv.get('analytics-events')) as AnalyticsEvent[]
       expect(events).toHaveLength(1)
       expect(events[0]).toMatchObject({
         type: 'page_viewed',
@@ -61,7 +81,7 @@ describe('AnalyticsService', () => {
         duration: 5000,
       })
 
-      const events = await spark.kv.get('analytics-events')
+      const events = (await spark.kv.get('analytics-events')) as AnalyticsEvent[]
       expect(events[0]).toMatchObject({
         type: 'button_clicked',
         category: 'interaction',
@@ -76,7 +96,7 @@ describe('AnalyticsService', () => {
     it('should include session information', async () => {
       await analyticsInstance.track('test_event', 'test_category', 'test_action')
 
-      const events = await spark.kv.get('analytics-events')
+      const events = (await spark.kv.get('analytics-events')) as AnalyticsEvent[]
       expect(events[0].sessionId).toBeDefined()
       expect(events[0].sessionId).toMatch(/^session-/)
     })
@@ -98,7 +118,7 @@ describe('AnalyticsService', () => {
       // Pre-populate with 10000 events
       const existingEvents = Array.from({ length: 10000 }, (_, i) => ({
         id: `event-${i}`,
-        type: 'test_event',
+        type: 'test_event' as const,
         category: 'test',
         action: 'test',
         timestamp: Date.now(),
@@ -108,14 +128,25 @@ describe('AnalyticsService', () => {
 
       await analyticsInstance.track('new_event', 'test', 'test')
 
-      const events = await spark.kv.get('analytics-events')
+      const events = (await spark.kv.get('analytics-events')) as AnalyticsEvent[]
       expect(events).toHaveLength(10000)
       expect(events[0].type).toBe('new_event')
     })
   })
 
   describe('getEvents', () => {
+    let getEvents: (filter?: {
+      startDate?: number
+      endDate?: number
+      eventTypes?: string[]
+      userId?: string
+      category?: string
+    }) => Promise<AnalyticsEvent[]>
+
     beforeEach(async () => {
+      const module = await import('./analytics')
+      analyticsInstance = module.analytics
+      getEvents = module.analytics.getEvents.bind(module.analytics)
       // Add test events
       await analyticsInstance.track('event1', 'category1', 'action1')
       await analyticsInstance.track('event2', 'category2', 'action2')
@@ -123,56 +154,64 @@ describe('AnalyticsService', () => {
     })
 
     it('should return all events without filter', async () => {
-      const events = await analyticsInstance.getEvents()
+      const events = await getEvents()
       expect(events.length).toBeGreaterThanOrEqual(3)
     })
 
     it('should filter events by type', async () => {
-      const events = await analyticsInstance.getEvents({
+      const events = await getEvents({
         eventTypes: ['error_occurred'],
       })
-      expect(events.every((e: { type: string }) => e.type === 'error_occurred')).toBe(true)
+      expect(events.every((e) => e.type === 'error_occurred')).toBe(true)
     })
 
     it('should filter events by category', async () => {
-      const events = await analyticsInstance.getEvents({
+      const events = await getEvents({
         category: 'category1',
       })
-      expect(events.every((e: { category: string }) => e.category === 'category1')).toBe(true)
+      expect(events.every((e) => e.category === 'category1')).toBe(true)
     })
 
     it('should filter events by userId', async () => {
-      const events = await analyticsInstance.getEvents({
+      const events = await getEvents({
         userId: 'test-user-123',
       })
-      expect(events.every((e: { userId: string }) => e.userId === 'test-user-123')).toBe(true)
+      expect(events.every((e) => e.userId === 'test-user-123')).toBe(true)
     })
 
     it('should filter events by date range', async () => {
       const now = Date.now()
       const oneHourAgo = now - 3600000
 
-      const events = await analyticsInstance.getEvents({
+      const events = await getEvents({
         startDate: oneHourAgo,
         endDate: now,
       })
 
-      expect(events.every((e: { timestamp: number }) => e.timestamp >= oneHourAgo && e.timestamp <= now)).toBe(true)
+      expect(events.every((e) => e.timestamp >= oneHourAgo && e.timestamp <= now)).toBe(true)
     })
   })
 
   describe('getSessions', () => {
+    let getSessions: () => Promise<unknown[]>
+
+    beforeEach(async () => {
+      const module = await import('./analytics')
+      analyticsInstance = module.analytics
+      getSessions = module.analytics.getSessions.bind(module.analytics)
+    })
+
     it('should return analytics sessions', async () => {
       // Track an event so updateSession runs and session initialization completes
       await analyticsInstance.track('test_event', 'test', 'test')
 
       // Use vi.waitFor to wait until initSession has persisted the session
       await vi.waitFor(async () => {
-        const sessions = await analyticsInstance.getSessions()
+        const sessions = await getSessions()
         expect(sessions.length).toBeGreaterThan(0)
       })
 
-      const sessions = await analyticsInstance.getSessions()
+      const sessions = await getSessions()
 
       expect(sessions[0]).toHaveProperty('id')
       expect(sessions[0]).toHaveProperty('startedAt')
@@ -182,7 +221,12 @@ describe('AnalyticsService', () => {
   })
 
   describe('getMetrics', () => {
+    let getMetrics: () => Promise<unknown>
+
     beforeEach(async () => {
+      const module = await import('./analytics')
+      analyticsInstance = module.analytics
+      getMetrics = module.analytics.getMetrics.bind(module.analytics)
       // Add various test events
       await analyticsInstance.track('page_viewed', 'navigation', 'view_home')
       await analyticsInstance.track('chat_message_sent', 'chat', 'send_message')
@@ -202,32 +246,38 @@ describe('AnalyticsService', () => {
     })
 
     it('should calculate total events and sessions', async () => {
-      const metrics = await analyticsInstance.getMetrics()
+      const metrics = (await getMetrics()) as { totalEvents: number; totalSessions: number }
       expect(metrics.totalEvents).toBeGreaterThan(0)
       // Sessions may not be immediately available in test environment
       expect(metrics.totalSessions).toBeGreaterThanOrEqual(0)
     })
 
     it('should calculate active users', async () => {
-      const metrics = await analyticsInstance.getMetrics()
+      const metrics = (await getMetrics()) as { activeUsers: number }
       expect(metrics.activeUsers).toBeGreaterThanOrEqual(1)
     })
 
     it('should calculate error rate', async () => {
-      const metrics = await analyticsInstance.getMetrics()
+      const metrics = (await getMetrics()) as { errorRate: number }
       expect(metrics.errorRate).toBeGreaterThan(0)
       expect(metrics.errorRate).toBeLessThanOrEqual(100)
     })
 
     it('should group events by type', async () => {
-      const metrics = await analyticsInstance.getMetrics()
+      const metrics = (await getMetrics()) as { eventsByType: unknown[] }
       expect(metrics.eventsByType).toBeDefined()
       expect(Array.isArray(metrics.eventsByType)).toBe(true)
       expect(metrics.eventsByType.length).toBeGreaterThan(0)
     })
 
     it('should calculate chat metrics', async () => {
-      const metrics = await analyticsInstance.getMetrics()
+      const metrics = (await getMetrics()) as {
+        chatMetrics: {
+          totalMessages: number
+          averageResponseTime: number
+          mostUsedModels: unknown[]
+        }
+      }
       expect(metrics.chatMetrics).toBeDefined()
       expect(metrics.chatMetrics.totalMessages).toBeGreaterThan(0)
       expect(metrics.chatMetrics.averageResponseTime).toBeGreaterThan(0)
@@ -235,7 +285,13 @@ describe('AnalyticsService', () => {
     })
 
     it('should calculate agent metrics', async () => {
-      const metrics = await analyticsInstance.getMetrics()
+      const metrics = (await getMetrics()) as {
+        agentMetrics: {
+          totalAgents: number
+          totalRuns: number
+          successRate: number
+        }
+      }
       expect(metrics.agentMetrics).toBeDefined()
       expect(metrics.agentMetrics.totalAgents).toBeGreaterThan(0)
       expect(metrics.agentMetrics.totalRuns).toBeGreaterThan(0)
@@ -243,23 +299,36 @@ describe('AnalyticsService', () => {
     })
 
     it('should calculate model metrics', async () => {
-      const metrics = await analyticsInstance.getMetrics()
+      const metrics = (await getMetrics()) as {
+        modelMetrics: {
+          totalDownloads: number
+          storageUsed: number
+        }
+      }
       expect(metrics.modelMetrics).toBeDefined()
       expect(metrics.modelMetrics.totalDownloads).toBeGreaterThan(0)
       expect(metrics.modelMetrics.storageUsed).toBeGreaterThan(0)
     })
 
     it('should provide top actions', async () => {
-      const metrics = await analyticsInstance.getMetrics()
+      const metrics = (await getMetrics()) as { topActions: unknown[] }
       expect(metrics.topActions).toBeDefined()
       expect(Array.isArray(metrics.topActions)).toBe(true)
     })
   })
 
   describe('clearData', () => {
+    let clearData: () => Promise<void>
+
+    beforeEach(async () => {
+      const module = await import('./analytics')
+      analyticsInstance = module.analytics
+      clearData = module.analytics.clearData.bind(module.analytics)
+    })
+
     it('should clear all analytics data', async () => {
       await analyticsInstance.track('test_event', 'test', 'test')
-      await analyticsInstance.clearData()
+      await clearData()
 
       const events = await spark.kv.get('analytics-events')
       const sessions = await spark.kv.get('analytics-sessions')

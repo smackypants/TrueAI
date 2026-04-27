@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { _Progress } from '@/components/ui/progress'
+import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Code, Flask, Package, FileCode, Eye, Download, Trash, Sparkle, CheckCircle, XCircle, Clock, Cube, Lightning } from '@phosphor-icons/react'
@@ -164,7 +164,7 @@ export function AppBuilder({ models: _models }: AppBuilderProps) {
     framework: 'react' as Framework
   })
 
-  const activeProject = projects.find(p => p.id === activeProjectId)
+  const activeProject = projects?.find(p => p.id === activeProjectId)
   const activeFile = activeProject?.files.find(f => f.path === selectedFile)
 
   const createProject = async () => {
@@ -345,7 +345,7 @@ Return ONLY valid JSON in this exact format:
 }`
       }
 
-      const response = await spark.llm(codeGenPrompt, 'gpt-4o', true)
+      const response = await spark.llm(codeGenPrompt, 'gpt-4o')
       const result = JSON.parse(response)
 
       if (!result.files || !Array.isArray(result.files)) {
@@ -373,16 +373,16 @@ Return ONLY valid JSON in this exact format:
       
       const previewUrl = generatePreviewUrl(tempProject)
 
-      setProjects(prev => 
-        prev.map(p => 
-          p.id === projectId 
-            ? { 
-                ...p, 
-                files, 
+      setProjects(prev =>
+        (prev || []).map(p =>
+          p.id === projectId
+            ? {
+                ...p,
+                files,
                 status: 'ready',
                 previewUrl,
                 updatedAt: Date.now()
-              } 
+              }
             : p
         )
       )
@@ -401,7 +401,7 @@ Return ONLY valid JSON in this exact format:
       console.error('Code generation error:', error)
       
       setProjects(prev => 
-        prev.map(p => 
+        (prev || []).map(p => 
           p.id === projectId 
             ? { 
                 ...p, 
@@ -422,7 +422,7 @@ Return ONLY valid JSON in this exact format:
   }
 
   const buildProject = async (projectId: string) => {
-    const project = projects.find(p => p.id === projectId)
+    const project = projects?.find(p => p.id === projectId)
     if (!project) return
 
     const frameworkConfig = getFrameworkConfig(project.framework)
@@ -435,7 +435,7 @@ Return ONLY valid JSON in this exact format:
     ]
 
     setProjects(prev => 
-      prev.map(p => 
+        (prev || []).map(p => 
         p.id === projectId 
           ? { ...p, status: 'building', buildLog: ['Starting build process...'] } 
           : p
@@ -452,7 +452,7 @@ Return ONLY valid JSON in this exact format:
     for (const step of buildSteps) {
       await new Promise(resolve => setTimeout(resolve, 400))
       setProjects(prev => 
-        prev.map(p => 
+        (prev || []).map(p => 
           p.id === projectId 
             ? { ...p, buildLog: [...(p.buildLog || []), step] } 
             : p
@@ -461,7 +461,7 @@ Return ONLY valid JSON in this exact format:
     }
 
     setProjects(prev => 
-      prev.map(p => 
+        (prev || []).map(p => 
         p.id === projectId 
           ? { 
               ...p, 
@@ -481,11 +481,11 @@ Return ONLY valid JSON in this exact format:
   }
 
   const testProject = async (projectId: string) => {
-    const project = projects.find(p => p.id === projectId)
+    const project = projects?.find(p => p.id === projectId)
     if (!project) return
 
     setProjects(prev => 
-      prev.map(p => 
+        (prev || []).map(p => 
         p.id === projectId 
           ? { ...p, status: 'testing' } 
           : p
@@ -532,7 +532,7 @@ Return ONLY valid JSON in this exact format:
     ]
 
     setProjects(prev => 
-      prev.map(p => 
+        (prev || []).map(p => 
         p.id === projectId 
           ? { 
               ...p, 
@@ -560,13 +560,13 @@ Return ONLY valid JSON in this exact format:
   }
 
   const deleteProject = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId)
+    const project = projects?.find(p => p.id === projectId)
     
     if (project?.previewUrl) {
       URL.revokeObjectURL(project.previewUrl)
     }
     
-    setProjects(prev => prev.filter(p => p.id !== projectId))
+    setProjects(prev => (prev || []).filter(p => p.id !== projectId))
     
     if (activeProjectId === projectId) {
       setActiveProjectId(null)
@@ -614,7 +614,7 @@ Return ONLY valid JSON in this exact format:
   }
 
   const updateLivePreview = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId)
+    const project = projects?.find(p => p.id === projectId)
     if (!project || project.files.length === 0) return
 
     if (project.previewUrl) {
@@ -624,7 +624,7 @@ Return ONLY valid JSON in this exact format:
     const newPreviewUrl = generatePreviewUrl(project)
     
     setProjects(prev => 
-      prev.map(p => 
+        (prev || []).map(p => 
         p.id === projectId 
           ? { ...p, previewUrl: newPreviewUrl } 
           : p
@@ -643,7 +643,7 @@ Return ONLY valid JSON in this exact format:
 
   useEffect(() => {
     return () => {
-      projects.forEach(project => {
+      projects?.forEach(project => {
         if (project.previewUrl) {
           URL.revokeObjectURL(project.previewUrl)
         }
@@ -653,7 +653,7 @@ Return ONLY valid JSON in this exact format:
   }, [])
 
   const downloadProject = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId)
+    const project = projects?.find(p => p.id === projectId)
     if (!project) return
 
     const htmlFile = project.files.find(f => f.path === 'index.html')
@@ -691,8 +691,8 @@ Return ONLY valid JSON in this exact format:
   const saveProjectDetails = () => {
     if (!activeProjectId) return
 
-    setProjects(prev =>
-      prev.map(p =>
+    setProjects(prev => 
+        (prev || []).map(p =>
         p.id === activeProjectId
           ? {
               ...p,
@@ -722,8 +722,8 @@ Return ONLY valid JSON in this exact format:
   const saveFileEdit = () => {
     if (!activeProjectId || !selectedFile) return
 
-    setProjects(prev =>
-      prev.map(p =>
+    setProjects(prev => 
+        (prev || []).map(p =>
         p.id === activeProjectId
           ? {
               ...p,
@@ -763,8 +763,8 @@ Refinement request: "${refinePrompt}"
 
 Based on the original prompt and the refinement request, modify the existing ${activeProject.framework} application to incorporate the requested changes. Keep the existing structure and only change what's necessary.`
 
-    setProjects(prev =>
-      prev.map(p =>
+    setProjects(prev => 
+        (prev || []).map(p =>
         p.id === projectId
           ? { ...p, status: 'creating', prompt: refinementPrompt }
           : p
@@ -783,7 +783,7 @@ Based on the original prompt and the refinement request, modify the existing ${a
   }
 
   const duplicateProject = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId)
+    const project = projects?.find(p => p.id === projectId)
     if (!project) return
 
     const newProject: AppProject = {
@@ -805,11 +805,11 @@ Based on the original prompt and the refinement request, modify the existing ${a
   }
 
   const regenerateCode = async (projectId: string) => {
-    const project = projects.find(p => p.id === projectId)
+    const project = projects?.find(p => p.id === projectId)
     if (!project) return
 
     setProjects(prev => 
-      prev.map(p => 
+        (prev || []).map(p => 
         p.id === projectId 
           ? { ...p, status: 'creating', files: [] } 
           : p
@@ -3535,14 +3535,14 @@ Based on the original prompt and the refinement request, modify the existing ${a
           <h3 className="font-semibold mb-3 text-sm">Projects</h3>
           <ScrollArea className="h-[600px]">
             <div className="space-y-2">
-              {projects.length === 0 && (
+              {(projects || []).length === 0 && (
                 <div className="text-center py-8 text-sm text-muted-foreground">
                   <Code size={32} className="mx-auto mb-2 opacity-50" />
                   <p>No projects yet</p>
                   <p className="text-xs mt-1">Create your first app</p>
                 </div>
               )}
-              {projects.map(project => (
+              {(projects || []).map(project => (
                 <motion.div
                   key={project.id}
                   initial={{ opacity: 0, y: 10 }}

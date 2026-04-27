@@ -73,7 +73,7 @@ async function measureRenderPerformance(
 ): Promise<void> {
   const start = performance.now()
   
-  const testElements = []
+  const testElements: HTMLDivElement[] = []
   for (let i = 0; i < 50; i++) {
     const div = document.createElement('div')
     div.className = settings.enableAnimations ? 'animate-pulse' : ''

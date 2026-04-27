@@ -1,11 +1,10 @@
-import type { 
-  AnalyticsEvent, 
-  ModelConfig, 
+import type {
+  AnalyticsEvent,
+  ModelConfig,
   PerformanceProfile,
   ModelParameters
 } from './types'
-import { scanHardware, _generateOptimizedSettings, type HardwareSpecs } from './hardware-scanner'
-import { _autoOptimizer } from './auto-optimizer'
+import { scanHardware, type HardwareSpecs } from './hardware-scanner'
 
 export interface PerformanceScanResult {
   id: string
@@ -163,11 +162,11 @@ export class PerformanceScanner {
     models.forEach(model => {
       const modelEvents = chatEvents.filter(e => e.metadata?.model === model.id)
       if (modelEvents.length === 0) return
-      
+
       const modelResponseTimes = modelEvents.map(e => e.duration!)
       const avgModelResponseTime = modelResponseTimes.reduce((sum, t) => sum + t, 0) / modelResponseTimes.length
-      
-      const totalTokens = modelEvents.reduce((sum, e) => sum + (e.metadata?.responseLength || 0), 0)
+
+      const totalTokens = modelEvents.reduce((sum, e) => sum + (Number(e.metadata?.responseLength) || 0), 0)
       const avgTokens = totalTokens / modelEvents.length
       const tokensPerSecond = totalTokens / (modelResponseTimes.reduce((sum, t) => sum + t, 0) / 1000)
       
@@ -193,7 +192,7 @@ export class PerformanceScanner {
     })
     
     const memoryUsage = (navigator as { deviceMemory?: number }).deviceMemory
-      ? ((navigator as { deviceMemory: number }).deviceMemory / 16) * 100
+      ? ((navigator as unknown as { deviceMemory: number }).deviceMemory / 16) * 100
       : 50
     
     const systemLoad = Math.min(100, (avgResponseTime / 5000) * 100)
@@ -503,10 +502,14 @@ export class PerformanceScanner {
           if (opt.changes.maxTokens && opt.targetModel) {
             const efficiency = currentMetrics.modelEfficiency[opt.targetModel]
             if (efficiency) {
-              const reduction = (efficiency.wastedTokens / (opt.changes.maxTokens + efficiency.wastedTokens)) * 100
-              responseTimeReduction += reduction * 0.8
-              tokenEfficiencyGain += reduction
-              throughputIncrease += reduction * 0.5
+              const maxTokens = Number(opt.changes.maxTokens)
+              if (Number.isFinite(maxTokens)) {
+                const denominator = maxTokens + efficiency.wastedTokens
+                const reduction = denominator > 0 ? (efficiency.wastedTokens / denominator) * 100 : 0
+                responseTimeReduction += reduction * 0.8
+                tokenEfficiencyGain += reduction
+                throughputIncrease += reduction * 0.5
+              }
             }
           }
           break
@@ -578,7 +581,7 @@ export class PerformanceScanner {
       } else if (opt.type === 'change_model_config') {
         updatedModels.forEach((model, index) => {
           if (opt.changes.reduceMaxTokensByPercent) {
-            const reduction = opt.changes.reduceMaxTokensByPercent / 100
+            const reduction = (opt.changes.reduceMaxTokensByPercent as number) / 100
             updatedModels[index] = {
               ...model,
               maxTokens: Math.round(model.maxTokens * (1 - reduction))
@@ -596,7 +599,7 @@ export class PerformanceScanner {
         updatedModels.forEach((model, index) => {
           updatedModels[index] = {
             ...model,
-            maxTokens: Math.min(model.maxTokens, opt.changes.maxTokens || 1000)
+            maxTokens: Math.min(model.maxTokens, (opt.changes.maxTokens as number) || 1000)
           }
         })
         appliedCount++
@@ -604,7 +607,7 @@ export class PerformanceScanner {
         updatedModels.forEach((model, index) => {
           updatedModels[index] = {
             ...model,
-            maxTokens: Math.min(model.maxTokens, opt.changes.maxTokens)
+            maxTokens: Math.min(model.maxTokens, opt.changes.maxTokens as number)
           }
         })
         appliedCount++

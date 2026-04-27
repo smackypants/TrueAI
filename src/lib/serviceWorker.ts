@@ -87,11 +87,15 @@ export async function getCacheSize(): Promise<number> {
       messageChannel.port1.onmessage = (event) => {
         resolve(event.data.size)
       }
-      
-      navigator.serviceWorker.controller.postMessage(
-        { type: 'GET_CACHE_SIZE' },
-        [messageChannel.port2]
-      )
+
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage(
+          { type: 'GET_CACHE_SIZE' },
+          [messageChannel.port2]
+        )
+      } else {
+        resolve(0)
+      }
     })
   }
   return 0
@@ -153,7 +157,7 @@ export async function registerBackgroundSync(tag: string = 'background-sync'): P
 
   try {
     const registration = await navigator.serviceWorker.ready
-    await registration.sync.register(tag)
+    await (registration as any).sync.register(tag) // eslint-disable-line @typescript-eslint/no-explicit-any
     console.log(`[ServiceWorker] Background sync registered: ${tag}`)
     return true
   } catch (error) {

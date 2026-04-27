@@ -1,8 +1,9 @@
-import type { 
-  AgentRun, 
-  AgentFeedback, 
+import type {
+  AgentRun,
+  AgentFeedback,
   AgentLearningMetrics,
   LearningInsight,
+  AgentCapability,
   AgentVersion,
   VersionChange,
   Agent} from './types'
@@ -195,10 +196,10 @@ export class AgentLearningEngine {
                 changes.push({
                   field: 'temperature',
                   oldValue: updatedAgent.temperature || 0.7,
-                  newValue: insight.action.details.suggestedValue,
-                  reason: insight.action.details.reason || insight.description
+                  newValue: Number(insight.action.details.suggestedValue) || 0.7,
+                  reason: String(insight.action.details.reason || insight.description)
                 })
-                updatedAgent.temperature = insight.action.details.suggestedValue
+                updatedAgent.temperature = Number(insight.action.details.suggestedValue) || 0.7
               }
               break
 
@@ -208,20 +209,22 @@ export class AgentLearningEngine {
             case 'modify_prompt':
               break
 
-            case 'add_capability':
+            case 'add_capability': {
               if (!updatedAgent.capabilities) {
                 updatedAgent.capabilities = []
               }
-              if (insight.action.details.capability && !updatedAgent.capabilities.includes(insight.action.details.capability)) {
+              const capabilityToAdd = String(insight.action.details.capability || '')
+              if (capabilityToAdd && !updatedAgent.capabilities.includes(capabilityToAdd as AgentCapability)) {
                 changes.push({
                   field: 'capabilities',
                   oldValue: [...updatedAgent.capabilities],
-                  newValue: [...updatedAgent.capabilities, insight.action.details.capability],
+                  newValue: [...updatedAgent.capabilities, capabilityToAdd as AgentCapability],
                   reason: insight.description
                 })
-                updatedAgent.capabilities.push(insight.action.details.capability)
+                updatedAgent.capabilities.push(capabilityToAdd as AgentCapability)
               }
               break
+            }
           }
         }
       })

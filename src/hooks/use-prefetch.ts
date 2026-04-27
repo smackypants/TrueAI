@@ -32,11 +32,11 @@ export function usePrefetch() {
   const trackTabAccess = useCallback((tabName: string) => {
     const now = Date.now()
     
-    if (tabTimers.current[tabName]) {
-      const timeSpent = now - tabTimers.current[tabName]
+    if (tabTimers.current?.[tabName]) {
+      const timeSpent = now - (tabTimers.current?.[tabName] || now)
       
       setPrefetchStats(current => {
-        const existing = current[tabName] || {
+        const existing = (current || {})[tabName] || {
           tabName,
           accessCount: 0,
           lastAccessed: 0,
@@ -72,7 +72,7 @@ export function usePrefetch() {
   }, [setPrefetchStats])
 
   const getTopPrefetchCandidates = useCallback((currentTab: string): string[] => {
-    if (!prefetchConfig.enabled || !prefetchStats) return []
+    if (!prefetchConfig?.enabled || !prefetchStats) return []
 
     const candidates = Object.values(prefetchStats)
       .filter(stat => 

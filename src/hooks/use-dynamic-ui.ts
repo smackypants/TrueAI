@@ -23,21 +23,35 @@ export interface AdaptiveLayoutState {
   compactMode: boolean
 }
 
+const defaultPreferences: DynamicUIPreferences = {
+  layoutDensity: 'comfortable',
+  colorScheme: 'default',
+  sidebarPosition: 'left',
+  chatBubbleStyle: 'rounded',
+  animationIntensity: 'normal',
+  fontSize: 'medium',
+  cardStyle: 'elevated',
+  accentColor: 'oklch(0.75 0.14 200)',
+  backgroundPattern: 'dots',
+  autoAdaptLayout: true,
+  smartSpacing: true,
+  contextualColors: true,
+}
+
+interface UIUsageAnalytics {
+  mostUsedTabs: Record<string, number>
+  timeOfDayPreferences: Record<string, string>
+  devicePreferences: Record<string, Partial<DynamicUIPreferences>>
+}
+
+const defaultUsage: UIUsageAnalytics = {
+  mostUsedTabs: {},
+  timeOfDayPreferences: {},
+  devicePreferences: {},
+}
+
 export function useDynamicUI() {
-  const [preferences, setPreferences] = useKV<DynamicUIPreferences>('dynamic-ui-preferences', {
-    layoutDensity: 'comfortable',
-    colorScheme: 'default',
-    sidebarPosition: 'left',
-    chatBubbleStyle: 'rounded',
-    animationIntensity: 'normal',
-    fontSize: 'medium',
-    cardStyle: 'elevated',
-    accentColor: 'oklch(0.75 0.14 200)',
-    backgroundPattern: 'dots',
-    autoAdaptLayout: true,
-    smartSpacing: true,
-    contextualColors: true,
-  })
+  const [preferences, setPreferences] = useKV<DynamicUIPreferences>('dynamic-ui-preferences', defaultPreferences)
 
   const [adaptiveLayout, setAdaptiveLayout] = useState<AdaptiveLayoutState>({
     columnCount: 3,
@@ -46,31 +60,26 @@ export function useDynamicUI() {
     compactMode: false,
   })
 
-  const [usage, setUsage] = useKV<{
-    mostUsedTabs: Record<string, number>
-    timeOfDayPreferences: Record<string, string>
-    devicePreferences: Record<string, Partial<DynamicUIPreferences>>
-  }>('ui-usage-analytics', {
-    mostUsedTabs: {},
-    timeOfDayPreferences: {},
-    devicePreferences: {},
-  })
+  const [usage, setUsage] = useKV<UIUsageAnalytics>('ui-usage-analytics', defaultUsage)
 
   const updatePreference = useCallback(<K extends keyof DynamicUIPreferences>(
     key: K,
     value: DynamicUIPreferences[K]
   ) => {
-    setPreferences(prev => ({ ...prev, [key]: value }))
+    setPreferences(prev => ({ ...(prev ?? defaultPreferences), [key]: value }))
   }, [setPreferences])
 
   const trackTabUsage = useCallback((tabId: string) => {
-    setUsage(prev => ({
-      ...prev,
-      mostUsedTabs: {
-        ...prev.mostUsedTabs,
-        [tabId]: (prev.mostUsedTabs[tabId] || 0) + 1,
-      },
-    }))
+    setUsage(prev => {
+      const base = prev ?? defaultUsage
+      return {
+        ...base,
+        mostUsedTabs: {
+          ...base.mostUsedTabs,
+          [tabId]: (base.mostUsedTabs[tabId] || 0) + 1,
+        },
+      }
+    })
   }, [setUsage])
 
   const adaptToScreenSize = useCallback((width: number) => {

@@ -86,17 +86,17 @@ export class AutoOptimizer {
     const modelResponseTimes = this.groupByModel(chatEvents)
     
     Object.entries(modelResponseTimes).forEach(([modelId, data]) => {
-      const model = models.find(m => m.id === modelId)
-      if (!model || data.times.length < 5) return
-      
+      const foundModel = _models.find(m => m.id === modelId)
+      if (!foundModel || data.times.length < 5) return
+
       const avgTime = data.times.reduce((sum, t) => sum + t, 0) / data.times.length
-      
+
       if (avgTime > avgResponseTime * 1.5) {
         insights.push({
           id: `insight-${Date.now()}-${Math.random()}`,
           type: 'performance',
           severity: avgTime > 10000 ? 'high' : 'medium',
-          title: `Slow response times detected for ${model.name}`,
+          title: `Slow response times detected for ${foundModel.name}`,
           description: `Average response time is ${(avgTime / 1000).toFixed(1)}s, which is ${((avgTime / avgResponseTime - 1) * 100).toFixed(0)}% slower than average.`,
           recommendation: 'Consider reducing maxTokens or switching to a faster model for this use case.',
           impact: `Could improve response time by up to ${((avgTime - avgResponseTime) / 1000).toFixed(1)}s per request`,
@@ -107,8 +107,8 @@ export class AutoOptimizer {
             details: {
               modelId,
               parameter: 'maxTokens',
-              currentValue: model.maxTokens,
-              suggestedValue: Math.max(500, Math.floor(model.maxTokens * 0.7))
+              currentValue: foundModel.maxTokens,
+              suggestedValue: Math.max(500, Math.floor(foundModel.maxTokens * 0.7))
             }
           },
           timestamp: Date.now()
@@ -129,7 +129,7 @@ export class AutoOptimizer {
     if (chatEvents.length < this.learningThreshold) return insights
     
     const modelUsage = chatEvents.reduce((acc, e) => {
-      const model = e.metadata!.model
+      const model = String(e.metadata!.model)
       acc[model] = (acc[model] || 0) + 1
       return acc
     }, {} as Record<string, number>)
@@ -142,12 +142,12 @@ export class AutoOptimizer {
       const topModelPercentage = (topModel[1] / totalUsage) * 100
       
       if (topModelPercentage > 80) {
-        const model = models.find(m => m.id === topModel[0])
+        const foundModel = _models.find(m => m.id === topModel[0])
         insights.push({
           id: `insight-${Date.now()}-${Math.random()}`,
           type: 'efficiency',
           severity: 'low',
-          title: `${model?.name || topModel[0]} is heavily utilized`,
+          title: `${foundModel?.name || topModel[0]} is heavily utilized`,
           description: `${topModelPercentage.toFixed(0)}% of all requests use this model. Consider diversifying model usage for different task types.`,
           recommendation: 'Use specialized models for different tasks: lighter models for simple queries, stronger models for complex reasoning.',
           impact: 'Could reduce average response time by 20-30% and improve output quality',
@@ -173,7 +173,7 @@ export class AutoOptimizer {
     _models.forEach(model => {
       const modelEvents = chatEvents.filter(e => e.metadata?.model === model.id)
       if (modelEvents.length < 10) return
-      
+
       if (model.temperature > 0.8 && model.frequencyPenalty < 0.2) {
         insights.push({
           id: `insight-${Date.now()}-${Math.random()}`,
@@ -295,16 +295,16 @@ export class AutoOptimizer {
     
     const avgTokenLength = chatEvents
       .filter(e => e.metadata?.responseLength)
-      .reduce((sum, e) => sum + (e.metadata!.responseLength || 0), 0) / chatEvents.length
-    
+      .reduce((sum, e) => sum + (Number(e.metadata!.responseLength) || 0), 0) / chatEvents.length
+
     if (avgTokenLength > 0) {
       _models.forEach(model => {
         const modelEvents = chatEvents.filter(e => e.metadata?.model === model.id)
         if (modelEvents.length < 5) return
-        
+
         const avgModelTokens = modelEvents
           .filter(e => e.metadata?.responseLength)
-          .reduce((sum, e) => sum + (e.metadata!.responseLength || 0), 0) / modelEvents.length
+          .reduce((sum, e) => sum + (Number(e.metadata!.responseLength) || 0), 0) / modelEvents.length
         
         if (model.maxTokens > avgModelTokens * 2) {
           insights.push({
@@ -342,7 +342,7 @@ export class AutoOptimizer {
         recommendation: 'Create task-specific profiles (e.g., creative writing, code generation, data analysis) for better results.',
         impact: 'Improved output quality and task-specific optimization',
         confidence: 0.85,
-        affectedModels: models.map(m => m.id),
+        affectedModels: _models.map(m => m.id),
         suggestedAction: {
           type: 'add_profile',
           details: {
@@ -517,7 +517,7 @@ export class AutoOptimizer {
   
   private groupByModel(events: AnalyticsEvent[]): Record<string, { times: number[] }> {
     return events.reduce((acc, event) => {
-      const model = event.metadata?.model || 'unknown'
+      const model = String(event.metadata?.model || 'unknown')
       if (!acc[model]) {
         acc[model] = { times: [] }
       }

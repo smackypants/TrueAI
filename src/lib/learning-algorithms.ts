@@ -5,7 +5,7 @@ import type { ThresholdConfig } from './confidence-thresholds'
 export interface UserFeedback {
   id: string
   insightId: string
-  actionType: OptimizationInsight['suggestedAction']['type']
+  actionType: NonNullable<OptimizationInsight['suggestedAction']>['type']
   severity: OptimizationInsight['severity']
   confidence: number
   userAccepted: boolean
@@ -29,7 +29,7 @@ export interface LearningMetrics {
     successful: number
     avgConfidence: number
   }>
-  byActionType: Record<OptimizationInsight['suggestedAction']['type'], {
+  byActionType: Record<NonNullable<OptimizationInsight['suggestedAction']>['type'], {
     total: number
     accepted: number
     successful: number
@@ -251,7 +251,7 @@ export class ThresholdLearningAlgorithm {
     return { total, accepted, successful, avgConfidence }
   }
 
-  private calculateActionTypeMetrics(actionType: OptimizationInsight['suggestedAction']['type']) {
+  private calculateActionTypeMetrics(actionType: NonNullable<OptimizationInsight['suggestedAction']>['type']) {
     const actionFeedback = this.feedbackHistory.filter(f => f.actionType === actionType)
     const total = actionFeedback.length
     

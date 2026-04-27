@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useDynamicUI } from '@/hooks/use-dynamic-ui'
-import { Palette, Layout, Sparkle, Type, Square } from '@phosphor-icons/react'
+import { Palette, Layout, Sparkle, TextT as Type, Square } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 
@@ -56,7 +56,7 @@ export function DynamicUICustomizer() {
   ]
 
   const applyPreset = (preset: typeof presetThemes[0]) => {
-    setPreferences(prev => ({ ...prev, ...preset.preferences }))
+    setPreferences(prev => ({ ...prev!, ...preset.preferences }))
     toast.success(`Applied ${preset.name} theme`)
   }
 

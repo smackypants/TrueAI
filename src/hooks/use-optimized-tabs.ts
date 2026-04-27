@@ -33,7 +33,7 @@ export function useOptimizedTabs({
   })
 
   const isTransitioning = useRef(false)
-  const transitionTimeout = useRef<NodeJS.Timeout>()
+  const transitionTimeout = useRef<NodeJS.Timeout | undefined>(undefined)
 
   const updatePreloadStates = useCallback((currentTab: string) => {
     if (!preloadAdjacent) return

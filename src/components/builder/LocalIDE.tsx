@@ -481,8 +481,8 @@ render(<App />, document.getElementById('app'));`,
     )
 
     if (activeFileId === fileId) {
-      const remainingFiles = project.files.filter(f => f.id !== fileId)
-      setActiveFileId(remainingFiles[0]?.id || null)
+      const remainingFiles = project?.files.filter(f => f.id !== fileId)
+      setActiveFileId(remainingFiles?.[0]?.id || null)
     }
     
     addConsoleMessage('warn', `File "${file.path}" deleted`)

@@ -226,7 +226,7 @@ export class BundleAutomationEngine {
 
     const allTimestamps = [
       ...messages.map(m => m.timestamp),
-      ...agents.map(a => a.createdAt)
+      ..._agents.map(a => a.createdAt)
     ]
 
     allTimestamps.forEach(ts => {
@@ -301,7 +301,7 @@ export class BundleAutomationEngine {
           conditions.push({
             type: 'time_range',
             operator: 'in_range',
-            value: [trigger.value, trigger.value + 1]
+            value: [Number(trigger.value) || 0, (Number(trigger.value) || 0) + 1]
           })
           break
         case 'keyword':
@@ -431,9 +431,9 @@ export class BundleAutomationEngine {
       case 'message_count': {
         const msgCount = context.recentMessages.length
         if (condition.operator === 'greater_than') {
-          result = msgCount > condition.value
+          result = msgCount > (Number(condition.value) || 0)
         } else if (condition.operator === 'less_than') {
-          result = msgCount < condition.value
+          result = msgCount < (Number(condition.value) || 0)
         }
         break
       }

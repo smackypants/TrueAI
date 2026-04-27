@@ -162,7 +162,7 @@ class OfflineQueue {
     if ('serviceWorker' in navigator && 'sync' in ServiceWorkerRegistration.prototype) {
       try {
         const registration = await navigator.serviceWorker.ready
-        await registration.sync.register(SYNC_TAG)
+        await (registration as any).sync.register(SYNC_TAG) // eslint-disable-line @typescript-eslint/no-explicit-any
         console.log('[OfflineQueue] Background sync registered')
       } catch (error) {
         console.error('[OfflineQueue] Failed to register background sync:', error)

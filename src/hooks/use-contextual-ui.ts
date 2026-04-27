@@ -25,32 +25,37 @@ export interface ContextualSuggestion {
   dismissed?: boolean
 }
 
+const initialBehavior: UserBehavior = {
+  mostUsedFeatures: {},
+  timePatterns: {
+    morning: [],
+    afternoon: [],
+    evening: [],
+    night: [],
+  },
+  preferredLayouts: {},
+  errorPatterns: [],
+  sessionDuration: [],
+  lastActive: Date.now(),
+}
+
 export function useContextualUI() {
-  const [behavior, setBehavior] = useKV<UserBehavior>('user-behavior', {
-    mostUsedFeatures: {},
-    timePatterns: {
-      morning: [],
-      afternoon: [],
-      evening: [],
-      night: [],
-    },
-    preferredLayouts: {},
-    errorPatterns: [],
-    sessionDuration: [],
-    lastActive: Date.now(),
-  })
+  const [behavior, setBehavior] = useKV<UserBehavior>('user-behavior', initialBehavior)
 
   const [suggestions, setSuggestions] = useState<ContextualSuggestion[]>([])
   const [dismissedSuggestions, setDismissedSuggestions] = useKV<string[]>('dismissed-suggestions', [])
 
   const trackFeatureUsage = (feature: string) => {
-    setBehavior(prev => ({
-      ...prev,
-      mostUsedFeatures: {
-        ...prev.mostUsedFeatures,
-        [feature]: (prev.mostUsedFeatures[feature] || 0) + 1,
-      },
-    }))
+    setBehavior(prev => {
+      const base = prev ?? initialBehavior
+      return {
+        ...base,
+        mostUsedFeatures: {
+          ...base.mostUsedFeatures,
+          [feature]: (base.mostUsedFeatures[feature] || 0) + 1,
+        },
+      }
+    })
   }
 
   const trackTimeOfDay = (feature: string) => {
@@ -62,28 +67,37 @@ export function useContextualUI() {
     else if (hour >= 17 && hour < 22) period = 'evening'
     else period = 'night'
 
-    setBehavior(prev => ({
-      ...prev,
-      timePatterns: {
-        ...prev.timePatterns,
-        [period]: [...new Set([...prev.timePatterns[period], feature])],
-      },
-    }))
+    setBehavior(prev => {
+      const base = prev ?? initialBehavior
+      return {
+        ...base,
+        timePatterns: {
+          ...base.timePatterns,
+          [period]: [...new Set([...base.timePatterns[period], feature])],
+        },
+      }
+    })
   }
 
   const trackError = (error: string) => {
-    setBehavior(prev => ({
-      ...prev,
-      errorPatterns: [...prev.errorPatterns.slice(-10), error],
-    }))
+    setBehavior(prev => {
+      const base = prev ?? initialBehavior
+      return {
+        ...base,
+        errorPatterns: [...base.errorPatterns.slice(-10), error],
+      }
+    })
   }
 
   const trackSessionDuration = (duration: number) => {
-    setBehavior(prev => ({
-      ...prev,
-      sessionDuration: [...prev.sessionDuration.slice(-20), duration],
-      lastActive: Date.now(),
-    }))
+    setBehavior(prev => {
+      const base = prev ?? initialBehavior
+      return {
+        ...base,
+        sessionDuration: [...base.sessionDuration.slice(-20), duration],
+        lastActive: Date.now(),
+      }
+    })
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,7 +1,8 @@
-import type { 
-  ModelConfig, 
+import type {
+  ModelConfig,
   ModelParameters,
-  OptimizationInsight} from './types'
+  OptimizationInsight
+} from './types'
 
 export interface OptimizationBundle {
   id: string
@@ -668,16 +669,19 @@ export class BulkOptimizationManager {
 
     const performanceInsights = insights.filter(i => i.type === 'performance')
     if (performanceInsights.length > 0) {
-      const actions: OptimizationAction[] = performanceInsights.map(insight => ({
-        id: `action-${insight.id}`,
-        type: 'adjust_parameters',
-        target: 'model',
-        targetId: insight.affectedModels[0],
-        parameters: insight.suggestedAction?.details?.parameters,
-        description: insight.recommendation,
-        reversible: true,
-        estimatedTime: 100
-      }))
+      const actions: OptimizationAction[] = performanceInsights.map(insight => {
+        const params = insight.suggestedAction?.details?.parameters
+        return {
+          id: `action-${insight.id}`,
+          type: 'adjust_parameters' as const,
+          target: 'model' as const,
+          targetId: insight.affectedModels[0],
+          parameters: typeof params === 'object' && params !== null ? params as Partial<ModelParameters> : undefined,
+          description: insight.recommendation,
+          reversible: true,
+          estimatedTime: 100
+        }
+      })
 
       bundles.push(this.createCustomBundle(
         'Performance Fixes',

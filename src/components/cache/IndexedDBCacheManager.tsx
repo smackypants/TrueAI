@@ -49,7 +49,10 @@ export function IndexedDBCacheManager() {
     setIsLoading(true)
     try {
       const cacheStats = await getCacheStats()
-      setStats(cacheStats)
+      setStats({
+        ...cacheStats,
+        lastCleanup: cacheStats.lastCleanup ?? undefined
+      })
     } catch (error) {
       console.error('Failed to load cache stats:', error)
     } finally {

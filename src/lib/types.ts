@@ -347,6 +347,47 @@ export interface GGUFMetadata {
   tags?: string[]
 }
 
+export type WorkflowNodeType = 'agent' | 'tool' | 'decision' | 'loop' | 'parallel' | 'merge' | 'start' | 'end' | 'trigger' | 'action'
+
+export interface Workflow {
+  id: string
+  name: string
+  description?: string
+  nodes: WorkflowNode[]
+  edges: WorkflowEdge[]
+  variables?: Record<string, unknown>
+  createdAt: number
+  updatedAt: number
+  status?: 'draft' | 'active' | 'archived'
+  category?: string
+  tags?: string[]
+}
+
+export interface WorkflowNode {
+  id: string
+  type: WorkflowNodeType
+  position: { x: number; y: number }
+  data: {
+    label: string
+    config?: Record<string, unknown>
+    agentId?: string
+    toolName?: string
+    condition?: string
+    iterations?: number
+  }
+}
+
+export interface WorkflowEdge {
+  id: string
+  source: string
+  target: string
+  label?: string
+  type?: string
+  animated?: boolean
+  style?: Record<string, unknown>
+  condition?: string
+}
+
 export interface AnalyticsEvent {
   id: string
   type: AnalyticsEventType
@@ -406,6 +447,33 @@ export type AnalyticsEventType =
   | 'app_test_started'
   | 'app_test_completed'
   | 'app_project_deleted'
+  | 'app_project_downloaded'
+  | 'app_project_edited'
+  | 'app_code_edited'
+  | 'app_refinement_started'
+  | 'app_project_duplicated'
+  | 'template_preview_opened'
+  | 'ide_project_created'
+  | 'ide_file_created'
+  | 'ide_file_deleted'
+  | 'ide_project_deleted'
+  | 'ide_file_saved'
+  | 'ide_project_run'
+  | 'ide_project_downloaded'
+  | 'ide_theme_changed'
+  | 'ide_auto_save_toggled'
+  | 'automation_analysis_started'
+  | 'automation_analysis_completed'
+  | 'automation_rule_created'
+  | 'automation_rule_toggled'
+  | 'automation_rule_deleted'
+  | 'automation_rules_exported'
+  | 'automation_rules_imported'
+  | 'learning_rate_schedule_generated'
+  | 'learning_rate_experiment_completed'
+  | 'learning_rate_applied'
+  | 'page_viewed'
+  | 'button_clicked'
 
 export interface AnalyticsSession {
   id: string

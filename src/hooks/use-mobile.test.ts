@@ -7,6 +7,7 @@ describe('useIsMobile hook', () => {
 
   beforeEach(() => {
     matchMediaMock = vi.fn()
+    // @ts-expect-error - matchMedia is a test mock
     window.matchMedia = matchMediaMock
   })
 

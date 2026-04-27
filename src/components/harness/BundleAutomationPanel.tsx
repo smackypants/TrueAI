@@ -64,7 +64,7 @@ export function BundleAutomationPanel({
   const [createRuleDialog, setCreateRuleDialog] = useState(false)
   const [viewRuleDialog, setViewRuleDialog] = useState(false)
   const [selectedRule, setSelectedRule] = useState<AutoExecutionRule | null>(null)
-  const [autoExecuteEnabled, setAutoExecuteEnabled] = useKV('auto-execute-enabled', false)
+  const [autoExecuteEnabled, setAutoExecuteEnabled] = useKV<boolean>('auto-execute-enabled', false)
 
   const [newRuleForm, setNewRuleForm] = useState({
     priority: 'normal' as 'low' | 'normal' | 'high' | 'critical',
