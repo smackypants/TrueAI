@@ -62,6 +62,7 @@ See [TOOLNEURON_COMPARISON.md](TOOLNEURON_COMPARISON.md) for detailed competitiv
 - [Features Overview](FEATURES.md)
 - [ToolNeuron Comparison](TOOLNEURON_COMPARISON.md) - **NEW!**
 - [Implementation Details](TOOLNEURON_IMPLEMENTATION.md) - **NEW!**
+- [Android Build Guide](ANDROID_BUILD_GUIDE.md) - **NEW!**
 - [Service Worker & Offline](SERVICE_WORKER.md)
 - [Background Sync](BACKGROUND_SYNC.md)
 - [IndexedDB Caching](INDEXEDDB_CACHE.md)
@@ -71,6 +72,8 @@ See [TOOLNEURON_COMPARISON.md](TOOLNEURON_COMPARISON.md) for detailed competitiv
 - [Security](SECURITY.md)
 
 ## 🎯 Quick Start
+
+### Web Application
 
 1. **Clone and Install**
    ```bash
@@ -86,6 +89,15 @@ See [TOOLNEURON_COMPARISON.md](TOOLNEURON_COMPARISON.md) for detailed competitiv
    ```bash
    npm run build
    ```
+
+### Android APK
+
+1. **Build Android APK**
+   ```bash
+   npm run android:build
+   ```
+
+   See [ANDROID_BUILD_GUIDE.md](ANDROID_BUILD_GUIDE.md) for complete instructions.
 
 ## 🔄 Background Sync (New!)
 
