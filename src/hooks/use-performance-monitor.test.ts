@@ -122,10 +122,6 @@ describe('usePerformanceMonitor hook', () => {
   it('should maintain consistent API across renders', () => {
     const { result, rerender } = renderHook(() => usePerformanceMonitor('TestComponent', true))
 
-    const getMetrics1 = result.current.getMetrics
-    const clearMetrics1 = result.current.clearMetrics
-    const getAvg1 = result.current.getAverageRenderTime
-
     rerender()
 
     // Functions should be stable

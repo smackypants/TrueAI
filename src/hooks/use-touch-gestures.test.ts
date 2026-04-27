@@ -19,11 +19,11 @@ describe('useSwipeGesture hook', () => {
 
     const touchStartEvent = {
       touches: [{ clientX: 100, clientY: 100 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     const touchEndEvent = {
       changedTouches: [{ clientX: 200, clientY: 105 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     act(() => {
       result.current.onTouchStart(touchStartEvent)
@@ -41,11 +41,11 @@ describe('useSwipeGesture hook', () => {
 
     const touchStartEvent = {
       touches: [{ clientX: 200, clientY: 100 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     const touchEndEvent = {
       changedTouches: [{ clientX: 100, clientY: 105 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     act(() => {
       result.current.onTouchStart(touchStartEvent)
@@ -61,11 +61,11 @@ describe('useSwipeGesture hook', () => {
 
     const touchStartEvent = {
       touches: [{ clientX: 100, clientY: 200 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     const touchEndEvent = {
       changedTouches: [{ clientX: 105, clientY: 100 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     act(() => {
       result.current.onTouchStart(touchStartEvent)
@@ -81,11 +81,11 @@ describe('useSwipeGesture hook', () => {
 
     const touchStartEvent = {
       touches: [{ clientX: 100, clientY: 100 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     const touchEndEvent = {
       changedTouches: [{ clientX: 105, clientY: 200 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     act(() => {
       result.current.onTouchStart(touchStartEvent)
@@ -101,11 +101,11 @@ describe('useSwipeGesture hook', () => {
 
     const touchStartEvent = {
       touches: [{ clientX: 100, clientY: 100 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     const touchEndEvent = {
       changedTouches: [{ clientX: 130, clientY: 105 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     act(() => {
       result.current.onTouchStart(touchStartEvent)
@@ -123,11 +123,11 @@ describe('useSwipeGesture hook', () => {
 
     const touchStartEvent = {
       touches: [{ clientX: 100, clientY: 100 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     const touchEndEvent = {
       changedTouches: [{ clientX: 170, clientY: 100 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     act(() => {
       result.current.onTouchStart(touchStartEvent)
@@ -147,11 +147,11 @@ describe('useSwipeGesture hook', () => {
 
     const touchStartEvent = {
       touches: [{ clientX: 200, clientY: 100 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     const touchEndEvent = {
       changedTouches: [{ clientX: 100, clientY: 105 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     act(() => {
       result.current.onTouchStart(touchStartEvent)
@@ -167,7 +167,7 @@ describe('useSwipeGesture hook', () => {
 
     const touchEndEvent = {
       changedTouches: [{ clientX: 200, clientY: 100 }]
-    } as React.TouchEvent
+    } as unknown as React.TouchEvent
 
     act(() => {
       result.current.onTouchEnd(touchEndEvent)

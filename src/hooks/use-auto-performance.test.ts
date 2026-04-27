@@ -31,7 +31,7 @@ describe('useAutoPerformanceOptimization hook', () => {
     }
 
     vi.mocked(MobilePerformanceOptimizer.getInstance).mockReturnValue(
-      mockOptimizerInstance as any
+      mockOptimizerInstance as unknown as ReturnType<typeof MobilePerformanceOptimizer.getInstance>
     )
 
     document.body.className = ''
