@@ -17,7 +17,9 @@ export default [
       'tailwind.config.js',
       'eslint.config.js',
       '.eslintignore',
-      '.eslintrc.json'
+      '.eslintrc.json',
+      'public/sw.js',  // Service worker has its own global scope
+      'android/**'  // Android platform files
     ]
   },
   js.configs.recommended,

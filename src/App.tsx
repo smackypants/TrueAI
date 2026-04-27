@@ -975,18 +975,21 @@ Describe what input you would give to the ${tool} tool (one sentence).`
       case 'archived':
         filtered = filtered.filter(c => c.archived)
         break
-      case 'today':
+      case 'today': {
         const today = new Date().setHours(0, 0, 0, 0)
         filtered = filtered.filter(c => c.updatedAt >= today && !c.archived)
         break
-      case 'week':
+      }
+      case 'week': {
         const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
         filtered = filtered.filter(c => c.updatedAt >= weekAgo && !c.archived)
         break
-      case 'month':
+      }
+      case 'month': {
         const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
         filtered = filtered.filter(c => c.updatedAt >= monthAgo && !c.archived)
         break
+      }
       default:
         filtered = filtered.filter(c => !c.archived)
     }
