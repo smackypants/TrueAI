@@ -13,10 +13,14 @@ so that the app's local-AI features actually work on a real device.
 
 - **Local AI servers now reachable.** v1.0.0 could not connect to user-hosted
   Ollama / LocalAI servers because Android 9+ blocks cleartext HTTP. The app
-  now ships an explicit network security config (plus
-  `usesCleartextTraffic="true"` as the API 23 fallback) that permits cleartext
-  so the user can point the app at any local-network server they run, while
-  HTTPS validation against system CAs is unchanged.
+  now ships an explicit network security config that allowlists cleartext
+  only for known local hosts (`localhost`, `127.0.0.1`, the Android emulator
+  hosts `10.0.2.2` / `10.0.3.2`, and `*.local` mDNS hostnames). The public
+  internet remains HTTPS-only, and HTTPS validation against system CAs is
+  unchanged. Debug builds additionally trust user-installed CA certs for
+  development convenience (mitmproxy etc.). Release builds reaching an
+  arbitrary LAN IP should use the device's `*.local` mDNS hostname (or an
+  HTTPS endpoint).
 - **Online/offline detection.** Added the `ACCESS_NETWORK_STATE` permission so
   the JS layer can correctly observe connectivity changes.
 - **Direct Gradle / Android Studio builds.** Added the missing

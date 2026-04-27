@@ -88,11 +88,14 @@ jobs:
             ## What's New in this Release
 
             - **Local AI servers now reachable from the Android app.** Added
-              a network security config (and the `usesCleartextTraffic="true"`
-              API 23 fallback) so users can point the app at any local
-              Ollama / LocalAI / llama.cpp server they run on the device,
-              the emulator host, or their LAN. HTTPS validation against
-              system CAs is unchanged.
+              a network security config that allowlists cleartext HTTP only
+              for known local hosts (`localhost`, `127.0.0.1`, the Android
+              emulator hosts `10.0.2.2` / `10.0.3.2`, and `*.local` mDNS
+              hostnames). The public internet remains HTTPS-only and HTTPS
+              validation against system CAs is unchanged. Debug builds
+              additionally trust user-installed CA certs (mitmproxy etc.).
+              Release builds reaching an arbitrary LAN IP should use the
+              device's `*.local` mDNS hostname or an HTTPS endpoint.
             - Added the `ACCESS_NETWORK_STATE` permission for accurate
               online/offline detection.
             - Fixed a missing `res/values/colors.xml` that broke direct

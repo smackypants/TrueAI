@@ -1,4 +1,4 @@
-# Changelog - ToolNeuron Competitive Features
+# Changelog - TrueAI LocalAI
 
 ## Version 1.0.1 - Android App Connectivity & Build Fixes (2026-04)
 
@@ -8,12 +8,14 @@
   installed Android app. Android 9+ blocks cleartext (HTTP) traffic by default,
   which broke the app's core feature of talking to user-hosted local model
   servers over `http://localhost`, the Android emulator host
-  `http://10.0.2.2`, and arbitrary LAN IPs the user enters at runtime. Added
-  `android/app/src/main/res/xml/network_security_config.xml` (and
-  `android:usesCleartextTraffic="true"` for API 23 fallback, since
-  `networkSecurityConfig` is only honored from API 24+) so the app can reach
-  any user-configured local server. System CA trust anchors are still used,
-  so HTTPS validation is unchanged.
+  `http://10.0.2.2`, and `*.local` mDNS hostnames. Added
+  `android/app/src/main/res/xml/network_security_config.xml` that allowlists
+  cleartext for those known local hosts only; the public internet remains
+  HTTPS-only (`<base-config cleartextTrafficPermitted="false">`). Debug
+  builds additionally trust user-installed CA certs via `<debug-overrides>`
+  (useful for HTTPS interception with mitmproxy during development). Users
+  running against an arbitrary LAN IP should reach it via its `*.local`
+  mDNS hostname (or an HTTPS endpoint).
 - **FIX**: Added the missing `ACCESS_NETWORK_STATE` permission so the app can
   detect online/offline state on Android.
 - **FIX**: Added the missing `android/app/src/main/res/values/colors.xml`.
