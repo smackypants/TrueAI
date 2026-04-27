@@ -22,10 +22,9 @@ import {
 } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { 
+import {
   performanceScanner,
   type PerformanceScanResult,
-  type Bottleneck,
   type OptimizationAction
 } from '@/lib/performance-scanner'
 import type { AnalyticsEvent, ModelConfig, PerformanceProfile } from '@/lib/types'

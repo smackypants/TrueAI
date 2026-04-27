@@ -13,7 +13,7 @@ const COLORS = [
 ]
 
 export function ModelUsageChart({ data }: ModelUsageChartProps) {
-  const total = useMemo(() => {
+  const _total = useMemo(() => {
     return data.reduce((sum, d) => sum + d.count, 0)
   }, [data])
 

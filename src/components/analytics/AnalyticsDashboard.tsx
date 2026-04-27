@@ -65,7 +65,6 @@ export function AnalyticsDashboard({
   const [metrics, setMetrics] = useState<AnalyticsMetrics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | 'all'>('7d')
-  const [filter, setFilter] = useState<AnalyticsFilter>({})
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [refreshInterval, setRefreshInterval] = useState<5 | 10 | 30>(5)
   const [lastRefresh, setLastRefresh] = useState<number>(Date.now())
@@ -76,8 +75,6 @@ export function AnalyticsDashboard({
 
   const safeEvents = events || []
   const safeSessions = sessions || []
-  const safeModels = models || []
-  const safeProfiles = profiles || []
 
   useEffect(() => {
     loadMetrics()
@@ -157,7 +154,6 @@ export function AnalyticsDashboard({
         newFilter.startDate = now - 30 * 24 * 60 * 60 * 1000
       }
 
-      setFilter(newFilter)
       const data = await getMetrics(newFilter)
       setMetrics(data)
       setLastRefresh(Date.now())

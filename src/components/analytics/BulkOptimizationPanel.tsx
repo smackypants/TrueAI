@@ -5,8 +5,6 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
-import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   Dialog, 
@@ -149,9 +147,8 @@ export function BulkOptimizationPanel({ models, onApplyBundle }: BulkOptimizatio
       toast.success(`Successfully applied ${bundlesToApply.length} optimization ${bundlesToApply.length === 1 ? 'bundle' : 'bundles'}`)
       setSelectedBundles(new Set())
       loadHistory()
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to apply optimization bundles')
-      console.error(error)
     } finally {
       setIsApplying(false)
       setApplyProgress(0)
@@ -191,9 +188,8 @@ export function BulkOptimizationPanel({ models, onApplyBundle }: BulkOptimizatio
 
       toast.success(`Successfully applied "${preset.name}" preset`)
       loadHistory()
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to apply preset')
-      console.error(error)
     } finally {
       setIsApplying(false)
       setApplyProgress(0)
@@ -211,9 +207,8 @@ export function BulkOptimizationPanel({ models, onApplyBundle }: BulkOptimizatio
       } else {
         toast.error('Failed to rollback optimization')
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to rollback optimization')
-      console.error(error)
     }
   }
 

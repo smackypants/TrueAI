@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { 
   Play, 
@@ -42,7 +41,7 @@ import { analytics } from '@/lib/analytics'
 interface LearningRateBenchmarkProps {
   models: ModelConfig[]
   onModelUpdate?: (model: ModelConfig) => void
-  recentBenchmarks?: BenchmarkSuite[]
+  _recentBenchmarks?: BenchmarkSuite[]
 }
 
 interface LearningRateExperiment {
@@ -60,7 +59,7 @@ interface LearningRateExperiment {
   successRate: number
 }
 
-export function LearningRateBenchmark({ models, onModelUpdate, recentBenchmarks = [] }: LearningRateBenchmarkProps) {
+export function LearningRateBenchmark({ models, onModelUpdate, _recentBenchmarks = [] }: LearningRateBenchmarkProps) {
   const [experiments, setExperiments] = useKV<LearningRateExperiment[]>('lr-experiments', [])
   const [selectedModelId, setSelectedModelId] = useState<string>(models[0]?.id || '')
   const [selectedTaskType, setSelectedTaskType] = useState<TaskType>('chat')
@@ -71,7 +70,7 @@ export function LearningRateBenchmark({ models, onModelUpdate, recentBenchmarks 
   const [currentMetrics, setCurrentMetrics] = useState<LearningRateMetrics | null>(null)
   const [adjustmentHistory, setAdjustmentHistory] = useState<LearningRateAdjustment[]>([])
   const [selectedSchedule, setSelectedSchedule] = useState<LearningRateSchedule | null>(null)
-  const [compareMode, setCompareMode] = useState(false)
+  const _compareMode = false
   const [baselineExperimentId, setBaselineExperimentId] = useState<string | null>(null)
 
   const selectedModel = models.find(m => m.id === selectedModelId)
@@ -82,7 +81,8 @@ export function LearningRateBenchmark({ models, onModelUpdate, recentBenchmarks 
       const optimalRate = learningRateTuner.getOptimalRateForTask(selectedTaskType, 'medium')
       setCurrentLearningRate(optimalRate)
     }
-  }, [selectedTaskType, selectedModel?.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTaskType])
 
   const generateSchedule = () => {
     if (!selectedModel) return

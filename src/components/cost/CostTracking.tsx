@@ -3,7 +3,6 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -28,18 +27,13 @@ interface CostTrackingProps {
   onDeleteBudget: (id: string) => void
 }
 
-const MODEL_COSTS: Record<string, { input: number; output: number }> = {
+// Model cost constants for reference (tokens per dollar)
+const _MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'gpt-4o': { input: 0.01 / 1000, output: 0.03 / 1000 },
   'gpt-4o-mini': { input: 0.0015 / 1000, output: 0.006 / 1000 },
   'gpt-4-turbo': { input: 0.01 / 1000, output: 0.03 / 1000 },
   'gpt-3.5-turbo': { input: 0.0005 / 1000, output: 0.0015 / 1000 },
 }
-
-// Helper function to calculate cost (currently unused but available for future use)
-// const calculateCost = (tokensIn: number, tokensOut: number, model: string): number => {
-//   const costs = MODEL_COSTS[model] || MODEL_COSTS['gpt-4o-mini']
-//   return (tokensIn * costs.input) + (tokensOut * costs.output)
-// }
 
 export function CostTracking({
   costEntries,

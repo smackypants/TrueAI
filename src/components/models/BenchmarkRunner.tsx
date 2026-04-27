@@ -34,7 +34,7 @@ export function BenchmarkRunner({ models, onBenchmarkComplete }: BenchmarkRunner
   const [currentTest, setCurrentTest] = useState('')
   const [results, setResults] = useState<BenchmarkSuite[]>([])
   const [activeResult, setActiveResult] = useState<BenchmarkSuite | null>(null)
-  const [comparisonMode, setComparisonMode] = useState(false)
+  const _comparisonMode = false
   const [baselineId, setBaselineId] = useState<string | null>(null)
 
   const selectedModel = models.find(m => m.id === selectedModelId)

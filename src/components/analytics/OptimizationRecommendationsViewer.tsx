@@ -22,7 +22,8 @@ import {
   Brain,
   MagnifyingGlass,
   Rocket,
-  FunnelSimple
+  FunnelSimple,
+  Faders
 } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { OptimizationInsight } from '@/lib/auto-optimizer'
@@ -52,7 +53,7 @@ export function OptimizationRecommendationsViewer({
   const [selectedInsight, setSelectedInsight] = useState<OptimizationInsight | null>(null)
   const [filterSeverity, setFilterSeverity] = useState<OptimizationInsight['severity'] | 'all'>('all')
   const [filterType, setFilterType] = useState<OptimizationInsight['type'] | 'all'>('all')
-  const [sortBy, setSortBy] = useState<'severity' | 'confidence' | 'timestamp'>('severity')
+  const _sortBy = 'severity'
   const [showAppliedOnly, setShowAppliedOnly] = useState(false)
   const [showUnappliedOnly, setShowUnappliedOnly] = useState(false)
 
@@ -62,10 +63,10 @@ export function OptimizationRecommendationsViewer({
     .filter(i => !showAppliedOnly || appliedInsights.has(i.id))
     .filter(i => !showUnappliedOnly || !appliedInsights.has(i.id))
     .sort((a, b) => {
-      if (sortBy === 'severity') {
+      if (_sortBy === 'severity') {
         const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 }
         return severityOrder[b.severity] - severityOrder[a.severity]
-      } else if (sortBy === 'confidence') {
+      } else if (_sortBy === 'confidence') {
         return b.confidence - a.confidence
       } else {
         return b.timestamp - a.timestamp
@@ -697,7 +698,7 @@ function AutoTuneRecommendationCard({
   models,
   onApply
 }: AutoTuneRecommendationCardProps) {
-  const [selectedModel, setSelectedModel] = useState<string>(models[0]?.id || '')
+  const [_selectedModel, _setSelectedModel] = useState<string>(models[0]?.id || '')
 
   const parameterChanges = [
     {
@@ -772,7 +773,7 @@ function AutoTuneRecommendationCard({
         )}
 
         <Button
-          onClick={() => onApply(selectedModel)}
+          onClick={() => onApply(_selectedModel)}
           className="w-full gap-2"
           size="sm"
         >

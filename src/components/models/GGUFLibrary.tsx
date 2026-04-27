@@ -8,10 +8,9 @@ import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Progress } from '@/components/ui/progress'
-import { 
-  FilePlus, 
-  MagnifyingGlass, 
+import {
+  FilePlus,
+  MagnifyingGlass,
   Trash,
   File,
   HardDrives,
