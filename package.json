@@ -7,7 +7,7 @@
         "dev": "vite",
         "kill": "fuser -k 5000/tcp",
         "build": "tsc -b --noCheck && vite build",
-        "lint": "node ./node_modules/eslint/bin/eslint.js .",
+        "lint": "eslint .",
         "optimize": "vite optimize",
         "preview": "vite preview",
         "test": "vitest",
@@ -85,7 +85,7 @@
         "tailwind-merge": "^3.0.2",
         "three": "^0.175.0",
         "tw-animate-css": "^1.2.4",
-        "uuid": "^11.1.0",
+        "uuid": "^14.0.0",
         "vaul": "^1.1.2",
         "zod": "^3.25.76"
     },
