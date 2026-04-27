@@ -4,8 +4,8 @@ This document provides comprehensive instructions for building the TrueAI LocalA
 
 ## Prerequisites
 
-- Node.js 18+ and npm
-- Java JDK 21 (required)
+- Node.js 18+ and npm (Node 20+ recommended)
+- Java JDK 17 (required for Capacitor 6.x)
 - Android SDK (API level 34 recommended)
 - Android Studio (optional, for debugging)
 
