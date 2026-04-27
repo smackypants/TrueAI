@@ -56,7 +56,8 @@ export function usePerformanceOptimization() {
         batteryLevel = battery.level * 100
         isCharging = battery.charging
       }
-    } catch (e) {
+    } catch (_e) {
+      // Battery API not supported, ignore
     }
 
     setCapabilities({

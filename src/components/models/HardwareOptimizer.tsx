@@ -56,9 +56,9 @@ export function HardwareOptimizer({ onSettingsApplied }: HardwareOptimizerProps)
       }
 
       toast.success(`Hardware scan complete - ${specs.tier.toUpperCase()} tier detected`)
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to scan hardware')
-      console.error(error)
+      console.error(_error)
     } finally {
       setIsScanning(false)
     }

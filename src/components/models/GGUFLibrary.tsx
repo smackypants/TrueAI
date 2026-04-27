@@ -66,7 +66,7 @@ export function GGUFLibrary({ models, onAddModel, onDeleteModel }: GGUFLibraryPr
   }
 
   const filterModels = () => {
-    let filtered = models.filter(model => 
+    const filtered = models.filter(model => 
       model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       model.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
       model.quantization.toLowerCase().includes(searchQuery.toLowerCase())

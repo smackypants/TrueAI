@@ -402,30 +402,33 @@ export class BundleAutomationEngine {
     let result = false
 
     switch (condition.type) {
-      case 'time_range':
+      case 'time_range': {
         const currentHour = new Date(context.currentTime).getHours()
         if (condition.operator === 'in_range' && Array.isArray(condition.value)) {
           result = currentHour >= condition.value[0] && currentHour < condition.value[1]
         }
         break
+      }
 
-      case 'keyword_match':
+      case 'keyword_match': {
         const recentContent = context.recentMessages.map(m => m.content.toLowerCase()).join(' ')
         if (condition.operator === 'contains') {
           result = recentContent.includes(String(condition.value).toLowerCase())
         }
         break
+      }
 
-      case 'tool_used':
-        const toolsUsed = context.recentRuns.flatMap(run => 
+      case 'tool_used': {
+        const toolsUsed = context.recentRuns.flatMap(run =>
           run.steps.filter(s => s.toolName).map(s => s.toolName)
         )
         if (condition.operator === 'equals') {
           result = toolsUsed.some(tool => tool === condition.value)
         }
         break
+      }
 
-      case 'message_count':
+      case 'message_count': {
         const msgCount = context.recentMessages.length
         if (condition.operator === 'greater_than') {
           result = msgCount > condition.value
@@ -433,18 +436,21 @@ export class BundleAutomationEngine {
           result = msgCount < condition.value
         }
         break
+      }
 
-      case 'agent_status':
+      case 'agent_status': {
         const hasStatus = context.activeAgents.some(agent => agent.status === condition.value)
         result = condition.operator === 'equals' ? hasStatus : !hasStatus
         break
+      }
 
-      case 'model_type':
+      case 'model_type': {
         const usedModels = context.recentMessages.map(m => m.model).filter(Boolean)
         if (condition.operator === 'contains') {
           result = usedModels.some(model => model?.includes(String(condition.value)))
         }
         break
+      }
     }
 
     return condition.negate ? !result : result
