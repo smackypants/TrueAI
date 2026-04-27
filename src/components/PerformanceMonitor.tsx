@@ -9,7 +9,7 @@ import {
   MobilePerformanceOptimizer,
   DeviceCapabilities 
 } from '@/lib/mobile-performance'
-import { Cpu, Gauge, DeviceMobile, Lightning, Battery, WifiHigh } from '@phosphor-icons/react'
+import { Cpu, Gauge, DeviceMobile, Lightning, BatteryCharging, WifiHigh } from '@phosphor-icons/react'
 
 export function PerformanceMonitor() {
   const metrics = usePerformanceMonitor()
@@ -129,9 +129,9 @@ export function PerformanceMonitor() {
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Battery</span>
                     <div className="flex items-center gap-1">
-                      <Battery 
-                        size={14} 
-                        className={capabilities.charging ? 'text-green-500' : ''} 
+                      <BatteryCharging
+                        size={14}
+                        className={capabilities.charging ? 'text-green-500' : ''}
                       />
                       <span className="font-mono">
                         {Math.round(capabilities.batteryLevel * 100)}%

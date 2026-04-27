@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Code, FlaskConical, Package, FileCode, Eye, Download, Trash, Sparkle, CheckCircle, XCircle, Clock, Cube, Lightning } from '@phosphor-icons/react'
+import { Code, Flask, Package, FileCode, Eye, Download, Trash, Sparkle, CheckCircle, XCircle, Clock, Cube, Lightning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { analytics } from '@/lib/analytics'
@@ -836,7 +836,7 @@ Based on the original prompt and the refinement request, modify the existing ${a
       case 'ready': return <CheckCircle weight="fill" size={16} />
       case 'creating': return <Sparkle weight="fill" size={16} />
       case 'building': return <Package weight="fill" size={16} />
-      case 'testing': return <FlaskConical weight="fill" size={16} />
+      case 'testing': return <Flask weight="fill" size={16} />
       case 'error': return <XCircle weight="fill" size={16} />
       default: return <Clock weight="fill" size={16} />
     }
@@ -3635,7 +3635,7 @@ Based on the original prompt and the refinement request, modify the existing ${a
                         size="sm"
                         onClick={() => testProject(activeProject.id)}
                       >
-                        <FlaskConical size={16} className="mr-1" />
+                        <Flask size={16} className="mr-1" />
                         Test
                       </Button>
                       <Button
@@ -3680,7 +3680,7 @@ Based on the original prompt and the refinement request, modify the existing ${a
                     Live Preview
                   </TabsTrigger>
                   <TabsTrigger value="tests" className="gap-2" disabled={!activeProject.testResults}>
-                    <FlaskConical size={18} />
+                    <Flask size={18} />
                     Tests
                   </TabsTrigger>
                   <TabsTrigger value="build" className="gap-2" disabled={!activeProject.buildLog}>
