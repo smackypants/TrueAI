@@ -1,5 +1,35 @@
 # Changelog - ToolNeuron Competitive Features
 
+## Version 1.0.1 - Android App Connectivity & Build Fixes (2026-04)
+
+### 🐛 Bug Fixes (Android)
+
+- **FIX**: Local AI servers (Ollama, LocalAI, etc.) could not be reached from the
+  installed Android app. Android 9+ blocks cleartext (HTTP) traffic by default,
+  which broke the app's core feature of talking to user-hosted local model
+  servers over `http://localhost`, `http://127.0.0.1`, the emulator host
+  `http://10.0.2.2`, and private LAN IPs (`192.168.x.x`, `10.x.x.x`,
+  `172.16.x.x`) and `*.local` mDNS hosts. Added
+  `android/app/src/main/res/xml/network_security_config.xml` and wired it up
+  via `android:networkSecurityConfig` in `AndroidManifest.xml` so cleartext is
+  only permitted for these local addresses; all other traffic remains
+  HTTPS-only.
+- **FIX**: Added the missing `ACCESS_NETWORK_STATE` permission so the app can
+  detect online/offline state on Android.
+- **FIX**: Added the missing `android/app/src/main/res/values/colors.xml`.
+  `styles.xml` referenced `@color/colorPrimary`, `@color/colorPrimaryDark`,
+  and `@color/colorAccent` but the resource file was not checked in, which
+  would break direct `./gradlew assembleDebug` / Android Studio builds for
+  anyone who had not first run `npx cap sync android`.
+- **CHORE**: Bumped Android `versionCode` (1 → 2) and `versionName`
+  (1.0.0 → 1.0.1) so the new APK installs as an update over v1.0.0.
+
+### 📦 Release
+
+- A new release **v1.0.1** is published containing the rebuilt
+  `TrueAI-LocalAI-debug.apk` and `TrueAI-LocalAI-release-unsigned.apk` with
+  the above fixes baked in.
+
 ## Version 2.0.0 - ToolNeuron Competitive Parity (2024)
 
 ### 🎯 Major Features Added

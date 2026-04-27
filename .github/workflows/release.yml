@@ -85,6 +85,21 @@ jobs:
             - **TrueAI-LocalAI-debug.apk** - Debug version for testing
             - **TrueAI-LocalAI-release-unsigned.apk** - Release version (unsigned)
 
+            ## What's New in this Release
+
+            - **Local AI servers now reachable from the Android app.** Added a
+              network security config that permits cleartext HTTP for
+              `localhost`, `127.0.0.1`, the Android emulator host
+              (`10.0.2.2`), RFC1918 private LAN ranges, and `*.local` mDNS
+              hosts so Ollama, LocalAI, and other self-hosted servers work
+              out of the box. Public traffic remains HTTPS-only.
+            - Added the `ACCESS_NETWORK_STATE` permission for accurate
+              online/offline detection.
+            - Fixed a missing `res/values/colors.xml` that broke direct
+              Gradle / Android Studio builds.
+            - Bumped Android `versionCode` and `versionName` so the new APK
+              installs cleanly as an update.
+
             ## Features
 
             This release includes:
@@ -105,13 +120,6 @@ jobs:
             2. Enable "Install from Unknown Sources" in your Android settings
             3. Open the downloaded APK file
             4. Follow the installation prompts
-
-            ## What's New
-
-            - Initial release with full Android support
-            - Mobile-optimized interface
-            - Hardware-accelerated performance
-            - Offline capabilities
           draft: false
           prerelease: false
           files: |

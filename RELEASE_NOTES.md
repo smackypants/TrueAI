@@ -1,5 +1,41 @@
 # TrueAI LocalAI - Release Notes
 
+## Version 1.0.1 - Android Connectivity Fix
+
+**Release Date:** April 27, 2026
+
+### Overview
+
+A maintenance release that fixes the most impactful Android issues from v1.0.0
+so that the app's local-AI features actually work on a real device.
+
+### What's Fixed
+
+- **Local AI servers now reachable.** v1.0.0 could not connect to user-hosted
+  Ollama / LocalAI servers because Android 9+ blocks cleartext HTTP. The app
+  now ships an explicit network security config that permits cleartext only
+  for `localhost`, `127.0.0.1`, the Android emulator host (`10.0.2.2`),
+  RFC1918 private LAN ranges (`192.168.x.x`, `10.x.x.x`, `172.16.x.x`), and
+  `*.local` mDNS hostnames. Public traffic is still HTTPS-only.
+- **Online/offline detection.** Added the `ACCESS_NETWORK_STATE` permission so
+  the JS layer can correctly observe connectivity changes.
+- **Direct Gradle / Android Studio builds.** Added the missing
+  `res/values/colors.xml` referenced by `styles.xml`, so building without
+  first running `npx cap sync` no longer fails.
+- **Versioning.** Bumped `versionCode` to 2 and `versionName` to `1.0.1` so
+  installs cleanly upgrade over v1.0.0.
+
+### Installation
+
+Download one of the following APK files from the v1.0.1 GitHub release:
+
+1. **TrueAI-LocalAI-debug.apk** - Debug build for testing
+2. **TrueAI-LocalAI-release-unsigned.apk** - Release build (unsigned)
+
+Then enable "Install from Unknown Sources" on your device and open the APK.
+
+---
+
 ## Version 1.0.0 - Initial Android Release
 
 **Release Date:** April 27, 2026
