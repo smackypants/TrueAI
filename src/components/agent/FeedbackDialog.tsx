@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Slider } from '@/components/ui/slider'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card } from '@/components/ui/card'
-import { Star, CheckCircle, XCircle, Clock, Target, Brain } from '@phosphor-icons/react'
+import { Star, CheckCircle, XCircle, Clock, Target, Brain, type Icon } from '@phosphor-icons/react'
 import type { AgentFeedback, AgentRun, FeedbackIssue } from '@/lib/types'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -27,7 +27,7 @@ export function FeedbackDialog({ open, onOpenChange, agentRun, onSubmit }: Feedb
   const [issueDescriptions, setIssueDescriptions] = useState<Record<string, string>>({})
   const [hoveredStar, setHoveredStar] = useState<number | null>(null)
 
-  const issueTypes: { type: FeedbackIssue['type']; label: string; icon: React.ComponentType<{ size?: number; weight?: string; className?: string }> }[] = [
+  const issueTypes: { type: FeedbackIssue['type']; label: string; icon: Icon }[] = [
     { type: 'incorrect_result', label: 'Incorrect Result', icon: XCircle },
     { type: 'missing_information', label: 'Missing Information', icon: Target },
     { type: 'wrong_tool', label: 'Wrong Tool Used', icon: Brain },

@@ -65,7 +65,7 @@ export class LearningRateTuner {
     }
 
     const recentLosses = losses.slice(-10)
-    const diffs = []
+    const diffs: number[] = []
     for (let i = 1; i < recentLosses.length; i++) {
       diffs.push(recentLosses[i] - recentLosses[i - 1])
     }
@@ -88,7 +88,7 @@ export class LearningRateTuner {
     if (losses.length < 2) return 0
 
     const recentLosses = losses.slice(-5)
-    const gradients = []
+    const gradients: number[] = []
     for (let i = 1; i < recentLosses.length; i++) {
       gradients.push(recentLosses[i] - recentLosses[i - 1])
     }

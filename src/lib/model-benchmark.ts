@@ -229,7 +229,7 @@ Rate the response on these dimensions from 0-100:
 Return ONLY a JSON object with these four scores. No explanation.`
 
   try {
-    const evaluationResult = await spark.llm(evaluationPrompt, 'gpt-4o-mini', true)
+    const evaluationResult = await spark.llm(evaluationPrompt, 'gpt-4o-mini')
     const scores = JSON.parse(evaluationResult)
     
     return {

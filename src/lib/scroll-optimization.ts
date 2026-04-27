@@ -1,14 +1,14 @@
 import { useEffect, useRef, RefObject } from 'react'
 
 export function useScrollOptimization(elementRef: RefObject<HTMLElement>) {
-  const rafRef = useRef<number>()
+  const rafRef = useRef<number | undefined>()
 
   useEffect(() => {
     const element = elementRef.current
     if (!element) return
 
     let ticking = false
-    const _lastScrollY = element.scrollTop
+    let _lastScrollY = element.scrollTop
 
     const handleScroll = () => {
       _lastScrollY = element.scrollTop

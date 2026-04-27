@@ -2,6 +2,7 @@ import type { TaskType, PerformanceProfile, ModelParameters, AutoTuneRecommendat
 
 export const taskTypeDescriptions: Record<TaskType, string> = {
   creative_writing: 'Generate creative content like stories, poems, and narratives',
+  code_generation: 'Generate, refactor, and explain code in various programming languages',
   data_analysis: 'Analyze datasets, extract insights, and identify patterns',
   conversation: 'Natural dialogue and general-purpose chat interactions',
   summarization: 'Condense long text into concise summaries',

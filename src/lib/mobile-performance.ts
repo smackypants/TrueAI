@@ -162,7 +162,7 @@ export class MobilePerformanceOptimizer {
 
   getMemoryUsage(): number {
     if ((performance as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory) {
-      const memory = (performance as { memory: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory
+      const memory = (performance as unknown as { memory: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory
       return Math.round((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100)
     }
     return 0
@@ -198,7 +198,9 @@ export function usePerformanceMonitor() {
   useEffect(() => {
     const optimizer = MobilePerformanceOptimizer.getInstance()
     const unsubscribe = optimizer.subscribe(setMetrics)
-    return unsubscribe
+    return () => {
+      unsubscribe()
+    }
   }, [])
 
   return metrics
@@ -249,7 +251,7 @@ export function useDebounce<T extends (...args: unknown[]) => unknown>(
   callback: T,
   delay: number = 150
 ): T {
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>()
 
   useEffect(() => {
     return () => {
@@ -333,7 +335,7 @@ export function batchUpdates<T>(
   processFn: (batch: T[]) => void,
   delay: number = 0
 ) {
-  const batches = []
+  const batches: T[][] = []
   for (let i = 0; i < items.length; i += batchSize) {
     batches.push(items.slice(i, i + batchSize))
   }
