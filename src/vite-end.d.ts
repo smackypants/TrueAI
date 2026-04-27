@@ -4,6 +4,8 @@
 
 declare const GITHUB_RUNTIME_PERMANENT_NAME: string
 declare const BASE_KV_SERVICE_URL: string
+// Injected by Vite from package.json#version (see vite.config.ts `define`).
+declare const __APP_VERSION__: string
 
 declare module '*.svg' {
   const content: string
