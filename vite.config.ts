@@ -5,11 +5,21 @@ import { defineConfig, PluginOption } from "vite";
 import sparkPlugin from "@github/spark/spark-vite-plugin";
 import createIconImportProxy from "@github/spark/vitePhosphorIconProxyPlugin";
 import { resolve } from 'path'
+import { readFileSync } from 'fs'
 
 const projectRoot = process.env.PROJECT_ROOT || import.meta.dirname
 
+// Read app version from package.json so it can be surfaced in error/diagnostic UIs.
+const pkg = JSON.parse(
+  readFileSync(resolve(projectRoot, 'package.json'), 'utf-8')
+) as { version?: string }
+const appVersion = pkg.version ?? '0.0.0'
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [
     react(),
     tailwindcss(),
