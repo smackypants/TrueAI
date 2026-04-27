@@ -36,7 +36,7 @@ echo -e "${GREEN}✓ npm found: $(npm --version)${NC}"
 # Check Java
 if ! command -v java &> /dev/null; then
     echo -e "${RED}Error: Java JDK is not installed${NC}"
-    echo -e "${YELLOW}Please install Java JDK 17${NC}"
+    echo -e "${YELLOW}Please install Java JDK 21${NC}"
     exit 1
 fi
 echo -e "${GREEN}✓ Java found: $(java -version 2>&1 | head -n 1)${NC}"
