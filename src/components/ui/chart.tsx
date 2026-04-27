@@ -76,20 +76,39 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null
   }
 
+  // Sanitize inputs to prevent CSS injection
+  const sanitizeId = (str: string) => str.replace(/[^a-zA-Z0-9-_]/g, '')
+  const sanitizeKey = (str: string) => str.replace(/[^a-zA-Z0-9-_]/g, '')
+  const sanitizeColor = (str: string) => {
+    // Only allow valid CSS color formats
+    if (/^#[0-9A-Fa-f]{3,8}$/.test(str)) return str // Hex colors
+    if (/^rgb\([\d\s,]+\)$/.test(str)) return str // RGB
+    if (/^rgba\([\d\s,]+\)$/.test(str)) return str // RGBA
+    if (/^hsl\([\d\s,%]+\)$/.test(str)) return str // HSL
+    if (/^hsla\([\d\s,%]+\)$/.test(str)) return str // HSLA
+    if (/^[a-z]+$/i.test(str)) return str // Named colors
+    return '' // Invalid color, return empty
+  }
+
+  const sanitizedId = sanitizeId(id)
+
   return (
     <style
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix} [data-chart=${sanitizedId}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    const sanitizedColor = color ? sanitizeColor(color) : ''
+    const sanitizedKey = sanitizeKey(key)
+    return sanitizedColor ? `  --color-${sanitizedKey}: ${sanitizedColor};` : null
   })
+  .filter(Boolean)
   .join("\n")}
 }
 `

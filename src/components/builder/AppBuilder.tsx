@@ -2483,18 +2483,40 @@ Based on the original prompt and the refinement request, modify the existing ${a
     
     function render() {
       const container = document.getElementById('todos');
+      // Clear container safely
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+
       if (todos.length === 0) {
-        container.innerHTML = '<div class="empty">No tasks yet. Add one above!</div>';
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty';
+        emptyDiv.textContent = 'No tasks yet. Add one above!';
+        container.appendChild(emptyDiv);
         return;
       }
-      
-      container.innerHTML = todos.map(todo => \`
-        <div class="todo \${todo.completed ? 'completed' : ''}">
-          <input type="checkbox" \${todo.completed ? 'checked' : ''} onchange="toggleTodo(\${todo.id})" />
-          <span>\${todo.text}</span>
-          <button onclick="deleteTodo(\${todo.id})">Delete</button>
-        </div>
-      \`).join('');
+
+      todos.forEach(todo => {
+        const todoDiv = document.createElement('div');
+        todoDiv.className = 'todo' + (todo.completed ? ' completed' : '');
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = todo.completed;
+        checkbox.addEventListener('change', () => toggleTodo(todo.id));
+
+        const span = document.createElement('span');
+        span.textContent = todo.text;
+
+        const button = document.createElement('button');
+        button.textContent = 'Delete';
+        button.addEventListener('click', () => deleteTodo(todo.id));
+
+        todoDiv.appendChild(checkbox);
+        todoDiv.appendChild(span);
+        todoDiv.appendChild(button);
+        container.appendChild(todoDiv);
+      });
     }
     
     document.getElementById('todoInput').addEventListener('keypress', (e) => {
@@ -2652,7 +2674,15 @@ Based on the original prompt and the refinement request, modify the existing ${a
     
     function calculate() {
       try {
-        const result = eval(display);
+        // Use Function constructor instead of eval for safer calculation
+        // Validate input first
+        if (!/^[0-9+\\-*/.()\\s]+$/.test(display)) {
+          throw new Error('Invalid expression');
+        }
+        const result = new Function('return (' + display + ')')();
+        if (typeof result !== 'number' || !isFinite(result)) {
+          throw new Error('Invalid result');
+        }
         display = String(result);
         updateDisplay();
       } catch {
@@ -2859,17 +2889,32 @@ Based on the original prompt and the refinement request, modify the existing ${a
       stopwatchTime = 0;
       laps = [];
       document.getElementById('stopwatch-display').textContent = '00:00:00';
-      document.getElementById('laps').innerHTML = '';
+      const lapsContainer = document.getElementById('laps');
+      while (lapsContainer.firstChild) {
+        lapsContainer.removeChild(lapsContainer.firstChild);
+      }
     }
-    
+
     function renderLaps() {
       const container = document.getElementById('laps');
-      container.innerHTML = laps.map((lap, i) => \`
-        <div class="lap">
-          <span>Lap \${i + 1}</span>
-          <span>\${formatTime(lap)}</span>
-        </div>
-      \`).join('');
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+
+      laps.forEach((lap, i) => {
+        const lapDiv = document.createElement('div');
+        lapDiv.className = 'lap';
+
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = 'Lap ' + (i + 1);
+
+        const timeSpan = document.createElement('span');
+        timeSpan.textContent = formatTime(lap);
+
+        lapDiv.appendChild(labelSpan);
+        lapDiv.appendChild(timeSpan);
+        container.appendChild(lapDiv);
+      });
     }
     
     function startTimer() {
@@ -3043,11 +3088,25 @@ Based on the original prompt and the refinement request, modify the existing ${a
       activeNoteId = id;
       const note = notes.find(n => n.id === id);
       if (!note) return;
-      
-      document.getElementById('editor').innerHTML = \`
-        <input type="text" value="\${note.title}" oninput="updateNoteTitle(event.target.value)" placeholder="Note title..." />
-        <textarea oninput="updateNoteContent(event.target.value)" placeholder="Start writing...">\${note.content}</textarea>
-      \`;
+
+      const editor = document.getElementById('editor');
+      while (editor.firstChild) {
+        editor.removeChild(editor.firstChild);
+      }
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = note.title;
+      input.placeholder = 'Note title...';
+      input.addEventListener('input', (e) => updateNoteTitle(e.target.value));
+
+      const textarea = document.createElement('textarea');
+      textarea.value = note.content;
+      textarea.placeholder = 'Start writing...';
+      textarea.addEventListener('input', (e) => updateNoteContent(e.target.value));
+
+      editor.appendChild(input);
+      editor.appendChild(textarea);
       renderNotes();
     }
     
@@ -3069,17 +3128,35 @@ Based on the original prompt and the refinement request, modify the existing ${a
     
     function renderNotes() {
       const container = document.getElementById('noteList');
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+
       if (notes.length === 0) {
-        container.innerHTML = '<div class="empty">No notes yet</div>';
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty';
+        emptyDiv.textContent = 'No notes yet';
+        container.appendChild(emptyDiv);
         return;
       }
-      
-      container.innerHTML = notes.map(note => \`
-        <div class="note-item \${note.id === activeNoteId ? 'active' : ''}" onclick="selectNote(\${note.id})">
-          <div class="note-title">\${note.title}</div>
-          <div class="note-preview">\${note.content || 'Empty note'}</div>
-        </div>
-      \`).join('');
+
+      notes.forEach(note => {
+        const noteItem = document.createElement('div');
+        noteItem.className = 'note-item' + (note.id === activeNoteId ? ' active' : '');
+        noteItem.addEventListener('click', () => selectNote(note.id));
+
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'note-title';
+        titleDiv.textContent = note.title;
+
+        const previewDiv = document.createElement('div');
+        previewDiv.className = 'note-preview';
+        previewDiv.textContent = note.content || 'Empty note';
+
+        noteItem.appendChild(titleDiv);
+        noteItem.appendChild(previewDiv);
+        container.appendChild(noteItem);
+      });
     }
   </script>
 </body>
