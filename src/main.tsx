@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from "react-error-boundary";
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 
 import App from './App.tsx'
 import { ErrorFallback } from './ErrorFallback.tsx'
@@ -11,6 +11,8 @@ import {
   markReactMounted,
   scheduleSparkLoadCheck,
 } from './lib/preMountErrorCapture'
+import { reloadBypassingCache, getCapacitorInfo } from './lib/diagnostics'
+import { checkForApkUpdate } from './lib/apkUpdateCheck'
 
 import "./main.css"
 
@@ -75,8 +77,54 @@ register({
   },
   onUpdate: () => {
     console.log('[App] New version available')
+    // Surface a user-visible toast so the SW update prompt is discoverable
+    // instead of buried in the console. The reload bypasses the SW cache so
+    // the new bundle is fetched cleanly.
+    try {
+      toast.info('A new version is available.', {
+        duration: Infinity,
+        action: {
+          label: 'Reload',
+          onClick: () => {
+            void reloadBypassingCache()
+          },
+        },
+      })
+    } catch {
+      // toast may not be available pre-mount; ignore
+    }
   },
   onError: (error) => {
     console.error('[App] Service worker registration failed:', error)
   }
 })
+
+// APK update check (sideload path). Only meaningful inside the Capacitor APK;
+// on the web, the service-worker update path above handles new versions.
+// `checkForApkUpdate` swallows its own failures, so this is best-effort.
+function maybeCheckForApkUpdate() {
+  try {
+    if (!getCapacitorInfo().present) return
+    void checkForApkUpdate().then((info) => {
+      if (!info) return
+      const target = info.apkUrl ?? info.htmlUrl
+      toast.info(`A new version (${info.tag}) is available.`, {
+        duration: Infinity,
+        action: {
+          label: info.apkUrl ? 'Download APK' : 'View release',
+          onClick: () => {
+            try {
+              window.open(target, '_blank', 'noopener')
+            } catch {
+              window.location.href = target
+            }
+          },
+        },
+      })
+    })
+  } catch {
+    // best-effort; never block startup
+  }
+}
+// Defer slightly so it doesn't compete with first paint.
+setTimeout(maybeCheckForApkUpdate, 5000)

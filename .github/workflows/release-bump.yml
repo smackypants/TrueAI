@@ -1,0 +1,105 @@
+name: Release Bump (Tag)
+
+# Manually bump app version + Android versionCode/versionName, update
+# CHANGELOG.md, commit, and push the resulting `vX.Y.Z` tag. The existing
+# "Create Release with APK" workflow (release.yml) listens for `v*` tags and
+# will then build the APKs and publish the GitHub Release automatically.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New release version, semver only (e.g. 1.0.3 — no leading "v")'
+        required: true
+      notes:
+        description: 'Short release-notes line for CHANGELOG.md'
+        required: false
+        default: 'Maintenance release.'
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history needed to push a tag)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Validate version input
+        id: validate
+        run: |
+          set -euo pipefail
+          VERSION="${{ github.event.inputs.version }}"
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version '$VERSION' is not valid semver MAJOR.MINOR.PATCH (no leading 'v')."
+            exit 1
+          fi
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag v${VERSION} already exists."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Bump package.json
+        run: |
+          set -euo pipefail
+          npm --no-git-tag-version version "${{ steps.validate.outputs.version }}"
+
+      - name: Bump android/app/build.gradle (versionName + versionCode)
+        run: |
+          set -euo pipefail
+          GRADLE=android/app/build.gradle
+          NEW_NAME="${{ steps.validate.outputs.version }}"
+          OLD_CODE=$(grep -E '^\s*versionCode\s+[0-9]+' "$GRADLE" | head -n1 | awk '{print $2}')
+          NEW_CODE=$((OLD_CODE + 1))
+          echo "versionCode: $OLD_CODE -> $NEW_CODE"
+          echo "versionName: -> $NEW_NAME"
+          # Use a sentinel delimiter so slashes in values are safe.
+          sed -i -E "s|^(\s*versionCode\s+)[0-9]+|\1${NEW_CODE}|" "$GRADLE"
+          sed -i -E "s|^(\s*versionName\s+)\".*\"|\1\"${NEW_NAME}\"|" "$GRADLE"
+          # Sanity-check that both lines actually changed format-correctly.
+          grep -E '^\s*versionCode\s+'"${NEW_CODE}"'$' "$GRADLE" >/dev/null
+          grep -E '^\s*versionName\s+"'"${NEW_NAME}"'"$' "$GRADLE" >/dev/null
+
+      - name: Prepend CHANGELOG entry
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.validate.outputs.version }}"
+          NOTES="${{ github.event.inputs.notes }}"
+          DATE=$(date -u +%Y-%m-%d)
+          TMP=$(mktemp)
+          {
+            # Preserve the file's top-level "# Changelog ..." heading.
+            head -n 1 CHANGELOG.md
+            echo
+            echo "## Version ${VERSION} - ${DATE}"
+            echo
+            echo "- ${NOTES}"
+            echo
+            tail -n +2 CHANGELOG.md
+          } > "$TMP"
+          mv "$TMP" CHANGELOG.md
+
+      - name: Commit, tag, and push
+        env:
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.validate.outputs.version }}"
+          git add package.json package-lock.json android/app/build.gradle CHANGELOG.md
+          git commit -m "chore(release): v${VERSION}"
+          git tag -a "v${VERSION}" -m "Release v${VERSION}"
+          git push origin HEAD
+          git push origin "v${VERSION}"
