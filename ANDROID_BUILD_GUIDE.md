@@ -4,10 +4,39 @@ This document provides comprehensive instructions for building the TrueAI LocalA
 
 ## Prerequisites
 
-- Node.js 18+ and npm (Node 20+ recommended)
-- Java JDK 17 (required for Capacitor 6.x)
+- Node.js 24+ and npm (installed via nvm recommended)
+- Java JDK 21 (required for Capacitor 6.x)
 - Android SDK (API level 34 recommended)
 - Android Studio (optional, for debugging)
+
+### Installing Node.js with nvm
+
+We recommend using nvm (Node Version Manager) to install and manage Node.js versions. This project requires Node.js 24.
+
+#### Install nvm
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
+```
+
+After installation, restart your terminal or run:
+```bash
+source ~/.bashrc  # or ~/.zshrc for zsh
+```
+
+#### Install Node.js 24
+
+```bash
+nvm install 24
+nvm use 24
+```
+
+The project includes a `.nvmrc` file, so you can also run:
+```bash
+nvm use
+```
+
+This will automatically use the Node.js version specified in the `.nvmrc` file.
 
 ## Quick Start
 

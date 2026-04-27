@@ -73,6 +73,21 @@ See [TOOLNEURON_COMPARISON.md](TOOLNEURON_COMPARISON.md) for detailed competitiv
 
 ## 🎯 Quick Start
 
+### Prerequisites
+
+This project requires Node.js 24. We recommend using nvm (Node Version Manager):
+
+```bash
+# Install nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
+
+# Install Node.js 24
+nvm install 24
+nvm use 24
+```
+
+The project includes a `.nvmrc` file, so you can simply run `nvm use` to switch to the correct version.
+
 ### Web Application
 
 1. **Clone and Install**
