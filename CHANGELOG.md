@@ -1,4 +1,56 @@
-# Changelog - ToolNeuron Competitive Features
+# Changelog - TrueAI LocalAI
+
+## Version 1.0.1 - Android App Connectivity & Build Fixes (2026-04)
+
+### 🐛 Bug Fixes (Android)
+
+- **FIX**: Local AI servers (Ollama, LocalAI, etc.) could not be reached from the
+  installed Android app. Android 9+ blocks cleartext (HTTP) traffic by default,
+  which broke the app's core feature of talking to user-hosted local model
+  servers over `http://localhost`, the Android emulator host
+  `http://10.0.2.2`, and `*.local` mDNS hostnames. Added
+  `android/app/src/main/res/xml/network_security_config.xml` that allowlists
+  cleartext for those known local hosts only; the public internet remains
+  HTTPS-only (`<base-config cleartextTrafficPermitted="false">`). Debug
+  builds additionally trust user-installed CA certs via `<debug-overrides>`
+  (useful for HTTPS interception with mitmproxy during development). Users
+  running against an arbitrary LAN IP should reach it via its `*.local`
+  mDNS hostname (or an HTTPS endpoint).
+- **FIX**: Added the missing `ACCESS_NETWORK_STATE` permission so the app can
+  detect online/offline state on Android.
+- **FIX**: Added the missing `android/app/src/main/res/values/colors.xml`.
+  `styles.xml` referenced `@color/colorPrimary`, `@color/colorPrimaryDark`,
+  and `@color/colorAccent` but the resource file was not checked in, which
+  would break direct `./gradlew assembleDebug` / Android Studio builds for
+  anyone who had not first run `npx cap sync android`.
+- **CHORE**: Bumped Android `versionCode` (1 → 2) and `versionName`
+  (1.0.0 → 1.0.1) so the new APK installs as an update over v1.0.0.
+
+### 🎨 UI / Performance (Android)
+
+- **FIX**: Activated safe-area handling on Android. The app's CSS already used
+  `env(safe-area-inset-*)` extensively, but `index.html`'s viewport meta was
+  missing `viewport-fit=cover`, so on devices with notches / cutouts /
+  punch-holes those values resolved to `0` and content rendered under the
+  system bars. Added `viewport-fit=cover` so the existing safe-area styles
+  take effect.
+- **FIX**: Aligned the native chrome with the app's dark theme:
+  - `<meta name="theme-color">` was `#75bed8` (light cyan) — corrected to
+    `#1a1d24` to match the app `--background` (`oklch(0.18 0.01 260)`).
+  - `colors.xml` `colorPrimary` / `colorPrimaryDark` now match the theme
+    (`#1a1d24` / `#0f1117`); `colorAccent` set to the app's accent cyan.
+  - Capacitor `SplashScreen.backgroundColor` was `#ffffff` causing a jarring
+    white→dark flash on launch — now `#1a1d24` so the splash blends into
+    the first paint.
+- **CHORE**: Added the standard `<meta name="mobile-web-app-capable">`
+  alongside the existing Apple-prefixed one for full PWA install behavior on
+  Android.
+
+### 📦 Release
+
+- A new release **v1.0.1** is published containing the rebuilt
+  `TrueAI-LocalAI-debug.apk` and `TrueAI-LocalAI-release-unsigned.apk` with
+  the above fixes baked in.
 
 ## Version 2.0.0 - ToolNeuron Competitive Parity (2024)
 

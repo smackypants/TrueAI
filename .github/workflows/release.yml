@@ -85,6 +85,29 @@ jobs:
             - **TrueAI-LocalAI-debug.apk** - Debug version for testing
             - **TrueAI-LocalAI-release-unsigned.apk** - Release version (unsigned)
 
+            ## What's New in this Release
+
+            - **Local AI servers now reachable from the Android app.** Added
+              a network security config that allowlists cleartext HTTP only
+              for known local hosts (`localhost`, `127.0.0.1`, the Android
+              emulator hosts `10.0.2.2` / `10.0.3.2`, and `*.local` mDNS
+              hostnames). The public internet remains HTTPS-only and HTTPS
+              validation against system CAs is unchanged. Debug builds
+              additionally trust user-installed CA certs (mitmproxy etc.).
+              Release builds reaching an arbitrary LAN IP should use the
+              device's `*.local` mDNS hostname or an HTTPS endpoint.
+            - **Polished Android native chrome.** Status-bar / theme color
+              now match the dark app theme (was a light cyan in v1.0.0), the
+              splash screen no longer flashes white before the dark app
+              paints, and content correctly respects notch / cutout
+              safe-areas on modern Android devices.
+            - Added the `ACCESS_NETWORK_STATE` permission for accurate
+              online/offline detection.
+            - Fixed a missing `res/values/colors.xml` that broke direct
+              Gradle / Android Studio builds.
+            - Bumped Android `versionCode` and `versionName` so the new APK
+              installs cleanly as an update.
+
             ## Features
 
             This release includes:
@@ -105,13 +128,6 @@ jobs:
             2. Enable "Install from Unknown Sources" in your Android settings
             3. Open the downloaded APK file
             4. Follow the installation prompts
-
-            ## What's New
-
-            - Initial release with full Android support
-            - Mobile-optimized interface
-            - Hardware-accelerated performance
-            - Offline capabilities
           draft: false
           prerelease: false
           files: |

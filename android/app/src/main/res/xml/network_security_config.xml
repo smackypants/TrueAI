@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    TrueAI LocalAI is a client for user-hosted local AI servers (Ollama,
+    LocalAI, llama.cpp server, vLLM, etc.). To balance functionality with
+    security, this config:
+
+      * Allowlists cleartext (HTTP) ONLY for known local hosts:
+        - localhost / 127.0.0.1 (loopback on the device)
+        - 10.0.2.2 / 10.0.3.2  (Android emulator -> host bridge)
+        - *.local              (mDNS / Bonjour hostnames)
+      * Denies cleartext for everything else by default (<base-config>),
+        so an accidentally-typed http:// public endpoint cannot be MITM'd.
+      * In debug builds, additionally trusts user-installed CA certs via
+        <debug-overrides> (useful for HTTPS interception with mitmproxy
+        during development). Cleartext rules are the same in debug and
+        release; <debug-overrides> per Android's schema only accepts
+        <trust-anchors>.
+
+    Release builds that need to reach a server on a LAN IP (e.g.
+    192.168.1.42) should use the device's mDNS hostname (e.g.
+    my-server.local) or an HTTPS endpoint. <domain> entries match
+    hostnames, not CIDR ranges, so we cannot allowlist RFC1918 ranges
+    here.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <!-- Android emulator host loopback -->
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">10.0.3.2</domain>
+        <!-- mDNS / Bonjour hosts -->
+        <domain includeSubdomains="true">local</domain>
+    </domain-config>
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

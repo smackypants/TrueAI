@@ -1,5 +1,49 @@
 # TrueAI LocalAI - Release Notes
 
+## Version 1.0.1 - Android Connectivity Fix
+
+**Release Date:** April 27, 2026
+
+### Overview
+
+A maintenance release that fixes the most impactful Android issues from v1.0.0
+so that the app's local-AI features actually work on a real device.
+
+### What's Fixed
+
+- **Local AI servers now reachable.** v1.0.0 could not connect to user-hosted
+  Ollama / LocalAI servers because Android 9+ blocks cleartext HTTP. The app
+  now ships an explicit network security config that allowlists cleartext
+  only for known local hosts (`localhost`, `127.0.0.1`, the Android emulator
+  hosts `10.0.2.2` / `10.0.3.2`, and `*.local` mDNS hostnames). The public
+  internet remains HTTPS-only, and HTTPS validation against system CAs is
+  unchanged. Debug builds additionally trust user-installed CA certs for
+  development convenience (mitmproxy etc.). Release builds reaching an
+  arbitrary LAN IP should use the device's `*.local` mDNS hostname (or an
+  HTTPS endpoint).
+- **Online/offline detection.** Added the `ACCESS_NETWORK_STATE` permission so
+  the JS layer can correctly observe connectivity changes.
+- **Direct Gradle / Android Studio builds.** Added the missing
+  `res/values/colors.xml` referenced by `styles.xml`, so building without
+  first running `npx cap sync` no longer fails.
+- **Versioning.** Bumped `versionCode` to 2 and `versionName` to `1.0.1` so
+  installs cleanly upgrade over v1.0.0.
+- **Polished native chrome.** Status-bar / theme color now match the dark app
+  theme (was a light cyan on v1.0.0), the splash screen no longer flashes
+  white before the dark app paints, and content correctly respects the
+  notch / cutout safe-areas on modern Android devices.
+
+### Installation
+
+Download one of the following APK files from the v1.0.1 GitHub release:
+
+1. **TrueAI-LocalAI-debug.apk** - Debug build for testing
+2. **TrueAI-LocalAI-release-unsigned.apk** - Release build (unsigned)
+
+Then enable "Install from Unknown Sources" on your device and open the APK.
+
+---
+
 ## Version 1.0.0 - Initial Android Release
 
 **Release Date:** April 27, 2026

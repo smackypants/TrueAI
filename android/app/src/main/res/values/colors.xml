@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Status bar / theme tints. Kept in sync with the app's dark theme
+    background (oklch(0.18 0.01 260) ≈ #1a1d24) and the <meta name="theme-color">
+    in index.html so the native chrome matches the WebView UI.
+-->
+<resources>
+    <color name="colorPrimary">#1a1d24</color>
+    <color name="colorPrimaryDark">#0f1117</color>
+    <color name="colorAccent">#75bed8</color>
+</resources>
