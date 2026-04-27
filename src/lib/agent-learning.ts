@@ -209,7 +209,7 @@ export class AgentLearningEngine {
             case 'modify_prompt':
               break
 
-            case 'add_capability':
+            case 'add_capability': {
               if (!updatedAgent.capabilities) {
                 updatedAgent.capabilities = []
               }
@@ -224,6 +224,7 @@ export class AgentLearningEngine {
                 updatedAgent.capabilities.push(capabilityToAdd as AgentCapability)
               }
               break
+            }
           }
         }
       })
