@@ -68,8 +68,12 @@ capability layer both change shape.
 
 ### 🔧 Build / CI / Tooling
 
-- **`package-lock.json` regenerated** so `npm ci` (and every Android
-  CI workflow) succeeds with **0 vulnerabilities**.
+- **`package-lock.json` regenerated under Node 24 / npm 11** so all
+  optional native-binary entries (`lightningcss-*`, `@rollup/rollup-*`,
+  `fsevents`) are recorded. Without this, `npm ci` fails on the Node-24
+  CI runners with "Missing: … from lock file" and every Android
+  workflow (including `release.yml`) errors before it can build the
+  APK. Verified clean: `npm ci` succeeds, **0 vulnerabilities**.
 - **All Android workflows (`android.yml`, `build-android.yml`,
   `release.yml`) pinned to Node 24, Temurin JDK 21, and
   `android-actions/setup-android@v3`.** Capacitor 8 / `capacitor-android`
