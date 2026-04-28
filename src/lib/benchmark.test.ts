@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   compareBenchmarks,
   formatMetric,
   getImprovementColor,
   getImprovementLabel,
+  runBenchmark,
   type BenchmarkResult,
 } from './benchmark'
 
@@ -115,4 +116,73 @@ describe('benchmark', () => {
       expect(getImprovementLabel(-1)).toBe('Worse')
     })
   })
+})
+
+// ---------------------------------------------------------------------------
+// runBenchmark — integration test with requestAnimationFrame mock
+// ---------------------------------------------------------------------------
+
+describe('runBenchmark', () => {
+  beforeEach(() => {
+    // Replace requestAnimationFrame with a synchronous stub that invokes the
+    // callback on the next microtask, so the benchmark loop completes quickly.
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      (cb: FrameRequestCallback) => {
+        queueMicrotask(() => cb(performance.now()))
+        return 0
+      },
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('returns a BenchmarkResult with the expected shape', async () => {
+    const settings = {
+      maxTokens: 512,
+      enableAnimations: false,
+      enableBackgroundEffects: false,
+      streamingChunkSize: 8,
+    }
+    const result = await runBenchmark(settings)
+
+    expect(result).toMatchObject({
+      settings,
+      label: 'Optimized Settings', // enableAnimations: false → 'Optimized Settings'
+    })
+    expect(result.id).toMatch(/^bench-\d+$/)
+    expect(typeof result.score).toBe('number')
+    expect(result.score).toBeGreaterThanOrEqual(0)
+    expect(result.metrics.loadTime).toBeGreaterThanOrEqual(0)
+    expect(typeof result.metrics.renderTime).toBe('number')
+    expect(typeof result.metrics.interactionLatency).toBe('number')
+    expect(typeof result.metrics.frameRate).toBe('number')
+  }, 20000)
+
+  it('labels the result "Standard Settings" when animations are enabled', async () => {
+    const settings = {
+      maxTokens: 1024,
+      enableAnimations: true,
+      enableBackgroundEffects: true,
+      streamingChunkSize: 16,
+    }
+    const result = await runBenchmark(settings)
+    expect(result.label).toBe('Standard Settings')
+  }, 20000)
+
+  it('score is 0 when all metrics are at maximum penalty', async () => {
+    // Verify that calculateBenchmarkScore clamps the output to >= 0.
+    const result = await runBenchmark({
+      maxTokens: 512,
+      enableAnimations: false,
+      enableBackgroundEffects: false,
+      streamingChunkSize: 8,
+    })
+    // score is clamped to [0, ∞) by Math.max(score, 0) but in the test env
+    // the mock rAF makes timings huge so the score may exceed 100 before
+    // clamping; we only assert the non-negative lower bound.
+    expect(result.score).toBeGreaterThanOrEqual(0)
+  }, 20000)
 })

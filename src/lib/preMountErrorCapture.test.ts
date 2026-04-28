@@ -163,10 +163,6 @@ describe('scheduleSparkLoadCheck', () => {
     }
   })
 })
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Early-error capture — safe smoke tests that don't dispatch global events
-// ─────────────────────────────────────────────────────────────────────────────
 describe('installPreMountErrorCapture + markReactMounted integration', () => {
   afterEach(() => {
     vi.restoreAllMocks()

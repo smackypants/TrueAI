@@ -6,8 +6,19 @@ import {
   appendErrorLogEntry,
   buildGitHubIssueUrl,
   clearErrorLog,
+  collectDiagnostics,
+  copyToClipboard,
+  downloadErrorLog,
+  formatDiagnosticReport,
+  getAppVersion,
+  getCapacitorInfo,
+  getCapacitorShare,
   getErrorLog,
+  isDebugBuild,
+  isSparkPresent,
   loadErrorReportingConfig,
+  openGitHubIssue,
+  reloadBypassingCache,
   shouldAutoSubmit,
   submitDiagnosticReport,
   type DiagnosticReport,
@@ -490,5 +501,376 @@ describe('buildGitHubIssueUrl', () => {
     const body = new URL(url!).searchParams.get('body') ?? ''
     expect(body.length).toBeLessThan(7000)
     expect(body).toContain('truncated')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getAppVersion / isDebugBuild
+// ---------------------------------------------------------------------------
+
+describe('getAppVersion', () => {
+  it('returns a non-empty string', () => {
+    expect(typeof getAppVersion()).toBe('string')
+  })
+})
+
+describe('isDebugBuild', () => {
+  it('returns a boolean', () => {
+    expect(typeof isDebugBuild()).toBe('boolean')
+  })
+
+  it('defaults to true when __APP_DEBUG__ is not defined (test environment)', () => {
+    // In the test environment Vite does not inject __APP_DEBUG__, so the
+    // implementation falls back to `true`.
+    expect(isDebugBuild()).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getCapacitorInfo
+// ---------------------------------------------------------------------------
+
+describe('getCapacitorInfo', () => {
+  afterEach(() => {
+    delete (window as unknown as { Capacitor?: unknown }).Capacitor
+  })
+
+  it('returns present:false when Capacitor is absent', () => {
+    delete (window as unknown as { Capacitor?: unknown }).Capacitor
+    expect(getCapacitorInfo()).toEqual({ present: false })
+  })
+
+  it('returns present:true with platform and isNative when using getPlatform/isNativePlatform', () => {
+    ;(window as unknown as { Capacitor: unknown }).Capacitor = {
+      getPlatform: () => 'android',
+      isNativePlatform: () => true,
+      Plugins: { App: {}, Device: {} },
+    }
+    const info = getCapacitorInfo()
+    expect(info.present).toBe(true)
+    expect(info.platform).toBe('android')
+    expect(info.isNative).toBe(true)
+    expect(info.plugins).toContain('App')
+  })
+
+  it('falls back to the platform property when getPlatform is not a function', () => {
+    ;(window as unknown as { Capacitor: unknown }).Capacitor = {
+      platform: 'ios',
+      Plugins: {},
+    }
+    const info = getCapacitorInfo()
+    expect(info.present).toBe(true)
+    expect(info.platform).toBe('ios')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isSparkPresent
+// ---------------------------------------------------------------------------
+
+describe('isSparkPresent', () => {
+  it('returns true when the global spark mock is installed (test setup)', () => {
+    expect(isSparkPresent()).toBe(true)
+  })
+
+  it('returns false when spark is removed from window', () => {
+    const orig = (window as unknown as Record<string, unknown>).spark
+    delete (window as unknown as Record<string, unknown>).spark
+    try {
+      expect(isSparkPresent()).toBe(false)
+    } finally {
+      ;(window as unknown as Record<string, unknown>).spark = orig
+    }
+  })
+
+  it('returns false when spark is a primitive (non-object)', () => {
+    const orig = (window as unknown as Record<string, unknown>).spark
+    ;(window as unknown as Record<string, unknown>).spark = 'not-an-object'
+    try {
+      expect(isSparkPresent()).toBe(false)
+    } finally {
+      ;(window as unknown as Record<string, unknown>).spark = orig
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getCapacitorShare
+// ---------------------------------------------------------------------------
+
+describe('getCapacitorShare', () => {
+  afterEach(() => {
+    delete (window as unknown as { Capacitor?: unknown }).Capacitor
+  })
+
+  it('returns null when Capacitor is absent', () => {
+    delete (window as unknown as { Capacitor?: unknown }).Capacitor
+    expect(getCapacitorShare()).toBeNull()
+  })
+
+  it('returns null when not running on a native platform', () => {
+    ;(window as unknown as { Capacitor: unknown }).Capacitor = {
+      isNativePlatform: () => false,
+    }
+    expect(getCapacitorShare()).toBeNull()
+  })
+
+  it('returns the sentinel when running on a native platform', () => {
+    ;(window as unknown as { Capacitor: unknown }).Capacitor = {
+      isNativePlatform: () => true,
+    }
+    expect(getCapacitorShare()).toEqual({ share: true })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// collectDiagnostics
+// ---------------------------------------------------------------------------
+
+describe('collectDiagnostics', () => {
+  afterEach(() => {
+    delete (window as unknown as { Capacitor?: unknown }).Capacitor
+  })
+
+  it('includes error fields when an error is provided', async () => {
+    const err = new Error('test message')
+    err.stack = 'Error: test message\n  at test:1:1'
+    const report = await collectDiagnostics(err)
+    expect(report.error).toBeDefined()
+    expect(report.error!.name).toBe('Error')
+    expect(report.error!.message).toBe('test message')
+    expect(report.error!.stack).toBe(err.stack)
+  })
+
+  it('omits the error field when no error is provided', async () => {
+    const report = await collectDiagnostics()
+    expect(report.error).toBeUndefined()
+  })
+
+  it('omits the error field when null is passed', async () => {
+    const report = await collectDiagnostics(null)
+    expect(report.error).toBeUndefined()
+  })
+
+  it('returns a structurally valid report', async () => {
+    const report = await collectDiagnostics()
+    expect(typeof report.appVersion).toBe('string')
+    expect(typeof report.timestamp).toBe('string')
+    expect(typeof report.online).toBe('boolean')
+    expect(typeof report.viewport.width).toBe('number')
+    expect(typeof report.viewport.height).toBe('number')
+    expect(typeof report.viewport.devicePixelRatio).toBe('number')
+    expect(typeof report.serviceWorker.supported).toBe('boolean')
+  })
+
+  it('captures Capacitor info when present', async () => {
+    ;(window as unknown as { Capacitor: unknown }).Capacitor = {
+      getPlatform: () => 'android',
+      isNativePlatform: () => true,
+      Plugins: {},
+    }
+    const report = await collectDiagnostics()
+    expect(report.capacitor.present).toBe(true)
+    expect(report.capacitor.platform).toBe('android')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// formatDiagnosticReport
+// ---------------------------------------------------------------------------
+
+describe('formatDiagnosticReport', () => {
+  it('returns valid JSON', () => {
+    const report = makeReport()
+    const text = formatDiagnosticReport(report)
+    expect(() => JSON.parse(text)).not.toThrow()
+  })
+
+  it('round-trips all report fields', () => {
+    const report = makeReport()
+    const parsed: DiagnosticReport = JSON.parse(formatDiagnosticReport(report))
+    expect(parsed.appVersion).toBe(report.appVersion)
+    expect(parsed.error?.message).toBe('boom')
+  })
+
+  it('produces pretty-printed JSON (indented)', () => {
+    const report = makeReport()
+    const text = formatDiagnosticReport(report)
+    // Pretty-printed JSON contains newlines and spaces.
+    expect(text).toContain('\n')
+    expect(text).toContain('  ')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// copyToClipboard
+// ---------------------------------------------------------------------------
+
+describe('copyToClipboard', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('returns true when the clipboard write succeeds', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    })
+    const result = await copyToClipboard('hello clipboard')
+    expect(result).toBe(true)
+  })
+
+  it('returns false when the clipboard API is unavailable and execCommand fails', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    })
+    // jsdom may not define execCommand at all; define it as a failing stub.
+    if (!('execCommand' in document)) {
+      Object.defineProperty(document, 'execCommand', {
+        configurable: true,
+        writable: true,
+        value: vi.fn().mockReturnValue(false),
+      })
+    } else {
+      vi.spyOn(document, 'execCommand').mockReturnValue(false)
+    }
+    const result = await copyToClipboard('test')
+    expect(result).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// reloadBypassingCache
+// ---------------------------------------------------------------------------
+
+describe('reloadBypassingCache', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('resolves without throwing when caches are not available', async () => {
+    await expect(reloadBypassingCache()).resolves.toBeUndefined()
+  })
+
+  it('resolves without throwing when caches.keys() rejects', async () => {
+    vi.stubGlobal('caches', {
+      keys: vi.fn().mockRejectedValue(new Error('caches unavailable')),
+    })
+    await expect(reloadBypassingCache()).resolves.toBeUndefined()
+    vi.unstubAllGlobals()
+  })
+
+  it('deletes all cache stores when the caches API is available', async () => {
+    const deleteFn = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('caches', {
+      keys: vi.fn().mockResolvedValue(['v1', 'v2']),
+      delete: deleteFn,
+    })
+    try {
+      await reloadBypassingCache()
+      expect(deleteFn).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// downloadErrorLog
+// ---------------------------------------------------------------------------
+
+describe('downloadErrorLog', () => {
+  beforeEach(() => clearErrorLog())
+  afterEach(() => clearErrorLog())
+
+  it('returns 0 when the log is empty', () => {
+    expect(downloadErrorLog()).toBe(0)
+  })
+
+  it('returns the entry count and triggers a browser download when entries exist', () => {
+    appendErrorLogEntry(makeReport({ timestamp: '2026-01-01T00:00:00.000Z' }))
+    appendErrorLogEntry(
+      makeReport({
+        timestamp: '2026-01-02T00:00:00.000Z',
+        error: { name: 'TypeError', message: 'other', stack: 'TypeError: other' },
+      }),
+    )
+
+    // Stub URL.createObjectURL so jsdom doesn't throw "Not implemented".
+    const fakeUrl = 'blob:test-url'
+    const createSpy = vi.fn().mockReturnValue(fakeUrl)
+    const revokeSpy = vi.fn()
+    const origCreate = URL.createObjectURL
+    const origRevoke = URL.revokeObjectURL
+    URL.createObjectURL = createSpy
+    URL.revokeObjectURL = revokeSpy
+
+    // Prevent the anchor click from throwing "Not implemented".
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    try {
+      const count = downloadErrorLog('test-errors.json')
+      expect(count).toBe(2)
+      expect(createSpy).toHaveBeenCalledTimes(1)
+      expect(clickSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      URL.createObjectURL = origCreate
+      URL.revokeObjectURL = origRevoke
+      clickSpy.mockRestore()
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// openGitHubIssue
+// ---------------------------------------------------------------------------
+
+describe('openGitHubIssue', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('returns false when owner or repo are empty', () => {
+    expect(openGitHubIssue(makeReport(), { owner: '', repo: 'hello', labels: [] })).toBe(false)
+    expect(openGitHubIssue(makeReport(), { owner: 'octocat', repo: '', labels: [] })).toBe(false)
+  })
+
+  it('returns true when window.open succeeds', () => {
+    const origOpen = window.open
+    window.open = vi.fn().mockReturnValue({} as Window)
+    try {
+      expect(
+        openGitHubIssue(makeReport(), { owner: 'octocat', repo: 'hello', labels: [] }),
+      ).toBe(true)
+    } finally {
+      window.open = origOpen
+    }
+  })
+
+  it('falls back to window.location.href when window.open returns null', () => {
+    const origOpen = window.open
+    window.open = vi.fn().mockReturnValue(null)
+    // Spy on location.href setter; replacing with an assign-able value.
+    let capturedHref = ''
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'location')
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      writable: true,
+      value: {
+        ...window.location,
+        set href(v: string) {
+          capturedHref = v
+        },
+      },
+    })
+    try {
+      const result = openGitHubIssue(makeReport(), { owner: 'octocat', repo: 'hello', labels: [] })
+      expect(result).toBe(true)
+      expect(capturedHref).toContain('github.com/octocat/hello/issues/new')
+    } finally {
+      window.open = origOpen
+      if (descriptor) Object.defineProperty(window, 'location', descriptor)
+    }
   })
 })

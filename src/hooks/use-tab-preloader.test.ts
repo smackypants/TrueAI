@@ -174,4 +174,82 @@ describe('useResourcePreloader', () => {
     ).resolves.toBeUndefined()
     globalThis.Image = original
   })
+
+  it('preloadImage rejects when the image fails to load', async () => {
+    const { result } = renderHook(() => useResourcePreloader())
+    class FakeImage {
+      onload: (() => void) | null = null
+      onerror: ((e: unknown) => void) | null = null
+      set src(_v: string) {
+        queueMicrotask(() => this.onerror?.(new Error('load failed')))
+      }
+    }
+    const original = globalThis.Image
+    globalThis.Image = FakeImage as unknown as typeof Image
+    await expect(result.current.preloadImage('http://x.test/fail.png')).rejects.toBeTruthy()
+    globalThis.Image = original
+  })
+
+  it('preloadScript resolves on script.onload', async () => {
+    const { result } = renderHook(() => useResourcePreloader())
+
+    // Replace createElement so the script tag fires onload synchronously.
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag)
+      if (tag === 'script') {
+        Object.defineProperty(el, 'src', {
+          set(_v: string) {
+            // Fire onload on the next microtask
+            queueMicrotask(() => (el as HTMLScriptElement & { onload: (() => void) | null }).onload?.())
+          },
+          configurable: true,
+        })
+      }
+      return el
+    })
+    vi.spyOn(document.head, 'appendChild').mockImplementation((node) => node as HTMLElement)
+
+    try {
+      await expect(
+        result.current.preloadScript('http://x.test/script.js'),
+      ).resolves.toBeUndefined()
+      expect(result.current.isPreloaded('http://x.test/script.js')).toBe(true)
+      // Second call should resolve immediately (cached).
+      await expect(
+        result.current.preloadScript('http://x.test/script.js'),
+      ).resolves.toBeUndefined()
+    } finally {
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('preloadStyle resolves on link.onload', async () => {
+    const { result } = renderHook(() => useResourcePreloader())
+
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag)
+      if (tag === 'link') {
+        // Attach a setter for href that fires onload.
+        Object.defineProperty(el, 'href', {
+          set(_v: string) {
+            queueMicrotask(() => (el as HTMLLinkElement & { onload: (() => void) | null }).onload?.())
+          },
+          configurable: true,
+        })
+      }
+      return el
+    })
+    vi.spyOn(document.head, 'appendChild').mockImplementation((node) => node as HTMLElement)
+
+    try {
+      await expect(
+        result.current.preloadStyle('http://x.test/style.css'),
+      ).resolves.toBeUndefined()
+      expect(result.current.isPreloaded('http://x.test/style.css')).toBe(true)
+    } finally {
+      vi.restoreAllMocks()
+    }
+  })
 })
