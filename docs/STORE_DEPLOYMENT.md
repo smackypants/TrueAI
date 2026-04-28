@@ -18,7 +18,10 @@ checklist.
 | `fdroid` | `app-fdroid-{debug,release}.apk` | F-Droid (official + self-hosted), GitHub Releases | Never references Google Services |
 
 Useful Gradle tasks (run from `android/`, with `JAVA_HOME` pointing at
-JDK 21):
+JDK 21 — on Ubuntu/Debian the Temurin path is typically
+`/usr/lib/jvm/temurin-21-jdk-amd64`; on macOS use
+`/usr/libexec/java_home -v 21`; in CI the `actions/setup-java@v4`
+step exports it for you):
 
 ```bash
 ./gradlew assemblePlayDebug         # debug APK for Play QA

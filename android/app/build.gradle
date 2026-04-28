@@ -61,6 +61,7 @@ android {
             dimension 'distribution'
             // Default flavor — same applicationId so installs upgrade
             // cleanly between distributions when signed with the same key.
+            buildConfigField 'boolean', 'IS_FDROID_BUILD', 'false'
         }
         fdroid {
             dimension 'distribution'
