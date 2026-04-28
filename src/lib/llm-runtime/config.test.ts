@@ -37,7 +37,6 @@ function clearFetch() {
   // Some tests want to assert the "no fetch" path.
   // jsdom doesn't ship fetch, but vitest's environment may. Removing it
   // forces the loader's `typeof fetch !== 'function'` branch.
-  // @ts-expect-error - intentional teardown
   delete (globalThis as { fetch?: unknown }).fetch
 }
 
