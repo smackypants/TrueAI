@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-04-28 — PR #37: Agent runtime, auto-learning loop, and release scaffolding for hands-off operation
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/37](https://github.com/smackypants/trueai-localai/pull/37) · merged 1d2cca453c0c · author @Copilot_
+
+- (No explicit lessons recorded.) PR title: _Agent runtime, auto-learning loop, and release scaffolding for hands-off operation_.
+
+---
+
 ## 2026-04-28 — seed
 
 Seeded from the conventions already enforced in `copilot-instructions.md`,
