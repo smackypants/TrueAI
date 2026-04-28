@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-04-28 — PR #39: Fix Vite dynamic-import warning and silence kv-store stderr noise in tests
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/39](https://github.com/smackypants/trueai-localai/pull/39) · merged dc22b77955b0 · author @Copilot_
+
+- (No explicit lessons recorded.) PR title: _Fix Vite dynamic-import warning and silence kv-store stderr noise in tests_.
+
+---
+
 ## 2026-04-28 — PR #37: Agent runtime, auto-learning loop, and release scaffolding for hands-off operation
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/37](https://github.com/smackypants/trueai-localai/pull/37) · merged 1d2cca453c0c · author @Copilot_
