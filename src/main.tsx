@@ -12,6 +12,7 @@ import {
   scheduleSparkLoadCheck,
 } from './lib/preMountErrorCapture'
 import { reloadBypassingCache, getCapacitorInfo } from './lib/diagnostics'
+import { installMobileDebugLogger } from './lib/mobile-debug-logger'
 import { checkForApkUpdate } from './lib/apkUpdateCheck'
 // Bootstrap native mobile capabilities (status bar, splash, keyboard,
 // Android back button, lifecycle hooks). Side-effect import so it runs
@@ -25,11 +26,15 @@ import "./main.css"
 //    diagnostic page instead of a blank screen.
 installPreMountErrorCapture()
 
-// 2) Schedule a Spark-load check so that if the runtime never initializes
+// 2) Install the mobile debug logger so mobile-specific events (network,
+//    lifecycle, plugin errors) are captured from the very first moment.
+installMobileDebugLogger()
+
+// 3) Schedule a Spark-load check so that if the runtime never initializes
 //    (common cause of a blank Android APK), we surface a dedicated message.
 scheduleSparkLoadCheck()
 
-// 3) Dynamically import the Spark side-effect module so a load failure is
+// 4) Dynamically import the Spark side-effect module so a load failure is
 //    catchable by our handlers (a top-level static import would propagate as
 //    an unrecoverable module-evaluation error).
 import('@github/spark/spark')

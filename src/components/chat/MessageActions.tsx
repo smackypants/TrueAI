@@ -85,6 +85,7 @@ export function MessageActions({
                 <Button
                   size="sm"
                   variant="secondary"
+                  aria-label={copied ? 'Copied!' : 'Copy'}
                   className="h-7 w-7 p-0 shadow-lg active:scale-95 transition-transform"
                   onClick={handleCopy}
                 >
@@ -106,6 +107,7 @@ export function MessageActions({
                   <Button
                     size="sm"
                     variant="secondary"
+                    aria-label="Regenerate"
                     className="h-7 w-7 p-0 shadow-lg active:scale-95 transition-transform"
                     onClick={() => onRegenerate(message.id)}
                   >
@@ -124,6 +126,7 @@ export function MessageActions({
                   <Button
                     size="sm"
                     variant="secondary"
+                    aria-label="Edit"
                     className="h-7 w-7 p-0 shadow-lg active:scale-95 transition-transform"
                     onClick={() => setEditDialogOpen(true)}
                   >
@@ -142,6 +145,7 @@ export function MessageActions({
                   <Button
                     size="sm"
                     variant="secondary"
+                    aria-label="Export"
                     className="h-7 w-7 p-0 shadow-lg active:scale-95 transition-transform"
                     onClick={handleExport}
                   >
@@ -160,6 +164,7 @@ export function MessageActions({
                   <Button
                     size="sm"
                     variant="secondary"
+                    aria-label="Delete"
                     className="h-7 w-7 p-0 shadow-lg active:scale-95 transition-transform hover:bg-destructive hover:text-destructive-foreground"
                     onClick={() => setDeleteDialogOpen(true)}
                   >
