@@ -1,0 +1,117 @@
+name: Tag Release
+
+# One-click release tagging.
+#
+# Use this workflow when the version in package.json / android/app/build.gradle /
+# CHANGELOG.md has ALREADY been bumped (typically by a release-bump PR like
+# v6.0.0) and all you need to do is create and push the matching `vX.Y.Z`
+# annotated tag. The existing `Create Release with APK` workflow
+# (.github/workflows/release.yml) listens for `v*` tag pushes and will then
+# build and publish both APKs to a GitHub Release automatically.
+#
+# This is the safe, no-bump counterpart to `release-bump.yml`:
+#   - release-bump.yml: bump versions + commit + tag + push
+#   - tag-release.yml:  tag + push only (versions must already match)
+#
+# Runs as github-actions[bot] using the workflow's built-in GITHUB_TOKEN
+# (contents: write). No personal access token required.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to tag, semver only — no leading "v" (e.g. 6.0.0). Must match the version already committed in package.json.'
+        required: true
+        default: '6.0.0'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tag-release-${{ github.event.inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history, persist credentials for tag push)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Validate version input
+        id: validate
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          # Strip any accidental leading "v" the user typed.
+          VERSION="${INPUT_VERSION#v}"
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version '$VERSION' is not valid semver MAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          # Refuse to clobber an existing tag (local or remote).
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::error::Tag ${TAG} already exists locally."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::error::Tag ${TAG} already exists on origin."
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}"         >> "$GITHUB_OUTPUT"
+
+      - name: Verify committed version matches input
+        env:
+          EXPECTED: ${{ steps.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Pull the version field straight out of package.json without
+          # depending on jq/node being installed; "version": "6.0.0".
+          PKG_VERSION=$(grep -E '^[[:space:]]*"version":' package.json \
+                        | head -n1 \
+                        | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+          if [ "$PKG_VERSION" != "$EXPECTED" ]; then
+            echo "::error::package.json version is '$PKG_VERSION' but you asked to tag '$EXPECTED'."
+            echo "::error::Run the 'Release Bump (Tag)' workflow instead, or update package.json first."
+            exit 1
+          fi
+          # Cross-check Android versionName.
+          ANDROID_NAME=$(grep -E '^[[:space:]]*versionName[[:space:]]+"[^"]+"' android/app/build.gradle \
+                         | head -n1 \
+                         | sed -E 's/.*versionName[[:space:]]+"([^"]+)".*/\1/')
+          if [ "$ANDROID_NAME" != "$EXPECTED" ]; then
+            echo "::error::android/app/build.gradle versionName is '$ANDROID_NAME' but you asked to tag '$EXPECTED'."
+            exit 1
+          fi
+          echo "Verified package.json and android/app/build.gradle both at $EXPECTED."
+
+      - name: Create and push annotated tag
+        env:
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          TAG: ${{ steps.validate.outputs.tag }}
+          VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Pushed $TAG. The 'Create Release with APK' workflow will now build and publish the release."
+
+      - name: Summary
+        env:
+          TAG: ${{ steps.validate.outputs.tag }}
+        run: |
+          {
+            echo "### ✅ Tagged \`$TAG\`"
+            echo
+            echo "The [\`Create Release with APK\`](../../actions/workflows/release.yml) workflow has been triggered by the tag push."
+            echo "Once it completes it will publish a GitHub Release with both the debug and release-unsigned APKs attached."
+          } >> "$GITHUB_STEP_SUMMARY"

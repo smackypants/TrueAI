@@ -87,22 +87,51 @@ jobs:
 
             ## What's New in this Release
 
-            - **Active tab persists across reloads** with a validated
-              `TabName` guard, so renamed/removed tabs fall back to the
-              default cleanly.
-            - **Rapid tab switching unblocked** — switches are
-              instantaneous (previous throttle removed).
-            - **App Builder is now in the Android mobile bottom nav.**
-              Phone users can reach it without opening the side menu.
-            - **UI aspect-ratio compatibility for Android phones.**
-              Layout no longer overflows or crops on common phone
-              aspect ratios; safe-area insets, tab bar, and main
-              content reflow correctly across narrow / tall viewports.
-            - **`package-lock.json` regenerated** so `npm ci` and every
-              Android CI workflow succeed cleanly (0 vulnerabilities).
-            - **Strict-typecheck warnings in `diagnostics` resolved.**
-            - Bumped Android `versionName` to `5.1.0` and `versionCode`
-              to `7` so the new APK installs cleanly as an update.
+            **Major architecture changes**
+            - **Local LLM runtime replaces the GitHub Spark hosted
+              runtime.** `useKV`, `spark.llm`, `spark.llmPrompt`, and
+              `spark.kv` are now aliased to local shims under
+              `src/lib/llm-runtime/`. The app no longer depends on
+              Spark's hosted backend.
+            - **Pluggable LLM runtime config** layered as: hard-coded
+              defaults < `public/runtime.config.json` < KV key
+              `__llm_runtime_config__` written by Settings → LLM
+              Runtime UI.
+            - **Full Capacitor native-mobile capability layer**
+              (secure storage, network, clipboard, share, haptics,
+              app-lifecycle, notifications, filesystem) under
+              `src/lib/native/`, with web fallbacks.
+            - **API key stored securely on device** via Capacitor
+              Preferences on native (IndexedDB on web), never via
+              localStorage.
+
+            **Security**
+            - `kvStore.setSecure()` no longer leaks credentials to
+              localStorage on IndexedDB transaction failure.
+            - **Vite ^7.3.2** (CVE patches: `server.fs.deny` bypass,
+              dev WebSocket arbitrary file read).
+            - Transitive CVE pins via npm `overrides`:
+              `path-to-regexp ^8.4.0`, `postcss ^8.5.10`,
+              `lodash ^4.17.24`, `brace-expansion@1 ^1.1.13`.
+            - Filename sanitiser hardened.
+
+            **Rolled-up fixes (from un-published v5.0.0 / v5.1.0)**
+            - Active tab persists across reloads with a validated
+              `TabName` guard.
+            - Rapid tab switching unblocked.
+            - App Builder is now in the Android mobile bottom nav.
+            - UI aspect-ratio compatibility on Android phones —
+              safe-area insets, tab bar, and main content reflow
+              correctly across narrow / tall viewports.
+            - Strict-typecheck warnings in `diagnostics` resolved.
+            - `package-lock.json` regenerated; `npm ci` clean
+              (0 vulnerabilities).
+            - `build:dev` script restored (unblocks Android CI + local
+              debug APK).
+
+            **Versioning**
+            - Android `versionName` bumped to `6.0.0` and `versionCode`
+              to `8` so the new APK installs cleanly as an update.
 
             ## Features
 
