@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-04-28 — PR #57: test: add coverage for use-performance-optimization and llm-runtime/install
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/57](https://github.com/smackypants/trueai-localai/pull/57) · merged eeee71dbae31 · author @Copilot_
+
+- When testing hooks that register `navigator.connection` event listeners, always call `unmount()` before tearing down the navigator stub — cleanup effects re-read the property and will throw if it's already gone.
+
+---
+
 ## 2026-04-28 — PR #56: fix(ci): update release.yml to auto-attach APKs to latest release
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/56](https://github.com/smackypants/trueai-localai/pull/56) · merged 37d13754d055 · author @Copilot_
