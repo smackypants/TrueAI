@@ -36,5 +36,5 @@ Builds:
 # this metadata; no manual file edits needed for subsequent releases.
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
-CurrentVersion: 6.0.0
-CurrentVersionCode: 8
+CurrentVersion: 8.0.0
+CurrentVersionCode: 13

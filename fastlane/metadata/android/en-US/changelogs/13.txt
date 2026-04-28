@@ -1,0 +1,1 @@
+Version 8.0.0: New major release with all fixes, upgrades, and optimizations fully implemented.

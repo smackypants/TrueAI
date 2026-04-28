@@ -1,5 +1,9 @@
 # Changelog - TrueAI LocalAI
 
+## Version 8.0.0 - 2026-04-28
+
+- New major release with all fixes, upgrades, and optimizations fully implemented and working properly.
+
 ## Version 7.3.0 - CI/CD fixes and build improvements (2026-04-28)
 
 Build system and dependency management improvements to ensure stable CI/CD pipelines and releases.
