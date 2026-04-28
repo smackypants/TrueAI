@@ -13,23 +13,36 @@ some toggles only exist in the UI and cannot be set from a PR.
 
 ## 1. Copilot coding agent — model selection
 
+> **Recommended model for this repo: `Claude Opus 4.7`** — the
+> latest and largest Anthropic model available in GitHub Copilot at
+> the time of writing. Pick it from the model dropdown every time
+> you start a coding-agent task on this repo. Pin it in your
+> personal settings if Copilot lets you.
+
 Model selection for the Copilot coding agent is **per-user**, not
-per-repo. Set it in the user's personal Copilot settings:
+per-repo: GitHub does not currently expose a way to force a specific
+model from a repository file. The workaround is to make `claude-opus-4.7`
+the explicit, documented default here so every contributor (and every
+agent session triggered by the owner) picks the same one.
 
 1. Open https://github.com/settings/copilot
 2. Under **Models**, enable every model you have access to. The
-   largest / strongest options at the time of writing are:
-   - **Claude Opus 4.5** (Anthropic, largest reasoning model)
-   - **Claude Sonnet 4.5** / **4.6** (faster, near-Opus quality)
-   - **GPT-5.4** / **GPT-5.5** (OpenAI flagship)
-   - **GPT-5.3-Codex** (code-specialized)
-   - **Gemini 2.5 Pro** (Google flagship)
-3. When kicking off a new agent task in the **Copilot → Agents** view,
-   pick the model from the dropdown. The agent will use that model
-   for the entire session.
+   recommended-and-required pick for this repo:
+   - **`claude-opus-4.7`** — latest / largest Anthropic flagship.
+3. Acceptable fallbacks if Opus 4.7 isn't available on your plan
+   (in priority order):
+   - `claude-opus-4.5`
+   - `claude-sonnet-4.6`
+   - `gpt-5.4` / `gpt-5.5`
+   - `gpt-5.3-codex`
+   - `gemini-2.5-pro`
+4. When kicking off a new agent task in the **Copilot → Agents**
+   view, pick **Claude Opus 4.7** from the dropdown. The agent
+   will use that model for the entire session.
 
 > The model choice is not stored in the repo. Every user who triggers
-> the coding agent on this repo picks their own model.
+> the coding agent on this repo should pick **`claude-opus-4.7`**
+> unless they have a specific reason not to.
 
 ## 2. Copilot coding agent — runner size
 
