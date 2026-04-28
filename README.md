@@ -265,4 +265,8 @@ Website: https://advancedtechnologyresearch.com/
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-Template resources from GitHub are licensed under MIT, Copyright GitHub, Inc.
+Copyright (c) 2024-2026 smackypants / **Advanced Technology Research** — [https://advancedtechnologyresearch.com/](https://advancedtechnologyresearch.com/)
+
+This entire project, including all source code, design, documentation, and assets, is the work of and is fully credited and copyrighted to smackypants / Advanced Technology Research, except where otherwise noted below.
+
+Portions of this project were originally derived from a GitHub Spark template, Copyright (c) GitHub, Inc., also licensed under the MIT License.
