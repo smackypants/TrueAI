@@ -84,6 +84,7 @@ export function ChatInput({ onSend, disabled, isStreaming, onStop }: ChatInputPr
                   onClick={onStop}
                   variant="destructive"
                   size="icon"
+                  aria-label="Stop generation"
                   className="h-14 w-14 shrink-0 rounded-xl active:scale-95 transition-transform"
                 >
                   <StopCircle weight="fill" size={24} />
@@ -104,6 +105,7 @@ export function ChatInput({ onSend, disabled, isStreaming, onStop }: ChatInputPr
                     type="submit"
                     disabled={disabled || !input.trim()}
                     size="icon"
+                    aria-label="Send message"
                     className="h-14 w-14 shrink-0 relative overflow-hidden rounded-xl"
                   >
                     <motion.div
