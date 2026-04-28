@@ -32,4 +32,11 @@ export default defineConfig({
       '@': resolve(projectRoot, 'src')
     }
   },
+  build: {
+    // The main bundle includes large vendor libraries (three, recharts, d3,
+    // reactflow, framer-motion, octokit, prismjs, etc.). The default 500 kB
+    // chunk warning is informational and not actionable without invasive
+    // code-splitting; raise it to silence noisy CI logs.
+    chunkSizeWarningLimit: 1200,
+  },
 });
