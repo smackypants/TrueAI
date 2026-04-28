@@ -11,13 +11,18 @@
  */
 
 import {
+  appendErrorLogEntry,
   collectDiagnostics,
   copyToClipboard,
+  downloadErrorLog,
   formatDiagnosticReport,
   getCapacitorShare,
   isSparkPresent,
+  loadErrorReportingConfig,
+  openGitHubIssue,
   reloadBypassingCache,
   shareDiagnosticReport,
+  submitDiagnosticReport,
 } from './diagnostics'
 
 let installed = false
@@ -62,6 +67,12 @@ async function renderFallback(opts: FallbackOptions): Promise<void> {
   const report = await collectDiagnostics(opts.error ?? null)
   const reportText = formatDiagnosticReport(report)
   const hasShare = !!getCapacitorShare()
+  // Persist every error to the local log so it can be reviewed later via the
+  // "Download error log" button (or programmatically by a coding agent).
+  appendErrorLogEntry(report)
+  // GitHub config drives the optional "Report on GitHub" button below; load
+  // it in parallel with the rest of the UI build so we don't block render.
+  const configPromise = loadErrorReportingConfig()
 
   const styles = `
     .pmf-wrap{min-height:100vh;background:#1a1d24;color:#e6e9ef;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:flex-start;justify-content:center;padding:24px;box-sizing:border-box;}
@@ -102,6 +113,8 @@ async function renderFallback(opts: FallbackOptions): Promise<void> {
           <button class="pmf-btn pmf-btn-primary" id="pmf-reload" type="button">Reload app</button>
           <button class="pmf-btn" id="pmf-copy" type="button">Copy diagnostic report</button>
           ${hasShare ? '<button class="pmf-btn" id="pmf-share" type="button">Share</button>' : ''}
+          <button class="pmf-btn" id="pmf-github" type="button" hidden>Report on GitHub</button>
+          <button class="pmf-btn" id="pmf-log" type="button">Download error log</button>
           <button class="pmf-btn" id="pmf-retry" type="button">Try again</button>
         </div>
         <div class="pmf-status" id="pmf-status"></div>
@@ -113,6 +126,18 @@ async function renderFallback(opts: FallbackOptions): Promise<void> {
   const setStatus = (msg: string) => {
     if (status) status.textContent = msg
   }
+
+  // Best-effort automatic submission. Gated by runtime config: by default
+  // only Android debug builds with a configured endpoint actually POST.
+  void submitDiagnosticReport(report).then((result) => {
+    if (result.submitted) {
+      setStatus(`Diagnostic report submitted automatically (HTTP ${result.status}).`)
+    } else if (result.reason === 'network-error') {
+      setStatus('Automatic report submission failed — please use Copy or Share.')
+    }
+    // Other reasons (disabled / no endpoint / not android / release build /
+    // duplicate) are silent so the fallback UI stays uncluttered.
+  })
 
   root.querySelector<HTMLButtonElement>('#pmf-reload')?.addEventListener('click', () => {
     setStatus('Clearing caches and reloading…')
@@ -136,6 +161,29 @@ async function renderFallback(opts: FallbackOptions): Promise<void> {
       setStatus(ok ? 'Share dialog opened.' : 'Could not open share dialog.')
     })
   }
+  root.querySelector<HTMLButtonElement>('#pmf-log')?.addEventListener('click', () => {
+    const count = downloadErrorLog()
+    setStatus(
+      count > 0
+        ? `Downloaded error log (${count} ${count === 1 ? 'entry' : 'entries'}).`
+        : 'No saved errors to download yet.'
+    )
+  })
+  // Reveal the GitHub button only once we know the repo is configured.
+  void configPromise.then((cfg) => {
+    if (!cfg.github.owner || !cfg.github.repo) return
+    const btn = root.querySelector<HTMLButtonElement>('#pmf-github')
+    if (!btn) return
+    btn.hidden = false
+    btn.addEventListener('click', () => {
+      const ok = openGitHubIssue(report, cfg.github)
+      setStatus(
+        ok
+          ? 'Opened GitHub issue draft in a new tab.'
+          : 'Could not open GitHub — repository not configured.'
+      )
+    })
+  })
 }
 
 /**

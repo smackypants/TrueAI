@@ -1,3 +1,15 @@
 {
-  "app": "5335893a9ec73701c7c8"
+  "app": "5335893a9ec73701c7c8",
+  "errorReporting": {
+    "autoSubmit": false,
+    "endpoint": "",
+    "debugOnly": true,
+    "androidOnly": true,
+    "timeoutMs": 5000,
+    "github": {
+      "owner": "smackypants",
+      "repo": "trueai-localai",
+      "labels": ["bug", "auto-reported"]
+    }
+  }
 }

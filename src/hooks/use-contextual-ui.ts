@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useKV } from '@github/spark/hooks'
 
 export interface UserBehavior {
@@ -100,8 +100,7 @@ export function useContextualUI() {
     })
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const generateSuggestions = () => {
+  const generateSuggestions = useCallback((): ContextualSuggestion[] => {
     if (!behavior) return []
 
     const newSuggestions: ContextualSuggestion[] = []
@@ -172,7 +171,7 @@ export function useContextualUI() {
     }
 
     return newSuggestions.filter(s => !dismissedSuggestions?.includes(s.id))
-  }
+  }, [behavior, dismissedSuggestions])
 
   const dismissSuggestion = (suggestionId: string) => {
     setDismissedSuggestions(prev => [...(prev || []), suggestionId])
@@ -180,9 +179,13 @@ export function useContextualUI() {
   }
 
   useEffect(() => {
-    const newSuggestions = generateSuggestions()
-    setSuggestions(newSuggestions)
-  }, [behavior, dismissedSuggestions, generateSuggestions])
+    // Only depend on `generateSuggestions` (which is itself memoized on
+    // `behavior` and `dismissedSuggestions`). Listing `behavior` /
+    // `dismissedSuggestions` here too would be redundant; listing a
+    // non-stable function reference here previously caused an infinite
+    // render loop (React error #185).
+    setSuggestions(generateSuggestions())
+  }, [generateSuggestions])
 
   const getPredictedNextAction = (): string | null => {
     if (!behavior) return null

@@ -6,6 +6,10 @@ declare const GITHUB_RUNTIME_PERMANENT_NAME: string
 declare const BASE_KV_SERVICE_URL: string
 // Injected by Vite from package.json#version (see vite.config.ts `define`).
 declare const __APP_VERSION__: string
+// Injected by Vite. `true` for `vite dev` and `vite build --mode development`,
+// `false` for production builds. Used by diagnostics to gate auto-submission
+// of error reports to debug builds only.
+declare const __APP_DEBUG__: boolean
 
 declare module '*.svg' {
   const content: string

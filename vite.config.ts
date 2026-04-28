@@ -16,9 +16,12 @@ const pkg = JSON.parse(
 const appVersion = pkg.version ?? '0.0.0'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
+    // True for `vite dev` and `vite build --mode development`. Consumed by
+    // diagnostics to gate automatic error-report submission to debug builds.
+    __APP_DEBUG__: JSON.stringify(mode !== 'production'),
   },
   plugins: [
     react(),
@@ -39,4 +42,4 @@ export default defineConfig({
     // code-splitting; raise it to silence noisy CI logs.
     chunkSizeWarningLimit: 1200,
   },
-});
+}));

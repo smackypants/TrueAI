@@ -425,14 +425,22 @@ function App() {
     })
   }, [])
 
+  // Cache conversations into IndexedDB whenever the list changes. We depend
+  // only on stable values: the array, the initialization flag, and the
+  // memoized `cacheConversation` callback. Depending on the whole
+  // `indexedDBCache` object would re-run this effect on every render, since
+  // the hook returns a fresh object literal each render.
   useEffect(() => {
     if (indexedDBCache.isInitialized && conversations && conversations.length > 0) {
       conversations.forEach(conv => {
         indexedDBCache.cacheConversation(conv)
       })
     }
-  }, [conversations, indexedDBCache.isInitialized, indexedDBCache])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, indexedDBCache.isInitialized, indexedDBCache.cacheConversation])
 
+  // Debounced sync to IndexedDB when messages change. Same rationale as above:
+  // depend only on stable values to avoid per-render re-scheduling.
   useEffect(() => {
     if (indexedDBCache.isInitialized && messages && messages.length > 0) {
       const debouncedSync = setTimeout(() => {
@@ -440,7 +448,8 @@ function App() {
       }, 1000)
       return () => clearTimeout(debouncedSync)
     }
-  }, [messages, indexedDBCache.isInitialized, indexedDBCache])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, indexedDBCache.isInitialized, indexedDBCache.syncToCache])
 
   useEffect(() => {
     if (activeTab === 'chat' && conversations && conversations.length > 0 && !activeConversationId) {
