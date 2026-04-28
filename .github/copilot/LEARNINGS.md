@@ -16,6 +16,15 @@
 
 ---
 
+## 2026-04-28 — PR #43: fix(build): drop unused @ts-expect-error unblocking Android build pipeline
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/43](https://github.com/smackypants/trueai-localai/pull/43) · merged b8f3af227479 · author @Copilot_
+
+- A single TS2578 silently breaks the whole Android toolchain because every `android:*` script chains through `build:dev` / `build`. `npm test` alone won't catch it — vitest's transpiler is more permissive than `tsc -b`. Validate Android changes with `npm run build:dev`.
+- When a `@ts-expect-error` becomes unused after upstream type changes, delete it; don't reintroduce a wrong cast to keep the directive "valid".
+
+---
+
 ## 2026-04-28 — PR #42: Real workflow execution + replace simulated agent-tools with real I/O or fail-closed
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/42](https://github.com/smackypants/trueai-localai/pull/42) · merged b28b2c2b1ca8 · author @Copilot_
