@@ -1,5 +1,38 @@
 # Changelog - TrueAI LocalAI
 
+## Version 5.0.0 - Release republish (2026-04-28)
+
+A version-only release that republishes the v4.0.0 codebase under a new
+APK so users can pull a fresh signed-ready build through the GitHub
+Releases pipeline. No application code changed between v4.0.0 and
+v5.0.0.
+
+### 🔧 Changes
+
+- `package.json` version: `4.0.0` → `5.0.0`.
+- Android `versionName`: `4.0.0` → `5.0.0`; `versionCode`: `5` → `6`
+  (so the new APK installs cleanly as an update over v4.0.0).
+- `package-lock.json` root `version` synced to `5.0.0` (was previously
+  drifting at `3.0.0`).
+
+### ✅ Verified
+
+- `npm ci`, `npm run lint`, `npm test`, and `npm run build` pass on
+  the bumped tree.
+- All three Android workflows (`android.yml`, `build-android.yml`,
+  `release.yml`) confirmed consistent: Node 24, Temurin JDK 21,
+  `android-actions/setup-android@v3`. No CI changes required.
+
+### 📦 Publishing
+
+Push the `v5.0.0` tag (or run *Create Release with APK* via
+`workflow_dispatch` with version `v5.0.0`) to trigger
+`.github/workflows/release.yml`, which builds and attaches both
+`TrueAI-LocalAI-debug.apk` and `TrueAI-LocalAI-release-unsigned.apk`
+to the GitHub Release.
+
+---
+
 ## Version 4.0.0 - React #185 fix, error reporting, GitHub integration (2026-04-28)
 
 Major release built around the in-app crash report

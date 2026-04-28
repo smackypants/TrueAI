@@ -1,5 +1,38 @@
 # TrueAI LocalAI - Release Notes
 
+## Version 5.0.0 - Release Republish
+
+**Release Date:** April 28, 2026
+
+### Overview
+
+A version-only release that rebuilds and republishes the v4.0.0
+codebase as a new APK through the automated GitHub Releases pipeline.
+No application code changed between v4.0.0 and v5.0.0 — this release
+exists so users can pull a fresh build with a higher `versionCode`
+that installs cleanly as an update.
+
+### Versioning
+
+- `package.json`: `4.0.0` → `5.0.0`
+- `package-lock.json` root: synced to `5.0.0`
+- Android `versionCode`: `5` → `6`
+- Android `versionName`: `4.0.0` → `5.0.0`
+
+### What's Included
+
+Everything from v4.0.0 (React error #185 fix, automatic error
+reporting, GitHub integration, runtime config shipped via `public/`,
+`useIndexedDBCache` effect-dependency fixes), plus a fresh APK build.
+
+### How to Publish
+
+Push an annotated `v5.0.0` tag (or run *Create Release with APK* via
+`workflow_dispatch` with version `v5.0.0`). The workflow builds the
+APKs and creates the GitHub Release automatically.
+
+---
+
 ## Version 3.0.0 - Consolidated Fixes & Optimizations
 
 **Release Date:** April 28, 2026
