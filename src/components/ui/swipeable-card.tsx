@@ -32,8 +32,10 @@ export function SwipeableCard({
   const [isDragging, setIsDragging] = useState(false)
   const x = useMotionValue(0)
   const opacity = useTransform(x, [-150, 0, 150], [0.5, 1, 0.5])
-  const leftActionOpacity = useTransform(x, [0, 100], [0, 1])
-  const rightActionOpacity = useTransform(x, [-100, 0], [1, 0])
+  // leftAction is revealed at right-0 when swiping left (x goes negative)
+  const leftActionOpacity = useTransform(x, [-100, 0], [1, 0])
+  // rightAction is revealed at left-0 when swiping right (x goes positive)
+  const rightActionOpacity = useTransform(x, [0, 100], [0, 1])
 
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     setIsDragging(false)
