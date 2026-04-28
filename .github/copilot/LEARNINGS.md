@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-04-28 — PR #41: Add tests for under-covered LLM runtime, native, and hook modules
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/41](https://github.com/smackypants/trueai-localai/pull/41) · merged e538fb68e678 · author @Copilot_
+
+- (No explicit lessons recorded.) PR title: _Add tests for under-covered LLM runtime, native, and hook modules_.
+
+---
+
 ## 2026-04-28 — PR #40: Wire toolExecutor into runAgent and activate cost auto-tracking
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/40](https://github.com/smackypants/trueai-localai/pull/40) · merged 34f2b8b1c97a · author @Copilot_
