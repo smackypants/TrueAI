@@ -55,6 +55,12 @@ export function classifyInstallerPackage(
   return 'sideload'
 }
 
+/** Subset of `AppInfo` we read. Kept minimal to avoid coupling to a
+ *  specific `@capacitor/app` version. */
+interface AppInfoLike {
+  installerPackageName?: string | null
+}
+
 /**
  * Resolve the installer source. Async because the Capacitor App plugin
  * exposes app info through a Promise-returning API.
@@ -69,7 +75,7 @@ export async function getInstallerSource(): Promise<InstallerSource> {
     const mod = await import('@capacitor/app')
     const App = mod.App
     if (!App || typeof App.getInfo !== 'function') return 'unknown'
-    const info = (await App.getInfo()) as { installerPackageName?: string | null }
+    const info = (await App.getInfo()) as AppInfoLike
     return classifyInstallerPackage(info?.installerPackageName ?? null)
   } catch {
     return 'unknown'

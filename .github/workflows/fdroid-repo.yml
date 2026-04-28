@@ -240,12 +240,19 @@ jobs:
 
       - name: Generate QR code and fingerprint
         if: steps.repo_keystore.outputs.have_repo_key == 'true'
+        env:
+          REPO_URL: 'https://smackypants.github.io/trueai-localai/fdroid/repo'
         run: |
           set -euo pipefail
           cd fdroid-workspace
-          REPO_URL='https://smackypants.github.io/trueai-localai/fdroid/repo'
           # Extract the repo fingerprint from the generated index.
-          FP=$(python3 -c "import json,sys; d=json.load(open('repo/index-v2.json')); print(d.get('repo',{}).get('fingerprint',''))")
+          FP=$(python3 - <<'PY'
+          import json
+          with open('repo/index-v2.json') as f:
+              d = json.load(f)
+          print(d.get('repo', {}).get('fingerprint', ''))
+          PY
+          )
           if [ -z "${FP}" ]; then
             echo "::error::Could not read fingerprint from repo/index-v2.json"
             exit 1
@@ -253,7 +260,12 @@ jobs:
           QR_URL="${REPO_URL}?fingerprint=${FP}"
           echo "${FP}" > repo/repo-fingerprint.txt
           echo "${QR_URL}" > repo/repo-qr-url.txt
-          python3 -c "import qrcode; img=qrcode.make('${QR_URL}'); img.save('repo/fdroid-repo-qr.png')"
+          # Pass the URL via env to avoid shell-interpolation into the
+          # Python source.
+          QR_URL="${QR_URL}" python3 - <<'PY'
+          import os, qrcode
+          qrcode.make(os.environ['QR_URL']).save('repo/fdroid-repo-qr.png')
+          PY
 
       - name: Prepare GitHub Pages site
         if: steps.repo_keystore.outputs.have_repo_key == 'true'
