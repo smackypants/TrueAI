@@ -16,13 +16,13 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/98 backdrop-blur-xl border-t border-border/50 lg:hidden shadow-2xl">
       <div className="safe-bottom">
-        <div className="flex items-center justify-around h-16 px-2 safe-left safe-right">
+        <div className="flex items-center justify-around h-16 px-1 safe-left safe-right">
           {items.map((item) => (
             <button
               key={item.id}
               onClick={item.onClick}
               className={cn(
-                'relative flex flex-col items-center justify-center gap-1 px-4 py-2 min-w-[64px] rounded-xl transition-all duration-200 active:scale-90',
+                'relative flex flex-1 min-w-0 flex-col items-center justify-center gap-1 px-1 py-2 rounded-xl transition-all duration-200 active:scale-90',
                 item.active
                   ? 'text-accent'
                   : 'text-muted-foreground hover:text-foreground active:text-accent'

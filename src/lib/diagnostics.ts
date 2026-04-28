@@ -296,10 +296,10 @@ export function loadErrorReportingConfig(): Promise<ErrorReportingConfig> {
       const res = await fetch('/runtime.config.json', { cache: 'no-store' })
       if (!res.ok) return { ...defaultErrorReportingConfig }
       const json = (await res.json()) as {
-        errorReporting?: Partial<ErrorReportingConfig> & { github?: Partial<GitHubReportingConfig> }
+        errorReporting?: Partial<Omit<ErrorReportingConfig, 'github'>> & { github?: Partial<GitHubReportingConfig> }
       }
       const er = json.errorReporting ?? {}
-      const gh = er.github ?? {}
+      const gh: Partial<GitHubReportingConfig> = er.github ?? {}
       return {
         autoSubmit: typeof er.autoSubmit === 'boolean' ? er.autoSubmit : defaultErrorReportingConfig.autoSubmit,
         endpoint: typeof er.endpoint === 'string' ? er.endpoint : defaultErrorReportingConfig.endpoint,

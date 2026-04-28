@@ -179,9 +179,21 @@ const TabErrorBoundary = ({ children, tabName }: { children: React.ReactNode; ta
   )
 }
 
+const TAB_ORDER = ['chat', 'agents', 'workflows', 'models', 'analytics', 'builder'] as const
+type TabName = (typeof TAB_ORDER)[number]
+const DEFAULT_TAB: TabName = 'chat'
+const isTabName = (value: unknown): value is TabName =>
+  typeof value === 'string' && (TAB_ORDER as readonly string[]).includes(value)
+
 function App() {
   const isMobile = useIsMobile()
-  const [activeTab, setActiveTab] = useState('chat')
+  // Persist the active tab in the KV store so the tabs interface restores
+  // correctly across reloads. Validate against TAB_ORDER so a stale or
+  // unknown stored value can't leave the Tabs component with no matching
+  // panel (which would render as "no tab content").
+  const [persistedActiveTab, setPersistedActiveTab] = useKV<string>('active-tab', DEFAULT_TAB)
+  const activeTab: TabName = isTabName(persistedActiveTab) ? persistedActiveTab : DEFAULT_TAB
+  const setActiveTab = setPersistedActiveTab
   const performanceOptimization = useAutoPerformanceOptimization()
   const dynamicUI = useDynamicUI()
   const contextualUI = useContextualUI()
@@ -325,7 +337,7 @@ function App() {
     [agentRuns, activeAgentRunId]
   )
 
-  const tabOrder = useMemo(() => ['chat', 'agents', 'workflows', 'models', 'analytics', 'builder'], [])
+  const tabOrder = useMemo(() => [...TAB_ORDER], [])
   const contentRef = useRef<HTMLDivElement>(null)
 
   const handlePreloadTab = useCallback(async (tabName: string) => {
@@ -356,21 +368,21 @@ function App() {
   const tabPreloader = useTabPreloader(tabOrder, activeTab, handlePreloadTab)
 
   const handleTabChange = useCallback((newTab: string) => {
-    if (isTabSwitching) return
-    
-    setIsTabSwitching(true)
     contextualUI.trackFeatureUsage(newTab)
     contextualUI.trackTimeOfDay(newTab)
     dynamicUI.trackTabUsage(newTab)
-    
+
+    // Mark a brief "switching" window for any UI that depends on it, but do
+    // NOT use it to block the tab change itself — blocking caused rapid taps
+    // to be silently dropped, which presented as "tab content doesn't render".
+    setIsTabSwitching(true)
     startTransition(() => {
       setActiveTab(newTab)
-      
-      setTimeout(() => {
-        setIsTabSwitching(false)
-      }, 150)
     })
-  }, [isTabSwitching, contextualUI, dynamicUI])
+    setTimeout(() => {
+      setIsTabSwitching(false)
+    }, 150)
+  }, [contextualUI, dynamicUI, setActiveTab])
 
   const navigateToTab = useCallback((direction: 'left' | 'right') => {
     if (isTabSwitching) return
@@ -978,7 +990,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
   const handleSelectMessage = useCallback((conversationId: string, _messageId: string) => {
     setActiveConversationId(conversationId)
     setActiveTab('chat')
-  }, [])
+  }, [setActiveTab])
 
   const filteredAndSortedConversations = useMemo(() => {
     let filtered = conversations || []
@@ -2689,6 +2701,13 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                 icon: <ChartBar weight="fill" size={22} />,
                 active: activeTab === 'analytics',
                 onClick: () => handleTabChange('analytics')
+              },
+              {
+                id: 'builder',
+                label: 'Build',
+                icon: <Cube weight="fill" size={22} />,
+                active: activeTab === 'builder',
+                onClick: () => handleTabChange('builder')
               }
             ]}
           />

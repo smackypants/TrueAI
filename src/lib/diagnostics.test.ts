@@ -158,6 +158,7 @@ describe('shouldAutoSubmit', () => {
     debugOnly: false,
     androidOnly: false,
     timeoutMs: 5000,
+    github: { owner: '', repo: '', labels: [] },
     ...over,
   })
 
@@ -236,7 +237,7 @@ describe('submitDiagnosticReport', () => {
     const result = await submitDiagnosticReport(report)
 
     expect(result).toEqual({ submitted: true, status: 202, reason: undefined })
-    const postCall = fetchMock.mock.calls.find((c) => c[0] === 'https://example.com/r')
+    const postCall = fetchMock.mock.calls.find((c: unknown[]) => c[0] === 'https://example.com/r')
     expect(postCall).toBeTruthy()
     expect(postCall![1]).toMatchObject({
       method: 'POST',
