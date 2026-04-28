@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-04-28 — PR #60: test: add visual/content component test coverage — chat, VirtualList, AnimatedCard, EnhancedLoader (+ accessibility fixes)
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/60](https://github.com/smackypants/trueai-localai/pull/60) · merged d66b265e0f26 · author @Copilot_
+
+- **Radix UI portals**: Dialog/Select/Popover content renders outside the `container` returned by `render()`. Always use `document.body.querySelector()` or Testing Library's `screen.*` helpers (which search the whole document) when asserting on portal content — `container.querySelector()` will return null.
+- **Icon-only button accessibility**: Radix `TooltipContent` provides `aria-describedby` (not `aria-labelledby`) on the trigger, so icon-only buttons wrapped in Tooltip have an empty accessible name unless `aria-label` is added explicitly. Add `aria-label` to all icon-only buttons — it fixes both the accessibility gap and enables `getByRole('button', { name: /.../ })` in tests.
+- **Radix Select options in tests**: `SelectItem` options are not in the DOM until the trigger is clicked; portal content may still be inaccessible via `role="option"` in jsdom. Test the selected item's display text via `SelectValue` in the trigger instead of querying the open dropdown.
+
+---
+
 ## 2026-04-28 — PR #59: test: add comprehensive coverage for diagnostics, benchmark, serviceWorker, preloader, and pre-mount error capture
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/59](https://github.com/smackypants/trueai-localai/pull/59) · merged cc08560b489b · author @Copilot_
