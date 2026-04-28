@@ -1,0 +1,80 @@
+{
+  "_comment": "Import via Settings -> Rules -> Rulesets -> New ruleset -> Import a ruleset. After importing, edit `bypass_actors` and replace the placeholder actor_ids (-1) with the real numeric IDs of the GitHub Apps / Teams you authorize (e.g. github-actions[bot], copilot-swe-agent[bot], dependabot[bot], any custom GitHub App). The owner (smackypants) already has admin bypass via repo permissions. Mark the ruleset as Active (not Evaluate) once the bypass list is correct.",
+  "name": "Protect default branch (main/master)",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/heads/main",
+        "refs/heads/master"
+      ],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [
+    {
+      "actor_id": 5,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "always",
+      "_comment": "RepositoryRole id 5 = Admin (repo owner). Keep this entry."
+    },
+    {
+      "actor_id": -1,
+      "actor_type": "Integration",
+      "bypass_mode": "always",
+      "_comment": "Replace -1 with the GitHub App ID for github-actions[bot] so release workflows can push tags/commits. Find via GitHub API: GET /repos/{owner}/{repo}/installations."
+    },
+    {
+      "actor_id": -1,
+      "actor_type": "Integration",
+      "bypass_mode": "always",
+      "_comment": "Replace -1 with the GitHub App ID for the Copilot coding agent (copilot-swe-agent[bot]) so it can push to its working branches. Remove this entry if you do not use the Copilot agent."
+    }
+  ],
+  "rules": [
+    { "type": "deletion" },
+    {
+      "type": "non_fast_forward",
+      "_comment": "Blocks force-pushes."
+    },
+    {
+      "type": "creation",
+      "_comment": "Only bypass actors can create the protected branch (prevents recreation after deletion)."
+    },
+    { "type": "required_linear_history" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": true,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": ["squash", "rebase"],
+        "_comment": "dismiss_stale_reviews_on_push and require_last_push_approval are intentionally false so (a) GitHub's auto-merge button works after a single owner approval, and (b) bots / the Copilot coding agent can rebase or merge main into a PR branch to resolve conflicts without invalidating the owner's approval. CODEOWNERS review is still required, and required_review_thread_resolution still forces every conversation to be resolved before merge."
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "Analyze (javascript-typescript)",
+            "_comment": "From .github/workflows/codeql.yml (matrix javascript-typescript)"
+          },
+          {
+            "context": "Analyze (java-kotlin)",
+            "_comment": "From .github/workflows/codeql.yml (matrix java-kotlin)"
+          },
+          {
+            "context": "Android CI",
+            "_comment": "From .github/workflows/android.yml"
+          }
+        ]
+      }
+    }
+  ]
+}

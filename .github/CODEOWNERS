@@ -1,0 +1,30 @@
+# CODEOWNERS for smackypants/trueai-localai
+#
+# Every pull request that touches a path listed here requires an approving
+# review from one of the listed owners before it can be merged. Combined with
+# the "Require review from Code Owners" rule in the default-branch ruleset
+# (.github/rulesets/protect-default-branch.json), this ensures that *every*
+# change to the project must be approved by the project owner (or an
+# explicitly authorized agent identity).
+#
+# To add another approved agent / bot identity, append its GitHub handle to
+# the lines below. Bots that act through a GitHub App (e.g. Copilot's coding
+# agent, Dependabot) cannot be CODEOWNERS themselves; instead, add them to the
+# bypass list in the rulesets under .github/rulesets/.
+
+# Default owner for everything in the repo.
+*                           @smackypants
+
+# Extra-sensitive paths — keep ownership explicit even if the glob above
+# changes in the future.
+/.github/                   @smackypants
+/.github/workflows/         @smackypants
+/.github/CODEOWNERS         @smackypants
+/.github/rulesets/          @smackypants
+/LICENSE                    @smackypants
+/NOTICE                     @smackypants
+/CONTRIBUTING.md            @smackypants
+/SECURITY.md                @smackypants
+/package.json               @smackypants
+/package-lock.json          @smackypants
+/android/app/build.gradle   @smackypants

@@ -1,0 +1,56 @@
+TrueAI LocalAI
+==============
+
+Copyright (c) 2024-2026 smackypants / Advanced Technology Research
+https://advancedtechnologyresearch.com/
+https://github.com/smackypants/trueai-localai
+
+This product is the original work of smackypants / Advanced Technology
+Research. Portions of this project were originally derived from a GitHub
+Spark template, Copyright (c) GitHub, Inc., also licensed under the MIT
+License.
+
+------------------------------------------------------------------------
+Attribution requirements (MIT License)
+------------------------------------------------------------------------
+
+This software is distributed under the MIT License (see the LICENSE file
+in the same directory as this NOTICE).
+
+The MIT License requires that the copyright notice and permission notice
+be included in all copies or substantial portions of the Software.
+
+Accordingly, any fork, redistribution, or derivative work of this project
+MUST:
+
+  1. Retain the LICENSE file unmodified, in the root of the distribution.
+  2. Retain this NOTICE file unmodified, in the root of the distribution.
+  3. Preserve the in-source "Copyright (c) 2024-2026 smackypants /
+     Advanced Technology Research" headers in every file they appear in.
+  4. Provide clear attribution to the original author in the primary
+     README of the derivative work, including a link back to the
+     upstream project at https://github.com/smackypants/trueai-localai
+     and the wording:
+
+         Based on TrueAI LocalAI by smackypants / Advanced Technology
+         Research, used under the MIT License.
+
+Removing or altering the LICENSE, this NOTICE, or the in-source copyright
+headers is a violation of the MIT License and will be enforced, including
+through DMCA takedown requests filed with GitHub.
+
+------------------------------------------------------------------------
+Third-party components
+------------------------------------------------------------------------
+
+This project depends on a number of open-source components, each of
+which is licensed under its own terms. See package.json and the
+node_modules/<package>/LICENSE files in any installation for the full
+list of upstream licenses and copyrights.
+
+The following upstream sources are explicitly acknowledged:
+
+  - GitHub Spark template (Copyright (c) GitHub, Inc., MIT License)
+    -- portions of the initial scaffolding and the @github/spark
+       hooks API surface (now reimplemented locally under
+       src/lib/llm-runtime/).

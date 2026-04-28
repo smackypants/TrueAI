@@ -1,0 +1,75 @@
+name: Copilot Setup Steps
+
+# Pre-provisions the GitHub Copilot cloud agent's ephemeral dev environment
+# so it has the exact toolchain CI uses (Node 24, Temurin JDK 21, Android
+# SDK) and the project's npm dependencies already installed before the agent
+# starts working on a task. Without this, the agent has to rediscover the
+# toolchain on every session via trial-and-error.
+#
+# Validated against existing CI: .github/workflows/android.yml uses the
+# same Node 24 + JDK 21 + Android SDK combination.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # The job MUST be named `copilot-setup-steps` or the Copilot cloud agent
+  # will not pick it up.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Lowest permissions needed for the setup steps. Copilot is given its
+    # own (separate, broader) token for its actual work after these steps
+    # complete.
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Node 24 / npm 11 is required so optional native-binary entries
+      # (lightningcss-*, @rollup/rollup-*, fsevents) in package-lock.json
+      # are honored. Older Node versions cause `npm ci` to fail with
+      # "Missing: lightningcss-* from lock file".
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      # Capacitor 8 (used by this project) requires JDK 21 for Gradle
+      # builds — capacitor-android is compiled with --release 21. JDK 17
+      # produces "invalid source release: 21" on capacitor-android.
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # Pre-install the Android SDK so any agent task touching the native
+      # Android project (android/, AndroidManifest.xml, gradle files) can
+      # build immediately without waiting on a fresh SDK download.
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm dependencies (npm ci)
+        run: npm ci
+        # Don't fail the whole setup if npm ci hits a transient registry
+        # issue or the Copilot firewall blocks an optional download — the
+        # agent can still work and re-run npm ci itself.
+        continue-on-error: true
+
+      - name: Print toolchain summary
+        run: |
+          echo "Node:    $(node --version)"
+          echo "npm:     $(npm --version)"
+          echo "Java:    $(java -version 2>&1 | head -1)"
+          echo "Gradle:  $(test -f android/gradlew && android/gradlew --version | grep '^Gradle' || echo 'not yet bootstrapped')"

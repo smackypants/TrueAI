@@ -1,11 +1,40 @@
 version: 2
 updates:
+  # JavaScript/TypeScript dependencies (web app + Capacitor)
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "daily"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "javascript"
 
+  # Devcontainer base image updates
   - package-ecosystem: "devcontainers"
     directory: "/"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "devcontainer"
+
+  # GitHub Actions used by workflows under .github/workflows/
+  # Critical for keeping CI / release / CodeQL automation patched.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Android Gradle dependencies (capacitor-android, AGP, etc.)
+  - package-ecosystem: "gradle"
+    directory: "/android"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "android"
+

@@ -1,0 +1,45 @@
+{
+  "_comment": "Import via Settings -> Rules -> Rulesets -> New ruleset -> Import a ruleset. This ruleset locks all release tags matching v* (e.g. v1.2.3) so they can only be created, updated, or deleted by the bypass actors below. Replace placeholder actor_ids (-1) with real GitHub App IDs after import.",
+  "name": "Protect release tags (v*)",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/tags/v*"
+      ],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [
+    {
+      "actor_id": 5,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "always",
+      "_comment": "Admin (repo owner). Keep this entry."
+    },
+    {
+      "actor_id": -1,
+      "actor_type": "Integration",
+      "bypass_mode": "always",
+      "_comment": "Replace -1 with the GitHub App ID for github-actions[bot] so release-bump.yml / tag-release.yml can push tags."
+    }
+  ],
+  "rules": [
+    {
+      "type": "creation",
+      "_comment": "Only bypass actors can create v* tags."
+    },
+    {
+      "type": "update",
+      "_comment": "Only bypass actors can move v* tags."
+    },
+    {
+      "type": "deletion",
+      "_comment": "Only bypass actors can delete v* tags."
+    },
+    {
+      "type": "non_fast_forward"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "_comment": "Import via Settings -> Rules -> Rulesets -> New ruleset -> Import a ruleset. Defense-in-depth ruleset that blocks pushes touching governance, CI, license, lockfile, and Android build configuration paths from anyone NOT in the bypass list. Scoped to main/master only so the Copilot coding agent and Dependabot can still freely modify these files on their own feature branches; the protection bites at merge time, when the merging actor must be in the bypass list (i.e. the repo owner/admin or an authorized GitHub App). Note: the `file_path_restriction` rule type requires a paid plan on some account tiers. If your account does not support file_path_restriction, you can delete this ruleset; CODEOWNERS plus the default-branch ruleset still require owner review on these paths.",
+  "name": "Protect workflows, license, and config files",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/heads/main",
+        "refs/heads/master"
+      ],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [
+    {
+      "actor_id": 5,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "always",
+      "_comment": "Admin (repo owner). Keep this entry."
+    },
+    {
+      "actor_id": -1,
+      "actor_type": "Integration",
+      "bypass_mode": "always",
+      "_comment": "Replace -1 with the GitHub App ID for github-actions[bot] (release-bump.yml edits package.json + android/app/build.gradle and pushes directly to main; without this entry the release workflow will fail)."
+    },
+    {
+      "actor_id": -1,
+      "actor_type": "Integration",
+      "bypass_mode": "always",
+      "_comment": "Replace -1 with the GitHub App ID for the Copilot coding agent (copilot-swe-agent[bot]). Only needed if you ever let the agent merge its own PRs; otherwise remove."
+    },
+    {
+      "actor_id": -1,
+      "actor_type": "Integration",
+      "bypass_mode": "pull_request",
+      "_comment": "Replace -1 with the GitHub App ID for dependabot[bot]. `pull_request` bypass mode lets Dependabot's auto-PRs touch package.json / package-lock.json without being blocked by file_path_restriction at PR creation time. Final merge still requires owner approval (CODEOWNERS)."
+    }
+  ],
+  "rules": [
+    {
+      "type": "file_path_restriction",
+      "parameters": {
+        "restricted_file_paths": [
+          ".github/**",
+          "LICENSE",
+          "NOTICE",
+          "CODEOWNERS",
+          ".github/CODEOWNERS",
+          "CONTRIBUTING.md",
+          "SECURITY.md",
+          "package.json",
+          "package-lock.json",
+          "android/app/build.gradle",
+          "android/build.gradle",
+          "android/variables.gradle"
+        ]
+      }
+    }
+  ]
+}
