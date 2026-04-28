@@ -169,8 +169,11 @@ describe('MobilePerformanceOptimizer subscribe/notify', () => {
     // Trigger notifyListeners via the private path — use the public
     // notify trick: getMemoryUsage doesn't notify, so reach in via the
     // module's measureFPS would; simpler: cast to any and call private.
-    type WithPriv = MobilePerformanceOptimizer & { notifyListeners(): void }
-    ;(o as unknown as WithPriv).notifyListeners?.()
+    type WithPriv = { notifyListeners?(): void }
+    const withPriv = o as unknown as WithPriv
+    if (withPriv.notifyListeners) {
+      withPriv.notifyListeners()
+    }
     // Public API: at minimum unsubscribe works.
     unsub()
     expect(cb).toHaveBeenCalled()
@@ -252,10 +255,8 @@ describe('utility functions', () => {
       }
     }
     const original = globalThis.Image
-    // @ts-expect-error override
     globalThis.Image = FakeImage as unknown as typeof Image
     await expect(prefetchImage('x.png')).resolves.toBeUndefined()
-    // @ts-expect-error restore
     globalThis.Image = original
   })
 

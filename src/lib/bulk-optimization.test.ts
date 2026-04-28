@@ -100,10 +100,9 @@ describe('BulkOptimizationManager.applyBundle', () => {
     type WithPrivate = BulkOptimizationManager & {
       applyAction: (...a: unknown[]) => Promise<void>
     }
-    const spy = vi
-      .spyOn(m as unknown as WithPrivate, 'applyAction')
-      .mockRejectedValueOnce(new Error('boom'))
-      .mockResolvedValueOnce(undefined)
+    const spy = vi.spyOn(m as WithPrivate, 'applyAction' as keyof WithPrivate) as ReturnType<typeof vi.fn>
+    spy.mockRejectedValueOnce(new Error('boom'))
+    spy.mockResolvedValueOnce(undefined)
 
     const bundle = m.createCustomBundle(
       'b',

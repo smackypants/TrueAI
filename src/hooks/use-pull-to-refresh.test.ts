@@ -18,7 +18,7 @@ function makeTouchEvent(target: FakeTouchTarget, clientY: number): React.TouchEv
 }
 
 describe('usePullToRefresh', () => {
-  let onRefresh: ReturnType<typeof vi.fn>
+  let onRefresh: () => Promise<void>
 
   beforeEach(() => {
     onRefresh = vi.fn(async () => {})
@@ -36,7 +36,8 @@ describe('usePullToRefresh', () => {
   })
 
   it('updates pullDistance as the user drags down (resistance applied)', () => {
-    const { result } = renderHook(() => usePullToRefresh({ onRefresh, threshold: 80, resistance: 2 }))
+    const onRefreshLocal = vi.fn(async () => {})
+    const { result } = renderHook(() => usePullToRefresh({ onRefresh: onRefreshLocal, threshold: 80, resistance: 2 }))
     const target: FakeTouchTarget = { scrollTop: 0 }
     act(() => {
       result.current.handlers.onTouchStart(makeTouchEvent(target, 100))
@@ -50,7 +51,8 @@ describe('usePullToRefresh', () => {
   })
 
   it('caps pullDistance at threshold * 1.5', () => {
-    const { result } = renderHook(() => usePullToRefresh({ onRefresh, threshold: 80, resistance: 1 }))
+    const onRefreshLocal = vi.fn(async () => {})
+    const { result } = renderHook(() => usePullToRefresh({ onRefresh: onRefreshLocal, threshold: 80, resistance: 1 }))
     const target: FakeTouchTarget = { scrollTop: 0 }
     act(() => {
       result.current.handlers.onTouchStart(makeTouchEvent(target, 0))
@@ -63,7 +65,8 @@ describe('usePullToRefresh', () => {
   })
 
   it('cancels pulling and resets distance when the element scrolls away from the top', () => {
-    const { result } = renderHook(() => usePullToRefresh({ onRefresh, threshold: 80, resistance: 1 }))
+    const onRefreshLocal = vi.fn(async () => {})
+    const { result } = renderHook(() => usePullToRefresh({ onRefresh: onRefreshLocal, threshold: 80, resistance: 1 }))
     const target: FakeTouchTarget = { scrollTop: 0 }
     act(() => {
       result.current.handlers.onTouchStart(makeTouchEvent(target, 0))
@@ -85,9 +88,9 @@ describe('usePullToRefresh', () => {
     const refreshPromise = new Promise<void>(r => {
       resolveRefresh = r
     })
-    onRefresh.mockImplementation(() => refreshPromise)
+    const onRefreshLocal = vi.fn(() => refreshPromise)
 
-    const { result } = renderHook(() => usePullToRefresh({ onRefresh, threshold: 80, resistance: 1 }))
+    const { result } = renderHook(() => usePullToRefresh({ onRefresh: onRefreshLocal, threshold: 80, resistance: 1 }))
     const target: FakeTouchTarget = { scrollTop: 0 }
     act(() => {
       result.current.handlers.onTouchStart(makeTouchEvent(target, 0))
@@ -102,7 +105,7 @@ describe('usePullToRefresh', () => {
       endPromise = result.current.handlers.onTouchEnd()
     })
     await waitFor(() => expect(result.current.isRefreshing).toBe(true))
-    expect(onRefresh).toHaveBeenCalledTimes(1)
+    expect(onRefreshLocal).toHaveBeenCalledTimes(1)
 
     await act(async () => {
       resolveRefresh()
@@ -113,7 +116,8 @@ describe('usePullToRefresh', () => {
   })
 
   it('snaps back to 0 without invoking onRefresh when below threshold', async () => {
-    const { result } = renderHook(() => usePullToRefresh({ onRefresh, threshold: 80, resistance: 1 }))
+    const onRefreshLocal = vi.fn(async () => {})
+    const { result } = renderHook(() => usePullToRefresh({ onRefresh: onRefreshLocal, threshold: 80, resistance: 1 }))
     const target: FakeTouchTarget = { scrollTop: 0 }
     act(() => {
       result.current.handlers.onTouchStart(makeTouchEvent(target, 0))
@@ -127,12 +131,14 @@ describe('usePullToRefresh', () => {
     })
     expect(result.current.pullDistance).toBe(0)
     expect(result.current.isRefreshing).toBe(false)
-    expect(onRefresh).not.toHaveBeenCalled()
+    expect(onRefreshLocal).not.toHaveBeenCalled()
   })
 
   it('still resets isRefreshing when onRefresh rejects', async () => {
-    onRefresh.mockRejectedValueOnce(new Error('refresh failed'))
-    const { result } = renderHook(() => usePullToRefresh({ onRefresh, threshold: 80, resistance: 1 }))
+    const onRefreshLocal = vi.fn(async () => {
+      throw new Error('refresh failed')
+    })
+    const { result } = renderHook(() => usePullToRefresh({ onRefresh: onRefreshLocal, threshold: 80, resistance: 1 }))
     const target: FakeTouchTarget = { scrollTop: 0 }
     act(() => {
       result.current.handlers.onTouchStart(makeTouchEvent(target, 0))

@@ -52,7 +52,8 @@ describe('useTabPreloader', () => {
       await vi.advanceTimersByTimeAsync(400)
     })
     // Adjacency may have preloaded 'b' and 'd' but never 'c'.
-    expect(onPreload.mock.calls.map(c => c[0])).not.toContain('c')
+    const callArgs = onPreload.mock.calls.map((c: unknown[]) => c[0])
+    expect(callArgs).not.toContain('c')
   })
 
   it('handleTabLeave cancels a pending hover preload', async () => {
@@ -64,7 +65,8 @@ describe('useTabPreloader', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    expect(onPreload.mock.calls.map(c => c[0])).not.toContain('e')
+    const callArgs = onPreload.mock.calls.map((c: unknown[]) => c[0])
+    expect(callArgs).not.toContain('e')
   })
 
   it('preloadAdjacentTabs schedules preloads for left + right neighbours', async () => {
@@ -74,9 +76,9 @@ describe('useTabPreloader', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    const calls = onPreload.mock.calls.map(c => c[0])
-    expect(calls).toContain('a')
-    expect(calls).toContain('c')
+    const callArgs = onPreload.mock.calls.map((c: unknown[]) => c[0])
+    expect(callArgs).toContain('a')
+    expect(callArgs).toContain('c')
   })
 
   it('preloadTab dedupes a tab already in the queue', async () => {
@@ -94,8 +96,8 @@ describe('useTabPreloader', () => {
     })
     expect(onPreload).toHaveBeenCalledTimes(1)
     // Resolve the in-flight call so we leave the test in a clean state.
-    resolveFn?.()
     await act(async () => {
+      resolveFn?.()
       await vi.advanceTimersByTimeAsync(0)
     })
   })
@@ -141,7 +143,6 @@ describe('useResourcePreloader', () => {
       }
     }
     const original = globalThis.Image
-    // @ts-expect-error override for test
     globalThis.Image = FakeImage as unknown as typeof Image
 
     const p = result.current.preloadImage('http://x.test/a.png')
@@ -150,7 +151,6 @@ describe('useResourcePreloader', () => {
     // Calling again should resolve immediately (cached).
     await expect(result.current.preloadImage('http://x.test/a.png')).resolves.toBeUndefined()
 
-    // @ts-expect-error restore
     globalThis.Image = original
   })
 
@@ -168,12 +168,10 @@ describe('useResourcePreloader', () => {
       }
     }
     const original = globalThis.Image
-    // @ts-expect-error override
     globalThis.Image = FakeImage as unknown as typeof Image
     await expect(
       result.current.preloadImages(['http://x.test/a.png', 'http://x.test/bad.png']),
     ).resolves.toBeUndefined()
-    // @ts-expect-error restore
     globalThis.Image = original
   })
 })

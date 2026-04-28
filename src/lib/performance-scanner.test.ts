@@ -90,9 +90,9 @@ describe('PerformanceScanner.performComprehensiveScan', () => {
   it('rejects when a scan is already in progress', async () => {
     const scanner = new PerformanceScanner()
     // Cause the first scan to hang so isScanning stays true.
-    let resolveFn: (() => void) | null = null
+    let resolveFn: (() => void) | undefined
     ;(scanHardware as ReturnType<typeof vi.fn>).mockReturnValueOnce(
-      new Promise(res => {
+      new Promise<ReturnType<typeof scanHardware>>(res => {
         resolveFn = () => res(undefined as unknown as ReturnType<typeof scanHardware>)
       }),
     )
