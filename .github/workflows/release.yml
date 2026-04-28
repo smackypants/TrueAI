@@ -4,12 +4,17 @@ on:
   push:
     tags:
       - 'v*'
+  # Auto-attach APKs whenever a GitHub Release is published (covers cases
+  # where the tag push did not trigger release.yml, e.g. releases created
+  # via the web UI or the release-bump.yml workflow).
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., v1.0.0)'
-        required: true
-        default: 'v1.0.0'
+        description: 'Release version (e.g., v1.0.0) — leave blank to build for the latest published release'
+        required: false
+        default: ''
   # Reusable: lets publish-release.yml call build-and-release directly
   # after the bump+tag job, so the whole release shows up as one run.
   workflow_call:
@@ -24,7 +29,7 @@ on:
 # version, the later run waits for the earlier one to finish (rather
 # than both trying to upsert the same GitHub Release at once).
 concurrency:
-  group: release-${{ inputs.version || github.ref }}
+  group: release-${{ inputs.version || github.event.release.tag_name || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -38,8 +43,35 @@ jobs:
       contents: write
 
     steps:
+      - name: Resolve target tag
+        id: resolve
+        # For workflow_dispatch with no version: fetch the latest published release tag.
+        # For release: [published]: use the event's tag name.
+        # For workflow_call / push: tags: v*: inputs.version / github.ref carry the tag.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          INPUT_VERSION="${{ inputs.version }}"
+          RELEASE_TAG="${{ github.event.release.tag_name }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            TAG="$INPUT_VERSION"
+          elif [ -n "$RELEASE_TAG" ]; then
+            TAG="$RELEASE_TAG"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            # Auto-detect: use the latest published release tag
+            TAG="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q '.tagName')"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          # For workflow_dispatch and workflow_call, check out the explicit
+          # version tag. For release: [published], use the release tag. Fall
+          # back to github.ref for tag-push triggers.
+          ref: ${{ steps.resolve.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -100,15 +132,9 @@ jobs:
       - name: Get version
         id: version
         run: |
-          # `inputs.version` is populated for both workflow_dispatch and
-          # workflow_call; on a tag push it's empty so we fall back to the
-          # ref name.
-          INPUT_VERSION="${{ inputs.version }}"
-          if [ -n "$INPUT_VERSION" ]; then
-            echo "version=$INPUT_VERSION" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+          # Use the tag resolved in the resolve step, strip the leading 'v'.
+          TAG="${{ steps.resolve.outputs.tag }}"
+          echo "version=$TAG" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
