@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-04-28 — PR #51: fix: resolve package-lock.json sync issue blocking all CI builds for v7.3.0 release
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/51](https://github.com/smackypants/trueai-localai/pull/51) · merged e374cb1adfc7 · author @Claude_
+
+- (No explicit lessons recorded.) PR title: _fix: resolve package-lock.json sync issue blocking all CI builds for v7.3.0 release_.
+
+---
+
 ## 2026-04-28 — PR #48: fix(tests): resolve TypeScript compilation errors blocking Android CI builds
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/48](https://github.com/smackypants/trueai-localai/pull/48) · merged 1181f387b8dc · author @Claude_
