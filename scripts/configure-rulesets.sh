@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #
+# BEGIN_HELP
 # configure-rulesets.sh — one-shot ruleset bootstrap for the
 # trueai-localai repository.
 #
@@ -7,18 +8,17 @@
 # numeric `app_id` for each bot we rely on (github-actions[bot],
 # copilot-swe-agent[bot], dependabot[bot]), patches the placeholder
 # `actor_id: -1` entries in the JSON files under `.github/rulesets/`,
-# and POSTs each ruleset to the repository (or PATCHes it if a ruleset
-# of the same name already exists). The result is a fully active set
-# of branch- and tag-protection rules with the correct bypass actors —
-# no manual `Settings → Rules → Rulesets → Import` clicking required.
+# and POSTs each ruleset to the repository (or PUTs over it if a
+# ruleset of the same name already exists). The result is a fully
+# active set of branch- and tag-protection rules with the correct
+# bypass actors — no manual `Settings → Rules → Rulesets → Import`
+# clicking required.
 #
-# Re-run any time. The script is idempotent: it diffs against the
-# existing ruleset of the same name and only PATCHes when the body
-# actually changed.
+# Re-run any time. The script is idempotent.
 #
 # Requirements (run on the maintainer's workstation, NOT in CI):
 #   - gh CLI authenticated as a repo *admin* (`gh auth login`).
-#   - jq.
+#   - jq + python3.
 #   - The bots you want to authorize must already be installed on the
 #     repository (Copilot agent: install via
 #     https://github.com/apps/copilot-swe-agent; Dependabot: enable
@@ -28,6 +28,7 @@
 #   scripts/configure-rulesets.sh [--owner OWNER] [--repo REPO] [--dry-run]
 #
 # Defaults: OWNER=smackypants, REPO=trueai-localai.
+# END_HELP
 
 set -euo pipefail
 
@@ -41,7 +42,8 @@ while [[ $# -gt 0 ]]; do
     --repo)    REPO="$2";  shift 2 ;;
     --dry-run) DRY_RUN=1;  shift ;;
     -h|--help)
-      sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '/^# BEGIN_HELP$/,/^# END_HELP$/p' "$0" \
+        | sed '1d;$d;s/^# \{0,1\}//'
       exit 0
       ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
