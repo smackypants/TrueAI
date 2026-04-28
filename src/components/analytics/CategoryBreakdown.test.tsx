@@ -2,66 +2,89 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CategoryBreakdown } from './CategoryBreakdown'
 
-const data = [
-  { type: 'conversation', count: 50 },
-  { type: 'agent', count: 30 },
-  { type: 'workflow', count: 20 },
-]
-
 describe('CategoryBreakdown', () => {
-  it('shows "No data available" when data array is empty', () => {
+  it('shows "No data available" when data is empty', () => {
     render(<CategoryBreakdown data={[]} />)
     expect(screen.getByText('No data available')).toBeInTheDocument()
   })
 
-  it('renders category type labels', () => {
+  it('renders category names', () => {
+    const data = [
+      { type: 'chat_message', count: 50 },
+      { type: 'agent_run', count: 30 },
+    ]
     render(<CategoryBreakdown data={data} />)
-    expect(screen.getByText('conversation')).toBeInTheDocument()
-    expect(screen.getByText('agent')).toBeInTheDocument()
-    expect(screen.getByText('workflow')).toBeInTheDocument()
+    expect(screen.getByText('chat_message')).toBeInTheDocument()
+    expect(screen.getByText('agent_run')).toBeInTheDocument()
   })
 
-  it('renders item counts', () => {
+  it('renders count values', () => {
+    const data = [{ type: 'chat_message', count: 50 }]
     render(<CategoryBreakdown data={data} />)
     expect(screen.getByText('50')).toBeInTheDocument()
-    expect(screen.getByText('30')).toBeInTheDocument()
-    expect(screen.getByText('20')).toBeInTheDocument()
   })
 
-  it('renders percentage labels', () => {
+  it('renders percentage for each item', () => {
+    const data = [
+      { type: 'A', count: 75 },
+      { type: 'B', count: 25 },
+    ]
     render(<CategoryBreakdown data={data} />)
-    // 50/100 = 50.0%, 30/100 = 30.0%, 20/100 = 20.0%
-    expect(screen.getByText('(50.0%)')).toBeInTheDocument()
-    expect(screen.getByText('(30.0%)')).toBeInTheDocument()
-    expect(screen.getByText('(20.0%)')).toBeInTheDocument()
+    expect(screen.getByText('(75.0%)')).toBeInTheDocument()
+    expect(screen.getByText('(25.0%)')).toBeInTheDocument()
   })
 
-  it('renders color dot for each item', () => {
-    const { container } = render(<CategoryBreakdown data={data} />)
-    const dots = container.querySelectorAll('.w-3.h-3.rounded-full')
-    expect(dots.length).toBe(data.length)
+  it('renders at most 5 items when more are provided', () => {
+    const data = Array.from({ length: 8 }, (_, i) => ({
+      type: `Type ${i + 1}`,
+      count: 10,
+    }))
+    render(<CategoryBreakdown data={data} />)
+    expect(screen.getByText('Type 1')).toBeInTheDocument()
+    expect(screen.getByText('Type 5')).toBeInTheDocument()
+    expect(screen.queryByText('Type 6')).not.toBeInTheDocument()
+    expect(screen.queryByText('Type 7')).not.toBeInTheDocument()
+    expect(screen.queryByText('Type 8')).not.toBeInTheDocument()
+  })
+
+  it('renders a single item at 100%', () => {
+    const data = [{ type: 'only-item', count: 100 }]
+    render(<CategoryBreakdown data={data} />)
+    expect(screen.getByText('only-item')).toBeInTheDocument()
+    expect(screen.getByText('100')).toBeInTheDocument()
+    expect(screen.getByText('(100.0%)')).toBeInTheDocument()
   })
 
   it('renders progress bars for each item', () => {
+    const data = [
+      { type: 'A', count: 60 },
+      { type: 'B', count: 40 },
+    ]
     const { container } = render(<CategoryBreakdown data={data} />)
-    const bars = container.querySelectorAll('.h-2.bg-muted')
-    expect(bars.length).toBe(data.length)
+    // Each item has a progress bar container with bg-muted and rounded-full
+    const progressContainers = container.querySelectorAll('.bg-muted.rounded-full')
+    expect(progressContainers.length).toBe(2)
   })
 
-  it('renders at most 5 items when more than 5 provided', () => {
-    const manyItems = Array.from({ length: 8 }, (_, i) => ({
-      type: `type-${i}`,
-      count: 10
-    }))
-    render(<CategoryBreakdown data={manyItems} />)
-    expect(screen.getByText('type-0')).toBeInTheDocument()
-    expect(screen.getByText('type-4')).toBeInTheDocument()
-    expect(screen.queryByText('type-5')).not.toBeInTheDocument()
+  it('sets inner bar width proportional to percentage', () => {
+    const data = [
+      { type: 'A', count: 60 },
+      { type: 'B', count: 40 },
+    ]
+    const { container } = render(<CategoryBreakdown data={data} />)
+    const innerBars = container.querySelectorAll('.bg-muted.rounded-full > div') as NodeListOf<HTMLElement>
+    // A: 60/100=60%, B: 40/100=40%
+    expect(innerBars[0].style.width).toBe('60%')
+    expect(innerBars[1].style.width).toBe('40%')
   })
 
-  it('renders single item correctly', () => {
-    render(<CategoryBreakdown data={[{ type: 'only', count: 1 }]} />)
-    expect(screen.getByText('only')).toBeInTheDocument()
-    expect(screen.getByText('(100.0%)')).toBeInTheDocument()
+  it('renders colored dots for each category', () => {
+    const data = [
+      { type: 'Cat1', count: 10 },
+      { type: 'Cat2', count: 5 },
+    ]
+    const { container } = render(<CategoryBreakdown data={data} />)
+    const colorDots = container.querySelectorAll('.w-3.h-3.rounded-full')
+    expect(colorDots.length).toBe(2)
   })
 })
