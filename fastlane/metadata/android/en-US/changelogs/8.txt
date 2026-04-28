@@ -1,0 +1,17 @@
+Local LLM runtime replaces the GitHub Spark hosted runtime. New native
+mobile capability layer: secure storage, network status, clipboard,
+share, haptics, app lifecycle, local notifications, filesystem.
+
+Security:
+- API key stored in app-private storage on Android.
+- IndexedDB-only credential write (no localStorage fallback).
+- Vite bumped to 7.3.2; transitive CVE pins for path-to-regexp,
+  postcss, lodash, brace-expansion.
+
+Mobile:
+- App Builder added to the Android bottom navigation.
+- Safe-area insets, tab bar, and main content reflow correctly across
+  narrow / tall viewports.
+- Active tab persists across reloads.
+
+This release is the first to ship as an APK distributed via F-Droid.

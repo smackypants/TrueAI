@@ -1,0 +1,35 @@
+TrueAI LocalAI is a local-first AI assistant platform. It runs against
+an on-device LLM runtime by default (Ollama on http://localhost:11434),
+and stores conversations, agents, and settings on your device.
+
+Features:
+
+* Multi-conversation chat with model switching.
+* Autonomous agents with a configurable tool set.
+* Visual workflow builder for chaining agents and tools.
+* Workflow templates for common automation scenarios.
+* Cost tracking and budget limits when an external paid provider is
+  used.
+* Offline support via service worker and IndexedDB caching of large
+  conversation histories.
+* Mobile-optimised UI with touch gestures, pull-to-refresh, haptics,
+  and dark theme.
+
+Privacy:
+
+* No analytics. No tracking. No ads.
+* Default LLM endpoint is the local Ollama server. The app makes no
+  outbound network call until you point it at a hosted provider in
+  Settings.
+* The LLM API key, if you configure one, is stored in app-private
+  storage on Android (Capacitor Preferences) and never written to
+  shared storage or shipped off device.
+
+Anti-Features:
+
+* NonFreeNet: the user can optionally configure the LLM runtime to talk
+  to a hosted OpenAI-compatible provider (OpenAI, Anthropic, etc.).
+  This is opt-in per device. The default configuration is fully local.
+
+Source code, issue tracker, and full documentation live at
+https://github.com/smackypants/trueai-localai

@@ -55,6 +55,7 @@ jobs:
           npm --no-git-tag-version version "${{ steps.validate.outputs.version }}"
 
       - name: Bump android/app/build.gradle (versionName + versionCode)
+        id: bump_gradle
         run: |
           set -euo pipefail
           GRADLE=android/app/build.gradle
@@ -69,6 +70,7 @@ jobs:
           # Sanity-check that both lines actually changed format-correctly.
           grep -E '^\s*versionCode\s+'"${NEW_CODE}"'$' "$GRADLE" >/dev/null
           grep -E '^\s*versionName\s+"'"${NEW_NAME}"'"$' "$GRADLE" >/dev/null
+          echo "version_code=${NEW_CODE}" >> "$GITHUB_OUTPUT"
 
       - name: Prepend CHANGELOG entry
         env:
@@ -101,6 +103,26 @@ jobs:
           } > "$TMP"
           mv "$TMP" CHANGELOG.md
 
+      - name: Write F-Droid (Fastlane) changelog for new versionCode
+        env:
+          RAW_NOTES: ${{ github.event.inputs.notes }}
+          NEW_CODE: ${{ steps.bump_gradle.outputs.version_code }}
+        run: |
+          set -euo pipefail
+          # Mirror the (already-trimmed) CHANGELOG entry into the
+          # per-versionCode file F-Droid auto-ingests. Capped at 500
+          # chars per F-Droid recommendation.
+          NOTES=$(printf '%s' "${RAW_NOTES}" | tr '\n\r' '  ' | sed -E 's/^ +| +$//g')
+          if [ -z "${NOTES}" ]; then
+            NOTES="Maintenance release."
+          fi
+          if [ "${#NOTES}" -gt 500 ]; then
+            NOTES="${NOTES:0:497}..."
+          fi
+          DEST_DIR="fastlane/metadata/android/en-US/changelogs"
+          mkdir -p "${DEST_DIR}"
+          printf '%s\n' "${NOTES}" > "${DEST_DIR}/${NEW_CODE}.txt"
+
       - name: Commit, tag, and push
         env:
           GIT_AUTHOR_NAME: github-actions[bot]
@@ -110,7 +132,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ steps.validate.outputs.version }}"
-          git add package.json package-lock.json android/app/build.gradle CHANGELOG.md
+          git add package.json package-lock.json android/app/build.gradle CHANGELOG.md fastlane/metadata/android/en-US/changelogs
           git commit -m "chore(release): v${VERSION}"
           git tag -a "v${VERSION}" -m "Release v${VERSION}"
           git push origin HEAD

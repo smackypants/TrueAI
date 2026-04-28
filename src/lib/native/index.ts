@@ -18,4 +18,10 @@ export { haptics } from './haptics'
 export { pushBackHandler, onAppResume, initAppLifecycle } from './app-lifecycle'
 export { notify, type NotifyOptions } from './notifications'
 export { saveTextFile, type SaveTextFileResult } from './filesystem'
+export {
+  getInstallerSource,
+  isInstalledFromFDroid,
+  classifyInstallerPackage,
+  type InstallerSource,
+} from './installer'
 export { installNativeIntegrations } from './install'

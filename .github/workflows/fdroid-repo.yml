@@ -1,0 +1,294 @@
+name: F-Droid Repo
+
+# Build a signed release APK and publish a self-hosted F-Droid
+# repository to GitHub Pages so users can install / auto-update
+# TrueAI LocalAI from the F-Droid client.
+#
+# Triggers:
+#   - On every published GitHub Release.
+#   - On push of a `v*` tag (covers the release-bump.yml -> release.yml flow).
+#   - Manually via `workflow_dispatch`.
+#
+# Required GitHub Actions secrets (all four must be set to produce a
+# signed APK; otherwise the workflow uploads the unsigned APK as an
+# artifact and stops short of publishing):
+#
+#   FDROID_KEYSTORE_BASE64        - base64 of the APK signing keystore
+#   FDROID_KEYSTORE_PASSWORD
+#   FDROID_KEY_ALIAS
+#   FDROID_KEY_PASSWORD
+#
+# And, for signing the F-Droid repo index itself:
+#
+#   FDROID_REPO_KEYSTORE_BASE64   - base64 of the repo-index keystore
+#   FDROID_REPO_KEYSTORE_PASSWORD
+#   FDROID_REPO_KEY_ALIAS
+#   FDROID_REPO_KEY_PASSWORD
+#
+# See FDROID.md for keystore generation and per-secret semantics.
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Tag or commit to build (defaults to the workflow ref)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: fdroid-repo
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Python (for fdroidserver)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install fdroidserver
+        run: |
+          set -euo pipefail
+          # Pin a known-good fdroidserver release.
+          pip install --no-cache-dir 'fdroidserver==2.3.4' 'qrcode[pil]==7.4.2'
+          fdroid --version
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Build web app (production)
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Decode APK signing keystore
+        id: keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.FDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64}" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FDROID_KEYSTORE_BASE64 secret is not set; building UNSIGNED APK only."
+            exit 0
+          fi
+          mkdir -p "${RUNNER_TEMP}/keys"
+          KEYSTORE_PATH="${RUNNER_TEMP}/keys/trueai-release.jks"
+          printf '%s' "${KEYSTORE_B64}" | base64 -d > "${KEYSTORE_PATH}"
+          echo "path=${KEYSTORE_PATH}" >> "$GITHUB_OUTPUT"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build Android Release APK
+        env:
+          TRUEAI_KEYSTORE_PATH: ${{ steps.keystore.outputs.path }}
+          TRUEAI_KEYSTORE_PASSWORD: ${{ secrets.FDROID_KEYSTORE_PASSWORD }}
+          TRUEAI_KEY_ALIAS: ${{ secrets.FDROID_KEY_ALIAS }}
+          TRUEAI_KEY_PASSWORD: ${{ secrets.FDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Locate built APK
+        id: apk
+        run: |
+          set -euo pipefail
+          SIGNED="android/app/build/outputs/apk/release/app-release.apk"
+          UNSIGNED="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          if [ -f "${SIGNED}" ]; then
+            echo "path=${SIGNED}" >> "$GITHUB_OUTPUT"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          elif [ -f "${UNSIGNED}" ]; then
+            echo "path=${UNSIGNED}" >> "$GITHUB_OUTPUT"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No release APK was produced."
+            ls -R android/app/build/outputs || true
+            exit 1
+          fi
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trueai-localai-release-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Stop here if the APK is unsigned
+        if: steps.apk.outputs.signed != 'true'
+        run: |
+          echo "::warning::APK is unsigned (no FDROID_KEYSTORE_BASE64 secret); skipping F-Droid repo publish."
+          exit 0
+
+      - name: Decode F-Droid repo index keystore
+        id: repo_keystore
+        env:
+          REPO_KEYSTORE_B64: ${{ secrets.FDROID_REPO_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${REPO_KEYSTORE_B64}" ]; then
+            echo "have_repo_key=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FDROID_REPO_KEYSTORE_BASE64 not set; skipping F-Droid repo publish."
+            exit 0
+          fi
+          KEYSTORE_PATH="${RUNNER_TEMP}/keys/fdroid-repo.jks"
+          printf '%s' "${REPO_KEYSTORE_B64}" | base64 -d > "${KEYSTORE_PATH}"
+          echo "path=${KEYSTORE_PATH}" >> "$GITHUB_OUTPUT"
+          echo "have_repo_key=true" >> "$GITHUB_OUTPUT"
+
+      - name: Initialise F-Droid workspace
+        if: steps.repo_keystore.outputs.have_repo_key == 'true'
+        env:
+          REPO_KEYSTORE_PASSWORD: ${{ secrets.FDROID_REPO_KEYSTORE_PASSWORD }}
+          REPO_KEY_ALIAS: ${{ secrets.FDROID_REPO_KEY_ALIAS }}
+          REPO_KEY_PASSWORD: ${{ secrets.FDROID_REPO_KEY_PASSWORD }}
+          REPO_KEYSTORE_PATH: ${{ steps.repo_keystore.outputs.path }}
+          REPO_URL: 'https://smackypants.github.io/trueai-localai/fdroid/repo'
+        run: |
+          set -euo pipefail
+          mkdir -p fdroid-workspace
+          cd fdroid-workspace
+          fdroid init \
+            --keystore "${REPO_KEYSTORE_PATH}" \
+            --repo-keyalias "${REPO_KEY_ALIAS}" || true
+          # `fdroid init` writes a fresh config.yml; rewrite the bits
+          # that need to use our existing keystore + secrets.
+          cat > config.yml <<EOF
+          repo_url: ${REPO_URL}
+          repo_name: TrueAI LocalAI
+          repo_description: >-
+            Self-hosted F-Droid repository for TrueAI LocalAI — a
+            local-first AI assistant platform.
+            See https://github.com/smackypants/trueai-localai
+          archive_older: 6
+          archive_url: ${REPO_URL%/repo}/archive
+          archive_name: TrueAI LocalAI archive
+          archive_description: Older builds of TrueAI LocalAI.
+          keystore: ${REPO_KEYSTORE_PATH}
+          repo_keyalias: ${REPO_KEY_ALIAS}
+          keystorepass: ${REPO_KEYSTORE_PASSWORD}
+          keypass: ${REPO_KEY_PASSWORD}
+          EOF
+          chmod 600 config.yml
+          mkdir -p repo metadata/com.trueai.localai/en-US/changelogs metadata/com.trueai.localai/en-US/images/phoneScreenshots
+
+      - name: Stage APK and metadata
+        if: steps.repo_keystore.outputs.have_repo_key == 'true'
+        run: |
+          set -euo pipefail
+          cp "${{ steps.apk.outputs.path }}" "fdroid-workspace/repo/com.trueai.localai.apk"
+          # Mirror the Fastlane metadata into the F-Droid layout.
+          SRC="fastlane/metadata/android/en-US"
+          DST="fdroid-workspace/metadata/com.trueai.localai/en-US"
+          cp "${SRC}/title.txt" "${DST}/title.txt"
+          cp "${SRC}/short_description.txt" "${DST}/short_description.txt"
+          cp "${SRC}/full_description.txt" "${DST}/full_description.txt"
+          if [ -d "${SRC}/changelogs" ]; then
+            cp -r "${SRC}/changelogs/." "${DST}/changelogs/"
+          fi
+          if [ -d "${SRC}/images" ]; then
+            cp -r "${SRC}/images/." "${DST}/images/"
+          fi
+
+      - name: Run fdroid update
+        if: steps.repo_keystore.outputs.have_repo_key == 'true'
+        env:
+          REPO_KEYSTORE_PASSWORD: ${{ secrets.FDROID_REPO_KEYSTORE_PASSWORD }}
+          REPO_KEY_PASSWORD: ${{ secrets.FDROID_REPO_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd fdroid-workspace
+          fdroid update --create-metadata --pretty --verbose
+
+      - name: Generate QR code and fingerprint
+        if: steps.repo_keystore.outputs.have_repo_key == 'true'
+        run: |
+          set -euo pipefail
+          cd fdroid-workspace
+          REPO_URL='https://smackypants.github.io/trueai-localai/fdroid/repo'
+          # Extract the repo fingerprint from the generated index.
+          FP=$(python3 -c "import json,sys; d=json.load(open('repo/index-v2.json')); print(d.get('repo',{}).get('fingerprint',''))")
+          if [ -z "${FP}" ]; then
+            echo "::error::Could not read fingerprint from repo/index-v2.json"
+            exit 1
+          fi
+          QR_URL="${REPO_URL}?fingerprint=${FP}"
+          echo "${FP}" > repo/repo-fingerprint.txt
+          echo "${QR_URL}" > repo/repo-qr-url.txt
+          python3 -c "import qrcode; img=qrcode.make('${QR_URL}'); img.save('repo/fdroid-repo-qr.png')"
+
+      - name: Prepare GitHub Pages site
+        if: steps.repo_keystore.outputs.have_repo_key == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p site/fdroid
+          cp -r fdroid-workspace/repo site/fdroid/repo
+          if [ -d fdroid-workspace/archive ]; then
+            cp -r fdroid-workspace/archive site/fdroid/archive
+          fi
+          # Tiny landing page so the root URL isn't a 404.
+          cat > site/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <title>TrueAI LocalAI — F-Droid repository</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+          </head>
+          <body>
+            <h1>TrueAI LocalAI — F-Droid repository</h1>
+            <p>Add this repository to your F-Droid client:</p>
+            <pre>https://smackypants.github.io/trueai-localai/fdroid/repo</pre>
+            <p>See <a href="https://github.com/smackypants/trueai-localai/blob/main/FDROID.md">FDROID.md</a> for the fingerprint and instructions.</p>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload Pages artifact
+        if: steps.repo_keystore.outputs.have_repo_key == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        if: steps.repo_keystore.outputs.have_repo_key == 'true'
+        uses: actions/deploy-pages@v4

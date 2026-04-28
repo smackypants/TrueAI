@@ -1,0 +1,1 @@
+Local-first AI assistant: chat, agents, workflows, fully on-device by default.
