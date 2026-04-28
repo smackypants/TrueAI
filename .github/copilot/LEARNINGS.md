@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-04-28 — PR #61: test: add mobile component tests + fix swipeable-card opacity bug
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/61](https://github.com/smackypants/trueai-localai/pull/61) · merged f003eabd3736 · author @Copilot_
+
+- `framer-motion` `AnimatePresence` defers DOM removal until exit animations complete. In jsdom there is no animation engine, so elements stay in the DOM after `setShow(false)`. Don't assert element absence after state-driven exit; instead verify side effects (`skipWaiting` called, `reload` called).
+- `window.location.reload` is not configurable in jsdom. Use `vi.stubGlobal('location', { reload: vi.fn() })` and clean up with `vi.unstubAllGlobals()`.
+- `useThrottle` initialises `lastRun = Date.now()` at mount time. With `vi.useFakeTimers()` no real time elapses between `renderHook` and the first invocation, so the throttle blocks the call. Always `vi.advanceTimersByTime(delay + 1)` before the first call in fake-timer throttle tests.
+
+---
+
 ## 2026-04-28 — PR #62: feat: mobile debug logger with structured event capture and bug-pattern analysis
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/62](https://github.com/smackypants/trueai-localai/pull/62) · merged 1c4a7020752b · author @Copilot_
