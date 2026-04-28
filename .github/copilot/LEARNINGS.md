@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-04-28 — PR #38: F-Droid: integrate and deploy via self-hosted repo + upstream catalog
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/38](https://github.com/smackypants/trueai-localai/pull/38) · merged d245bae6a94c · author @Copilot_
+
+- (No explicit lessons recorded.) PR title: _F-Droid: integrate and deploy via self-hosted repo + upstream catalog_.
+
+---
+
 ## 2026-04-28 — PR #39: Fix Vite dynamic-import warning and silence kv-store stderr noise in tests
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/39](https://github.com/smackypants/trueai-localai/pull/39) · merged dc22b77955b0 · author @Copilot_

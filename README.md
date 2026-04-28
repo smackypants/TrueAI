@@ -115,6 +115,27 @@ Download the latest release APK from the [GitHub Releases](https://github.com/sm
 
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) for installation instructions and release details.
 
+#### Install via F-Droid
+
+TrueAI LocalAI is also distributed via [F-Droid](https://f-droid.org/),
+the FOSS Android catalog.
+
+* **Self-hosted F-Droid repository** (ships every release first):
+
+  ```
+  https://smackypants.github.io/trueai-localai/fdroid/repo
+  ```
+
+  Add this URL to the F-Droid client (Settings → Repositories → Add).
+  The repository fingerprint and a QR code are attached to each
+  [GitHub Release](https://github.com/smackypants/trueai-localai/releases).
+
+* **Upstream F-Droid catalog** (after the upstream MR merges):
+  https://f-droid.org/packages/com.trueai.localai/
+
+See [FDROID.md](FDROID.md) for full details, the build recipe, and the
+F-Droid suitability audit.
+
 #### Build from Source
 
 1. **Build Android APK**

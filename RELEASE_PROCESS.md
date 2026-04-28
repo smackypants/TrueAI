@@ -219,6 +219,27 @@ The release workflow integrates with:
 
 All configuration is in `.github/workflows/release.yml`.
 
+## F-Droid distribution
+
+In addition to the GitHub Release, TrueAI LocalAI is also published to
+F-Droid. There are two channels and they are kept in sync automatically:
+
+1. **Self-hosted F-Droid repository** at
+   `https://smackypants.github.io/trueai-localai/fdroid/repo` — built
+   and signed by `.github/workflows/fdroid-repo.yml` on every published
+   release (and on every `v*` tag push), then deployed to GitHub Pages.
+2. **Upstream `fdroiddata`** catalog — see
+   [`metadata/com.trueai.localai.yml`](metadata/com.trueai.localai.yml)
+   for the build recipe, and [`FDROID.md`](FDROID.md) for the
+   submission checklist.
+
+When `release-bump.yml` bumps the Android `versionCode`, it also writes
+`fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` so the
+F-Droid listing changelog stays in lock-step with `CHANGELOG.md`.
+
+See [FDROID.md](FDROID.md) for the full F-Droid suitability audit,
+keystore handling, and validation steps.
+
 ## Support
 
 For issues or questions:

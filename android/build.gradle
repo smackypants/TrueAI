@@ -29,6 +29,15 @@ allprojects {
             force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
         }
     }
+
+    // Reproducible-build hardening: stamp every archive (zip/jar/aar/apk)
+    // with a fixed file order and zeroed timestamps so two builds of the
+    // same source tree produce byte-identical outputs (modulo signing).
+    // Required for F-Droid reproducible-build verification.
+    tasks.withType(AbstractArchiveTask).configureEach {
+        preserveFileTimestamps = false
+        reproducibleFileOrder = true
+    }
 }
 
 task clean(type: Delete) {
