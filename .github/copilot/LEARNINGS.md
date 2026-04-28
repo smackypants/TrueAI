@@ -16,6 +16,15 @@
 
 ---
 
+## 2026-04-28 — PR #50: Fix Android and CI builds: lock file sync + Node.js 24 action upgrades
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/50](https://github.com/smackypants/trueai-localai/pull/50) · merged c01b1cef5a97 · author @Copilot_
+
+- `package-lock.json` can go out of sync when a new transitive dependency (`react-is@17.0.2` required by `jest-diff`) is added without regenerating the lock file. Always run `npm install --package-lock-only` under Node 24/npm 11 to keep it in sync after any dependency changes.
+- `actions/checkout@v4`, `actions/setup-java@v4`, and `android-actions/setup-android@v3` use the Node.js 20 action runtime which is deprecated. Use `@v5`, `@v5`, and `@v4` respectively for Node.js 24 compatibility.
+
+---
+
 ## 2026-04-28 — PR #51: fix: resolve package-lock.json sync issue blocking all CI builds for v7.3.0 release
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/51](https://github.com/smackypants/trueai-localai/pull/51) · merged e374cb1adfc7 · author @Claude_
