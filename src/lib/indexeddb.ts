@@ -505,8 +505,11 @@ class IndexedDBManager {
     if (this.db) {
       this.db.close()
       this.db = null
-      this.initPromise = null
     }
+    // Always clear the cached init promise — if init() rejected, db was never
+    // set, but a stale rejected promise here would poison every subsequent
+    // call to init() (it short-circuits on `this.initPromise`).
+    this.initPromise = null
   }
 }
 
