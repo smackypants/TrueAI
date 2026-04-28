@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderHook, act } from '@testing-library/react'
 import {
   MobilePerformanceOptimizer,
   ImageCache,
@@ -7,6 +8,8 @@ import {
   prefetchImage,
   optimizeForLowEnd,
   shouldReduceMotion,
+  useThrottle,
+  useDebounce,
 } from './mobile-performance'
 
 /**
@@ -283,5 +286,125 @@ describe('utility functions', () => {
     await MobilePerformanceOptimizer.getInstance().detectDeviceCapabilities()
     expect(shouldReduceMotion()).toBe(false)
     restore()
+  })
+})
+
+describe('useThrottle', () => {
+  // useThrottle initialises lastRun = Date.now() at hook-creation time.
+  // With fake timers we must advance time by >= delay before the first call
+  // so that now - lastRun >= delay.
+
+  it('fires a call once enough time has elapsed since hook init', () => {
+    vi.useFakeTimers()
+    try {
+      const cb = vi.fn()
+      const { result } = renderHook(() => useThrottle(cb, 200))
+      // Advance past the delay so the first call is allowed.
+      act(() => { vi.advanceTimersByTime(201) })
+      act(() => { result.current('a') })
+      expect(cb).toHaveBeenCalledTimes(1)
+      expect(cb).toHaveBeenCalledWith('a')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('throttles subsequent rapid calls within the delay window', () => {
+    vi.useFakeTimers()
+    try {
+      const cb = vi.fn()
+      const { result } = renderHook(() => useThrottle(cb, 200))
+      // Let the first call through, then try rapid calls within the window.
+      act(() => { vi.advanceTimersByTime(201) })
+      act(() => {
+        result.current('first')  // fires
+        result.current('second') // throttled
+        result.current('third')  // throttled
+      })
+      expect(cb).toHaveBeenCalledTimes(1)
+      expect(cb).toHaveBeenCalledWith('first')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('allows a second call after the delay has elapsed', () => {
+    vi.useFakeTimers()
+    try {
+      const cb = vi.fn()
+      const { result } = renderHook(() => useThrottle(cb, 100))
+      act(() => { vi.advanceTimersByTime(101) })
+      act(() => { result.current('a') }) // fires
+      act(() => { vi.advanceTimersByTime(150) })
+      act(() => { result.current('b') }) // fires again
+      expect(cb).toHaveBeenCalledTimes(2)
+      expect(cb).toHaveBeenLastCalledWith('b')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('useDebounce', () => {
+  it('does not call the callback immediately', () => {
+    vi.useFakeTimers()
+    try {
+      const cb = vi.fn()
+      const { result } = renderHook(() => useDebounce(cb, 200))
+      act(() => { result.current('x') })
+      expect(cb).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('calls the callback after the delay has elapsed', () => {
+    vi.useFakeTimers()
+    try {
+      const cb = vi.fn()
+      const { result } = renderHook(() => useDebounce(cb, 200))
+      act(() => { result.current('hello') })
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(cb).toHaveBeenCalledTimes(1)
+      expect(cb).toHaveBeenCalledWith('hello')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('resets the timer on each rapid call, only fires once', () => {
+    vi.useFakeTimers()
+    try {
+      const cb = vi.fn()
+      const { result } = renderHook(() => useDebounce(cb, 200))
+      act(() => {
+        result.current('a')
+        vi.advanceTimersByTime(100)
+        result.current('b')
+        vi.advanceTimersByTime(100)
+        result.current('c')
+      })
+      // 200 ms since the last call 'c'
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(cb).toHaveBeenCalledTimes(1)
+      expect(cb).toHaveBeenCalledWith('c')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears pending timeout on unmount', () => {
+    vi.useFakeTimers()
+    try {
+      const cb = vi.fn()
+      const { result, unmount } = renderHook(() => useDebounce(cb, 300))
+      act(() => { result.current('queued') })
+      unmount()
+      act(() => { vi.advanceTimersByTime(300) })
+      // After unmount the pending call should not fire.
+      expect(cb).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
