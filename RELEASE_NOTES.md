@@ -1,5 +1,43 @@
 # TrueAI LocalAI - Release Notes
 
+## Version 3.0.0 - Consolidated Fixes & Optimizations
+
+**Release Date:** April 28, 2026
+
+### Overview
+
+A major release that consolidates every fix and optimization shipped since
+v1.0.0 into one stable build, and republishes signed-ready APK artifacts
+through the automated release pipeline.
+
+### What's Included
+
+- All ResourceLoader / preload / performance hook fixes from v1.0.2
+  (deterministic queueing, correct `as` attribute reflection, strict
+  `shouldReduceMotion` boolean, no singleton state leaks).
+- All Android connectivity & packaging improvements from v1.0.1 / v2.0.0
+  (network security config for local AI hosts, `ACCESS_NETWORK_STATE`
+  permission, dark status bar / splash, safe-area handling, restored
+  `res/values/colors.xml`).
+- Toolchain pinning: Node 24, Temurin JDK 21 in CI, Capacitor 8, Android
+  `compileSdk`/`targetSdk` 35, `minSdk` 23, Java 17 source/target.
+- Refreshed APK build via `.github/workflows/release.yml`, producing both
+  debug and unsigned-release APKs as GitHub Release assets.
+
+### Versioning
+
+- `package.json`: `1.0.2` → `3.0.0`
+- Android `versionCode`: `3` → `4`
+- Android `versionName`: `1.0.2` → `3.0.0`
+
+### How to Publish
+
+Push an annotated `v3.0.0` tag (or run the *Create Release with APK*
+workflow via `workflow_dispatch` with version `v3.0.0`). The workflow
+builds the APKs and creates the GitHub Release automatically.
+
+---
+
 ## Version 1.0.1 - Android Connectivity Fix
 
 **Release Date:** April 27, 2026

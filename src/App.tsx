@@ -163,7 +163,13 @@ const TabErrorBoundary = ({ children, tabName }: { children: React.ReactNode; ta
 
   return (
     <ErrorBoundary
-      FallbackComponent={(props) => <ErrorFallback {...props} componentName={tabName} />}
+      FallbackComponent={({ error, resetErrorBoundary }) => (
+        <ErrorFallback
+          error={error instanceof Error ? error : undefined}
+          resetErrorBoundary={resetErrorBoundary}
+          componentName={tabName}
+        />
+      )}
       onError={handleError}
       onReset={handleReset}
       resetKeys={[tabName]}

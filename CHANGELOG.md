@@ -1,5 +1,67 @@
 # Changelog - TrueAI LocalAI
 
+## Version 3.0.0 - Consolidated Fixes & Optimizations (2026-04-28)
+
+This is a major release that rolls up all fixes and optimizations shipped
+since v1.0.0 into a single, stable build, plus the test/runtime fixes from
+the v1.0.x line and the Android packaging changes from v2.0.0.
+
+### 🚀 Highlights
+
+- **APK packaging.** Both `TrueAI-LocalAI-debug.apk` and
+  `TrueAI-LocalAI-release-unsigned.apk` are produced and attached to the
+  GitHub Release by the `Create Release with APK` workflow on tag push.
+- **Versioning.** `package.json` bumped `1.0.2` → `3.0.0`. Android
+  `versionCode` bumped `3` → `4` and `versionName` bumped `1.0.2` → `3.0.0`
+  so the new APK installs cleanly as an update over any prior release.
+
+### 🐛 Bug Fixes (carried forward from v1.0.x)
+
+- `ResourceLoader.addTask()` no longer drains the queue synchronously;
+  `getQueueSize()` now reflects the queued state and the worker loop chains
+  task completions via `.finally()` instead of a 10ms `setTimeout` poll.
+- `ResourceLoader.clear()` now also resets `scheduled` and `activeCount`,
+  fixing a singleton-state leak between sessions/tests.
+- `preloadFont()` / `preloadCriticalResources()` set the `as` attribute via
+  `setAttribute('as', …)` so it is reflected in the DOM (fixes JSDOM and any
+  consumer using `link[as="…"]` selectors).
+- `useAutoPerformanceOptimization().shouldReduceMotion` now always returns a
+  strict `boolean`.
+
+### 📱 Android Fixes & Optimizations (carried forward from v1.0.1 / v2.0.0)
+
+- **Local AI servers reachable.** Ships an explicit
+  `network_security_config.xml` that allowlists cleartext HTTP only for
+  known local hosts (`localhost`, `127.0.0.1`, `10.0.2.2`, `10.0.3.2`,
+  `*.local`). Public internet remains HTTPS-only; HTTPS validation against
+  system CAs is unchanged. Debug builds additionally trust user-installed
+  CA certs.
+- **`ACCESS_NETWORK_STATE` permission** added for accurate online/offline
+  detection.
+- **Native chrome polish.** Status-bar / theme color matches the dark app
+  theme, splash screen no longer flashes white before the dark UI paints,
+  and content respects notch / cutout safe-areas on modern Android devices.
+- **Build robustness.** Restored the missing `res/values/colors.xml` so
+  direct Gradle / Android Studio builds no longer fail.
+- **Toolchain.** Android Java compatibility pinned via
+  `rootProject.ext.javaVersion = JavaVersion.VERSION_17`; CI builds with
+  Temurin JDK 21 (required by Capacitor 8); Node 24 pinned via `.nvmrc`.
+
+### ✅ Tests
+
+- Full unit test suite (Vitest, jsdom) is green.
+
+### 📦 Release Artifacts
+
+Tagging `v3.0.0` triggers `.github/workflows/release.yml`, which:
+
+1. Installs Node 24 + Temurin JDK 21.
+2. Runs `npm ci` and `npm run build`.
+3. Syncs Capacitor and runs `./gradlew assembleDebug assembleRelease`.
+4. Publishes a GitHub Release with:
+   - `TrueAI-LocalAI-debug.apk`
+   - `TrueAI-LocalAI-release-unsigned.apk`
+
 ## Version 1.0.2 - Test & Resource Loader Fixes (2026-04)
 
 ### 🐛 Bug Fixes
