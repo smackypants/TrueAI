@@ -1,5 +1,76 @@
 # Changelog - TrueAI LocalAI
 
+## Version 5.1.0 - Post-v5.0.0 fixes & UI integration polish (2026-04-28)
+
+Consolidates every fix landed after the v5.0.0 cut so the released
+APK actually carries them. No breaking changes; safe in-place update
+over v5.0.0.
+
+### 🐛 Bug Fixes
+
+- **Active tab now persists across reloads with a validated guard.**
+  `activeTab` is stored via `useKV<string>('active-tab', DEFAULT_TAB)`
+  and validated against the known `TabName` set on read, so renamed
+  or removed tabs fall back to the default cleanly instead of
+  rendering an empty/invalid panel.
+- **Rapid tab switches no longer get blocked.** The previous
+  `useMemo`/throttle around the active-tab guard was dropped per
+  review; switching is now instantaneous.
+- **Builder is reachable from the mobile bottom nav.** The Android
+  bottom navigation was missing the App Builder entry — added so
+  phone users can reach it without opening the side menu.
+- **UI aspect-ratio compatibility on Android phones (PR #28).** Layout
+  no longer overflows or crops on common phone aspect ratios; safe-area
+  insets, tab bar, and main content all reflow correctly across narrow
+  and tall viewports.
+- **Strict-typecheck errors in `diagnostics` resolved.** Pre-existing
+  `tsc --strict` warnings cleaned up so `npm run build` (which runs
+  `tsc -b`) is warning-free.
+
+### 🔧 Build / CI / Tooling
+
+- **`package-lock.json` regenerated.** The lockfile had drifted out of
+  sync with `package.json` (`brace-expansion@2.0.2` vs `5.0.5`,
+  `qs@6.14.2` vs `6.15.1`), causing `npm ci` — and therefore every
+  Android CI workflow — to fail. Lockfile is now clean: `npm ci`
+  succeeds with **0 vulnerabilities**.
+- **Capacitor sync verified.** `npx cap sync android` runs cleanly on
+  Node 24 and produces no source-tree diffs (web assets land in the
+  gitignored `android/app/src/main/assets/public/`, repopulated on
+  every CI build).
+- **Android workflows confirmed consistent.** `android.yml`,
+  `build-android.yml`, and `release.yml` all use Node 24, Temurin
+  JDK 21, and `android-actions/setup-android@v3`. `release.yml`
+  attaches both `TrueAI-LocalAI-debug.apk` and
+  `TrueAI-LocalAI-release-unsigned.apk` to the GitHub Release on any
+  `v*` tag push.
+
+### 📦 Versioning
+
+- `package.json`: `5.0.0` → `5.1.0`
+- `package-lock.json` root: synced to `5.1.0`
+- Android `versionName`: `5.0.0` → `5.1.0`
+- Android `versionCode`: `6` → `7` (so the new APK installs cleanly
+  as an update over v5.0.0)
+
+### ✅ Verified
+
+- `npm ci` — clean, 0 vulnerabilities
+- `npm run lint` — 0 errors, 0 warnings
+- `npm test` — **172 / 172 passing** (12 test files)
+- `npm run build` — succeeds (`tsc -b && vite build`)
+- `npx cap sync android` — clean
+
+### 📦 Publishing
+
+Push the `v5.1.0` tag (or run *Create Release with APK* via
+`workflow_dispatch` with version `v5.1.0`) to trigger
+`.github/workflows/release.yml`, which builds and attaches both
+`TrueAI-LocalAI-debug.apk` and `TrueAI-LocalAI-release-unsigned.apk`
+to the GitHub Release.
+
+---
+
 ## Version 5.0.0 - Release republish (2026-04-28)
 
 A version-only release that republishes the v4.0.0 codebase under a new

@@ -1,5 +1,55 @@
 # TrueAI LocalAI - Release Notes
 
+## Version 5.1.0 - Post-v5.0.0 fixes & Android UI integration
+
+**Release Date:** April 28, 2026
+
+### Overview
+
+Consolidates every fix landed after the v5.0.0 cut so the released
+APK actually carries them. No breaking changes; safe in-place update
+over v5.0.0.
+
+### Highlights
+
+- Active tab persists across reloads, with a validated `TabName` guard
+  so renamed/removed tabs fall back to the default cleanly.
+- Rapid tab switching is no longer throttled — switches are
+  instantaneous.
+- App **Builder** is now reachable from the Android mobile bottom
+  navigation.
+- UI aspect-ratio compatibility for common Android phone viewports
+  (PR #28): no overflow or crop, safe-area insets honored.
+- Strict-typecheck warnings in `diagnostics` cleaned up.
+- `package-lock.json` regenerated to fix `npm ci` drift that was
+  breaking every Android CI workflow.
+- Android workflows verified: Node 24 + Temurin JDK 21 + Android SDK
+  on `android.yml`, `build-android.yml`, and `release.yml`.
+
+### Versioning
+
+- `package.json`: `5.0.0` → `5.1.0`
+- `package-lock.json` root: synced to `5.1.0`
+- Android `versionCode`: `6` → `7`
+- Android `versionName`: `5.0.0` → `5.1.0`
+
+### Verification
+
+- `npm ci` — clean, 0 vulnerabilities
+- `npm run lint` — 0 errors, 0 warnings
+- `npm test` — 172 / 172 passing
+- `npm run build` — succeeds
+- `npx cap sync android` — clean
+
+### How to Publish
+
+Push an annotated `v5.1.0` tag (or run *Create Release with APK* via
+`workflow_dispatch` with version `v5.1.0`). The release workflow
+builds and attaches both `TrueAI-LocalAI-debug.apk` and
+`TrueAI-LocalAI-release-unsigned.apk` to the GitHub Release.
+
+---
+
 ## Version 5.0.0 - Release Republish
 
 **Release Date:** April 28, 2026

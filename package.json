@@ -1,7 +1,7 @@
 {
     "name": "spark-template",
     "private": true,
-    "version": "5.0.0",
+    "version": "5.1.0",
     "type": "module",
     "engines": {
         "node": ">=24.0.0"
@@ -10,6 +10,7 @@
         "dev": "vite",
         "kill": "fuser -k 5000/tcp",
         "build": "tsc -b && vite build",
+        "build:dev": "tsc -b && vite build --mode development",
         "lint": "eslint .",
         "optimize": "vite optimize",
         "preview": "vite preview",

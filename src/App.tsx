@@ -368,13 +368,7 @@ function App() {
   const tabPreloader = useTabPreloader(tabOrder, activeTab, handlePreloadTab)
 
   const handleTabChange = useCallback((newTab: string) => {
-    contextualUI.trackFeatureUsage(newTab)
-    contextualUI.trackTimeOfDay(newTab)
-    dynamicUI.trackTabUsage(newTab)
-
-    // Mark a brief "switching" window for any UI that depends on it, but do
-    // NOT use it to block the tab change itself — blocking caused rapid taps
-    // to be silently dropped, which presented as "tab content doesn't render".
+    // Switch the active tab synchronously so the click feels instant.
     setIsTabSwitching(true)
     startTransition(() => {
       setActiveTab(newTab)
@@ -382,6 +376,28 @@ function App() {
     setTimeout(() => {
       setIsTabSwitching(false)
     }, 150)
+
+    // Defer behavior-tracking (3 useKV-backed writes that hit the network)
+    // out of the click path so it never blocks the tab switch. Falls back to
+    // setTimeout where requestIdleCallback isn't available (Safari/WebView).
+    const runTrackers = () => {
+      try {
+        contextualUI.trackFeatureUsage(newTab)
+        contextualUI.trackTimeOfDay(newTab)
+        dynamicUI.trackTabUsage(newTab)
+      } catch {
+        // Tracking is best-effort; never fail a tab switch on an analytics error.
+      }
+    }
+    type IdleWindow = Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => void
+    }
+    const w = window as IdleWindow
+    if (typeof w.requestIdleCallback === 'function') {
+      w.requestIdleCallback(runTrackers, { timeout: 1000 })
+    } else {
+      setTimeout(runTrackers, 0)
+    }
   }, [contextualUI, dynamicUI, setActiveTab])
 
   const navigateToTab = useCallback((direction: 'left' | 'right') => {

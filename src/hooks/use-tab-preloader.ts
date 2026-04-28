@@ -47,25 +47,33 @@ export function useTabPreloader(
     })
   }, [setMetrics])
 
-  const preloadTab = useCallback(async (tabName: string, priority: 'high' | 'low' = 'low') => {
-    if (preloadQueue.current?.has(tabName) || isPreloading.current) {
+  // The `priority` parameter is preserved to keep the public hook API stable
+  // for external callers (e.g., handleTabHover passes 'high'). Internally
+  // every call now executes — concurrency is allowed so adjacent tabs can
+  // preload in parallel — so the value itself is no longer consulted here.
+  const preloadTab = useCallback(async (tabName: string, _priority: 'high' | 'low' = 'low') => {
+    // Skip if this exact tab is already being preloaded; otherwise allow
+    // concurrent dynamic imports so adjacent tabs (left + right) can be
+    // prefetched in parallel. Previously this was gated on
+    // `isPreloading.current`, which silently dropped the second adjacent tab
+    // and left rapid back/forward navigation cold.
+    if (preloadQueue.current?.has(tabName)) {
       return
     }
 
     preloadQueue.current?.add(tabName)
+    isPreloading.current = true
+    const startTime = performance.now()
 
-    if (priority === 'high' || !isPreloading.current) {
-      isPreloading.current = true
-      const startTime = performance.now()
-
-      try {
-        await onPreload(tabName)
-        const loadTime = performance.now() - startTime
-        recordMetric(tabName, { loadTime })
-      } catch (error) {
-        console.warn(`[TabPreloader] Failed to preload ${tabName}:`, error)
-      } finally {
-        preloadQueue.current?.delete(tabName)
+    try {
+      await onPreload(tabName)
+      const loadTime = performance.now() - startTime
+      recordMetric(tabName, { loadTime })
+    } catch (error) {
+      console.warn(`[TabPreloader] Failed to preload ${tabName}:`, error)
+    } finally {
+      preloadQueue.current?.delete(tabName)
+      if (preloadQueue.current?.size === 0) {
         isPreloading.current = false
       }
     }

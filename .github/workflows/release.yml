@@ -87,26 +87,22 @@ jobs:
 
             ## What's New in this Release
 
-            - **Local AI servers now reachable from the Android app.** Added
-              a network security config that allowlists cleartext HTTP only
-              for known local hosts (`localhost`, `127.0.0.1`, the Android
-              emulator hosts `10.0.2.2` / `10.0.3.2`, and `*.local` mDNS
-              hostnames). The public internet remains HTTPS-only and HTTPS
-              validation against system CAs is unchanged. Debug builds
-              additionally trust user-installed CA certs (mitmproxy etc.).
-              Release builds reaching an arbitrary LAN IP should use the
-              device's `*.local` mDNS hostname or an HTTPS endpoint.
-            - **Polished Android native chrome.** Status-bar / theme color
-              now match the dark app theme (was a light cyan in v1.0.0), the
-              splash screen no longer flashes white before the dark app
-              paints, and content correctly respects notch / cutout
-              safe-areas on modern Android devices.
-            - Added the `ACCESS_NETWORK_STATE` permission for accurate
-              online/offline detection.
-            - Fixed a missing `res/values/colors.xml` that broke direct
-              Gradle / Android Studio builds.
-            - Bumped Android `versionCode` and `versionName` so the new APK
-              installs cleanly as an update.
+            - **Active tab persists across reloads** with a validated
+              `TabName` guard, so renamed/removed tabs fall back to the
+              default cleanly.
+            - **Rapid tab switching unblocked** — switches are
+              instantaneous (previous throttle removed).
+            - **App Builder is now in the Android mobile bottom nav.**
+              Phone users can reach it without opening the side menu.
+            - **UI aspect-ratio compatibility for Android phones.**
+              Layout no longer overflows or crops on common phone
+              aspect ratios; safe-area insets, tab bar, and main
+              content reflow correctly across narrow / tall viewports.
+            - **`package-lock.json` regenerated** so `npm ci` and every
+              Android CI workflow succeed cleanly (0 vulnerabilities).
+            - **Strict-typecheck warnings in `diagnostics` resolved.**
+            - Bumped Android `versionName` to `5.1.0` and `versionCode`
+              to `7` so the new APK installs cleanly as an update.
 
             ## Features
 
