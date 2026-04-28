@@ -5,9 +5,10 @@
  * so callers can show success/failure toasts uniformly.
  */
 
+import type { ClipboardPlugin } from '@capacitor/clipboard'
 import { isNative } from './platform'
 
-let Clipboard: any = null
+let Clipboard: ClipboardPlugin | null = null
 let capacitorAvailable = false
 
 try {

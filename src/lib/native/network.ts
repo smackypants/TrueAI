@@ -8,9 +8,10 @@
  * window events.
  */
 
+import type { NetworkPlugin } from '@capacitor/network'
 import { isNative } from './platform'
 
-let Network: any = null
+let Network: NetworkPlugin | null = null
 let capacitorAvailable = false
 
 try {

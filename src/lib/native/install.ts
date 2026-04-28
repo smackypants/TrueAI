@@ -8,14 +8,17 @@
  * native plugin must never block app startup.
  */
 
+import type { StatusBarPlugin } from '@capacitor/status-bar'
+import type { SplashScreenPlugin } from '@capacitor/splash-screen'
+import type { KeyboardPlugin } from '@capacitor/keyboard'
 import { isNative } from './platform'
 import { initAppLifecycle } from './app-lifecycle'
 
-let StatusBar: any = null
-let Style: any = null
-let SplashScreen: any = null
-let Keyboard: any = null
-let KeyboardResize: any = null
+let StatusBar: StatusBarPlugin | null = null
+let Style: typeof import('@capacitor/status-bar').Style | null = null
+let SplashScreen: SplashScreenPlugin | null = null
+let Keyboard: KeyboardPlugin | null = null
+let KeyboardResize: typeof import('@capacitor/keyboard').KeyboardResize | null = null
 
 try {
   const statusBarModule = await import('@capacitor/status-bar')
