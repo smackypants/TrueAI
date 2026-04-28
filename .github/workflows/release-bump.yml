@@ -48,7 +48,7 @@ jobs:
       version_code: ${{ steps.bump_gradle.outputs.version_code }}
     steps:
       - name: Checkout (full history needed to push a tag)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           persist-credentials: true
