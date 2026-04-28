@@ -192,10 +192,7 @@ function App() {
   // unknown stored value can't leave the Tabs component with no matching
   // panel (which would render as "no tab content").
   const [persistedActiveTab, setPersistedActiveTab] = useKV<string>('active-tab', DEFAULT_TAB)
-  const activeTab = useMemo<TabName>(
-    () => (isTabName(persistedActiveTab) ? persistedActiveTab : DEFAULT_TAB),
-    [persistedActiveTab]
-  )
+  const activeTab: TabName = isTabName(persistedActiveTab) ? persistedActiveTab : DEFAULT_TAB
   const setActiveTab = setPersistedActiveTab
   const performanceOptimization = useAutoPerformanceOptimization()
   const dynamicUI = useDynamicUI()
