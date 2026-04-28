@@ -145,6 +145,163 @@ describe('AgentToolExecutor', () => {
     })
   })
 
+  describe('web_search', () => {
+    it('fails-closed in the local-first runtime', async () => {
+      const result = await executor.executeTool('web_search', 'AI agents')
+      expect(result.success).toBe(false)
+      expect(result.output).toMatch(/unavailable/i)
+      expect(result.metadata?.reason).toBe('no-provider')
+    })
+  })
+
+  describe('image_generator', () => {
+    it('fails-closed in the local-first runtime', async () => {
+      const result = await executor.executeTool('image_generator', 'a sunset')
+      expect(result.success).toBe(false)
+      expect(result.output).toMatch(/unavailable/i)
+      expect(result.metadata?.reason).toBe('no-provider')
+    })
+  })
+
+  describe('translator', () => {
+    it('rejects malformed input', async () => {
+      const result = await executor.executeTool('translator', 'no separator here')
+      expect(result.success).toBe(false)
+      expect(result.output).toMatch(/Format/)
+    })
+
+    it('fails-closed for valid input in the local-first runtime', async () => {
+      const result = await executor.executeTool('translator', 'hello | es')
+      expect(result.success).toBe(false)
+      expect(result.output).toMatch(/unavailable/i)
+      expect(result.metadata?.reason).toBe('no-provider')
+    })
+  })
+
+  describe('file_reader', () => {
+    it('rejects empty input', async () => {
+      const result = await executor.executeTool('file_reader', '   ')
+      expect(result.success).toBe(false)
+      expect(result.output).toMatch(/empty path/)
+    })
+
+    it('rejects parent-dir traversal', async () => {
+      const result = await executor.executeTool('file_reader', '../etc/passwd')
+      expect(result.success).toBe(false)
+      expect(result.output).toMatch(/relative.*sandbox/)
+    })
+
+    it('rejects absolute paths', async () => {
+      const result = await executor.executeTool('file_reader', '/etc/hosts')
+      expect(result.success).toBe(false)
+      expect(result.output).toMatch(/relative.*sandbox/)
+    })
+
+    it('reads via fetch on web for a relative path', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: () => Promise.resolve('hello world'),
+      } as unknown as Response)
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = fetchMock as unknown as typeof fetch
+      try {
+        const result = await executor.executeTool('file_reader', 'data/sample.txt')
+        expect(result.success).toBe(true)
+        expect(result.output).toBe('hello world')
+        expect(result.metadata?.source).toBe('fetch')
+        expect(fetchMock).toHaveBeenCalledWith('/data/sample.txt')
+      } finally {
+        globalThis.fetch = originalFetch
+      }
+    })
+
+    it('reports non-2xx fetch responses', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        text: () => Promise.resolve(''),
+      } as unknown as Response)
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = fetchMock as unknown as typeof fetch
+      try {
+        const result = await executor.executeTool('file_reader', 'missing.txt')
+        expect(result.success).toBe(false)
+        expect(result.output).toContain('404')
+      } finally {
+        globalThis.fetch = originalFetch
+      }
+    })
+  })
+
+  describe('api_caller', () => {
+    it('rejects empty input', async () => {
+      const result = await executor.executeTool('api_caller', '   ')
+      expect(result.success).toBe(false)
+      expect(result.output).toMatch(/empty input/)
+    })
+
+    it('rejects invalid URLs', async () => {
+      const result = await executor.executeTool('api_caller', 'not a url')
+      expect(result.success).toBe(false)
+      expect(result.output).toMatch(/invalid URL/)
+    })
+
+    it('rejects non-https schemes (SSRF guard)', async () => {
+      const result = await executor.executeTool('api_caller', 'http://localhost:8080/admin')
+      expect(result.success).toBe(false)
+      expect(result.output).toMatch(/only https/)
+    })
+
+    it('issues a real GET and reports status', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: () => Promise.resolve('{"ok":true}'),
+      } as unknown as Response)
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = fetchMock as unknown as typeof fetch
+      try {
+        const result = await executor.executeTool('api_caller', 'https://example.com/api/x')
+        expect(result.success).toBe(true)
+        expect(result.metadata?.method).toBe('GET')
+        expect(result.metadata?.status).toBe(200)
+        expect(result.output).toContain('200 OK')
+        expect(result.output).toContain('{"ok":true}')
+      } finally {
+        globalThis.fetch = originalFetch
+      }
+    })
+
+    it('parses POST <url> | <body> and forwards the body', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 201,
+        statusText: 'Created',
+        text: () => Promise.resolve(''),
+      } as unknown as Response)
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = fetchMock as unknown as typeof fetch
+      try {
+        const result = await executor.executeTool(
+          'api_caller',
+          'POST https://example.com/api/items | {"name":"x"}',
+        )
+        expect(result.success).toBe(true)
+        expect(result.metadata?.method).toBe('POST')
+        const callArgs = fetchMock.mock.calls[0]
+        expect(callArgs[0]).toBe('https://example.com/api/items')
+        expect((callArgs[1] as RequestInit).method).toBe('POST')
+        expect((callArgs[1] as RequestInit).body).toBe('{"name":"x"}')
+      } finally {
+        globalThis.fetch = originalFetch
+      }
+    })
+  })
+
   describe('code_interpreter', () => {
     it('is disabled for security', async () => {
       const result = await executor.executeTool('code_interpreter', 'console.log(1)')

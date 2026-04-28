@@ -1,10 +1,22 @@
 import type { AgentTool } from './types'
+import { isNative } from './native/platform'
 
 export interface ToolResult {
   success: boolean
   output: string
   error?: string
   metadata?: Record<string, unknown>
+}
+
+/** Hard cap on bytes returned by file_reader / api_caller so a runaway
+ *  read can't blow up the agent transcript or LLM context. */
+const MAX_TOOL_OUTPUT_BYTES = 16 * 1024
+/** AbortController timeout for api_caller. */
+const API_CALLER_TIMEOUT_MS = 15_000
+
+function truncateForOutput(text: string): { text: string; truncated: boolean } {
+  if (text.length <= MAX_TOOL_OUTPUT_BYTES) return { text, truncated: false }
+  return { text: text.slice(0, MAX_TOOL_OUTPUT_BYTES), truncated: true }
 }
 
 export class AgentToolExecutor {
@@ -171,17 +183,17 @@ export class AgentToolExecutor {
   }
 
   private executeWebSearch(input: string): ToolResult {
+    // Web search requires a third-party search provider, which the
+    // local-first invariant of this app forbids (see LEARNINGS.md and
+    // copilot-instructions.md → "Local-first invariants"). Returning
+    // fabricated results pretending to be search hits is misleading;
+    // failing honestly lets the agent loop downgrade gracefully.
     const query = input.trim()
-    const simulatedResults = [
-      `Found information about "${query}" in recent documentation`,
-      `Top result: "${query}" refers to modern AI capabilities`,
-      `Related topics: machine learning, neural networks, automation`
-    ]
-
     return {
-      success: true,
-      output: simulatedResults.join('\n'),
-      metadata: { query, resultsCount: simulatedResults.length }
+      success: false,
+      output:
+        'web_search is unavailable: no search provider is configured in the local-first runtime.',
+      metadata: { query, reason: 'no-provider' },
     }
   }
 
@@ -194,11 +206,76 @@ export class AgentToolExecutor {
     }
   }
 
-  private executeFileReader(input: string): ToolResult {
-    return {
-      success: true,
-      output: `Simulated file read from: ${input}. Content: Sample data from file.`,
-      metadata: { filename: input, size: 1024 }
+  private async executeFileReader(input: string): Promise<ToolResult> {
+    const target = input.trim()
+    if (!target) {
+      return { success: false, output: 'file_reader: empty path' }
+    }
+    // Reject parent-directory traversal and absolute system paths to
+    // avoid letting an LLM-driven agent wander outside the app sandbox.
+    if (target.includes('..') || target.startsWith('/')) {
+      return {
+        success: false,
+        output: 'file_reader: path must be relative and inside the app sandbox',
+      }
+    }
+
+    try {
+      if (isNative()) {
+        // Lazy-import the Capacitor plugin so this module stays usable
+        // in tests / non-native builds where the plugin isn't wired.
+        const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem')
+        const result = await Filesystem.readFile({
+          path: target,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+        })
+        const raw = typeof result.data === 'string' ? result.data : ''
+        const { text, truncated } = truncateForOutput(raw)
+        return {
+          success: true,
+          output: text,
+          metadata: {
+            filename: target,
+            size: raw.length,
+            source: 'capacitor-filesystem',
+            truncated,
+          },
+        }
+      }
+
+      // Web fallback: relative paths are served from the public dir.
+      // The startsWith('/') guard above already rejected absolute paths,
+      // so we always need to prepend a leading slash here.
+      if (typeof fetch === 'undefined') {
+        return { success: false, output: 'file_reader: fetch is unavailable in this environment' }
+      }
+      const url = `/${target}`
+      const res = await fetch(url)
+      if (!res.ok) {
+        return {
+          success: false,
+          output: `file_reader: ${res.status} ${res.statusText}`,
+          metadata: { filename: target, status: res.status },
+        }
+      }
+      const raw = await res.text()
+      const { text, truncated } = truncateForOutput(raw)
+      return {
+        success: true,
+        output: text,
+        metadata: {
+          filename: target,
+          size: raw.length,
+          source: 'fetch',
+          truncated,
+        },
+      }
+    } catch (err) {
+      return {
+        success: false,
+        output: `file_reader failed: ${err instanceof Error ? err.message : String(err)}`,
+      }
     }
   }
 
@@ -221,10 +298,90 @@ export class AgentToolExecutor {
   }
 
   private async executeApiCaller(input: string): Promise<ToolResult> {
-    return {
-      success: true,
-      output: `API call to ${input} completed. Status: 200. Response: {"status": "success"}`,
-      metadata: { url: input, status: 200, responseTime: 120 }
+    // Input formats accepted:
+    //   "<url>"
+    //   "GET <url>"
+    //   "POST <url> | <json-body>"
+    const trimmed = input.trim()
+    if (!trimmed) return { success: false, output: 'api_caller: empty input' }
+
+    let method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET'
+    let urlPart = trimmed
+    let body: string | undefined
+
+    const methodMatch = /^(GET|POST|PUT|DELETE|PATCH)\s+(.+)$/i.exec(trimmed)
+    if (methodMatch) {
+      method = methodMatch[1].toUpperCase() as typeof method
+      urlPart = methodMatch[2]
+    }
+
+    const pipeIdx = urlPart.indexOf('|')
+    if (pipeIdx >= 0) {
+      body = urlPart.slice(pipeIdx + 1).trim()
+      urlPart = urlPart.slice(0, pipeIdx).trim()
+    }
+
+    let parsed: URL
+    try {
+      parsed = new URL(urlPart)
+    } catch {
+      return { success: false, output: `api_caller: invalid URL "${urlPart}"` }
+    }
+    // Restrict to https:// to prevent SSRF-flavoured access to local
+    // services (file://, http://localhost, capacitor:// internal urls,
+    // etc.). The agent runtime is local-first, but the API caller
+    // explicitly hits the network, so https-only is the safe default.
+    if (parsed.protocol !== 'https:') {
+      return {
+        success: false,
+        output: `api_caller: only https:// URLs are allowed (got ${parsed.protocol})`,
+      }
+    }
+
+    const start = Date.now()
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+    const timer = controller
+      ? setTimeout(() => controller.abort(), API_CALLER_TIMEOUT_MS)
+      : null
+
+    try {
+      if (typeof fetch === 'undefined') {
+        return { success: false, output: 'api_caller: fetch is unavailable in this environment' }
+      }
+      const init: RequestInit = {
+        method,
+        headers: body ? { 'content-type': 'application/json' } : undefined,
+        body: body && method !== 'GET' && method !== 'DELETE' ? body : undefined,
+        signal: controller?.signal,
+      }
+      const res = await fetch(parsed.toString(), init)
+      const text = await res.text()
+      const { text: truncatedText, truncated } = truncateForOutput(text)
+      const duration = Date.now() - start
+      return {
+        success: res.ok,
+        output: `${method} ${parsed.toString()} → ${res.status} ${res.statusText}\n${truncatedText}`,
+        metadata: {
+          url: parsed.toString(),
+          method,
+          status: res.status,
+          ok: res.ok,
+          responseTime: duration,
+          truncated,
+        },
+      }
+    } catch (err) {
+      const duration = Date.now() - start
+      const aborted = err instanceof Error && err.name === 'AbortError'
+      return {
+        success: false,
+        output: aborted
+          ? `api_caller: request timed out after ${API_CALLER_TIMEOUT_MS}ms`
+          : `api_caller failed: ${err instanceof Error ? err.message : String(err)}`,
+        metadata: { url: parsed.toString(), method, responseTime: duration, aborted },
+      }
+    } finally {
+      if (timer) clearTimeout(timer)
     }
   }
 
@@ -263,10 +420,14 @@ export class AgentToolExecutor {
   }
 
   private executeImageGenerator(input: string): ToolResult {
+    // Image generation requires a hosted model that this local-first
+    // runtime doesn't ship. Fail honestly rather than fabricate a URL
+    // that points nowhere.
     return {
-      success: true,
-      output: `Generated image with prompt: "${input}". Image URL: /generated-images/img-${Date.now()}.png`,
-      metadata: { prompt: input, format: 'png', dimensions: '512x512' }
+      success: false,
+      output:
+        'image_generator is unavailable: no image-generation provider is configured in the local-first runtime.',
+      metadata: { prompt: input, reason: 'no-provider' },
     }
   }
 
@@ -329,10 +490,14 @@ export class AgentToolExecutor {
 
     const [text, targetLang] = parts
 
+    // Honest failure: there is no offline translation model in this
+    // runtime. Returning a fake "[Simulated translation of ...]"
+    // string would mislead downstream agent steps.
     return {
-      success: true,
-      output: `Translated to ${targetLang}: [Simulated translation of "${text}"]`,
-      metadata: { sourceLang: 'auto', targetLang, textLength: text.length }
+      success: false,
+      output:
+        'translator is unavailable: no translation provider is configured in the local-first runtime.',
+      metadata: { sourceLang: 'auto', targetLang, textLength: text.length, reason: 'no-provider' },
     }
   }
 

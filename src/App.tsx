@@ -57,9 +57,10 @@ import { emptyStateChat, emptyStateAgents, emptyStateWorkflow } from '@/assets/i
 import { analytics } from '@/lib/analytics'
 import { defaultProfilesByTaskType } from '@/lib/performance-profiles'
 import type { Message, Conversation, Agent, AgentRun, AgentTool, ModelConfig, FineTuningDataset, FineTuningJob, QuantizationJob, HarnessManifest, HuggingFaceModel, GGUFModel, PerformanceProfile, TaskType, AppSettings, AgentFeedback, AgentLearningMetrics, LearningInsight, AgentVersion, LearningSession } from '@/lib/types'
-import type { Workflow, WorkflowTemplate, CostEntry, Budget } from '@/lib/workflow-types'
+import type { Workflow, WorkflowTemplate, WorkflowExecution, CostEntry, Budget } from '@/lib/workflow-types'
 import { AgentLearningEngine } from '@/lib/agent-learning'
 import { toolExecutor } from '@/lib/agent-tools'
+import { runWorkflow, type WorkflowRunStep } from '@/lib/workflow-runtime'
 import { PrefetchManager } from '@/components/PrefetchManager'
 import { PrefetchStatusIndicator } from '@/components/PrefetchIndicator'
 
@@ -226,6 +227,7 @@ function App() {
   const [agentVersions, setAgentVersions] = useKV<AgentVersion[]>('agent-versions', [])
   const [_learningSessions, setLearningSessions] = useKV<LearningSession[]>('learning-sessions', [])
   const [workflows, setWorkflows] = useKV<Workflow[]>('workflows', [])
+  const [_workflowExecutions, setWorkflowExecutions] = useKV<WorkflowExecution[]>('workflow-executions', [])
   const [costEntries, setCostEntries] = useKV<CostEntry[]>('cost-entries', [])
   const [budgets, setBudgets] = useKV<Budget[]>('budgets', [])
   
@@ -733,12 +735,11 @@ Describe what input you would give to the ${tool} tool (one sentence).`
         tokensIn += Math.ceil(toolPrompt.length / 4)
         tokensOut += Math.ceil(toolInput.length / 4)
 
-        // Execute the tool through the real AgentToolExecutor instead of
-        // hardcoding outputs. Tools that require external services (e.g.
-        // web_search, image_generator, translator) return clearly-labelled
-        // simulated output from agent-tools.ts; others (calculator, datetime,
-        // memory, json_parser, data_analyzer, sentiment_analyzer, summarizer,
-        // validator, file_reader, api_caller) execute real logic.
+        // Execute the tool through the real AgentToolExecutor. Tools that
+        // require a third-party provider (web_search, image_generator,
+        // translator) honestly fail-closed in this local-first runtime;
+        // file_reader and api_caller perform real I/O; the rest run
+        // pure-JS logic. See src/lib/agent-tools.ts.
         const toolStart = Date.now()
         const toolResult = await toolExecutor.executeTool(tool, toolInput)
         const toolDuration = Date.now() - toolStart
@@ -1353,12 +1354,101 @@ Describe what input you would give to the ${tool} tool (one sentence).`
       return
     }
 
+    const startTime = Date.now()
+    const executionId = `wfexec-${startTime}-${Math.random().toString(36).slice(2, 8)}`
+    const initialExecution: WorkflowExecution = {
+      id: executionId,
+      workflowId: workflow.id,
+      startedAt: startTime,
+      status: 'running',
+      results: {},
+    }
+    setWorkflowExecutions(prev => [initialExecution, ...(prev || [])])
+
     toast.info(`Executing workflow: ${workflow.name}`)
     analytics.track('workflow_executed', 'workflow', 'execute_workflow', {
       label: workflow.name,
-      metadata: { workflowId: id }
+      metadata: { workflowId: id, executionId }
     })
-  }, [workflows])
+
+    try {
+      // Resolve `agent` workflow nodes against the user's saved agents.
+      const resolveAgent = (agentId: string) => {
+        const a = agents?.find(x => x.id === agentId)
+        if (!a) return undefined
+        return { id: a.id, name: a.name, goal: a.goal, systemPrompt: a.systemPrompt, model: a.model }
+      }
+
+      // Stream live progress into the persisted execution record so
+      // the UI can subscribe via the `workflow-executions` KV.
+      const onStep = (step: WorkflowRunStep) => {
+        setWorkflowExecutions(prev => (prev || []).map(e =>
+          e.id === executionId
+            ? { ...e, currentNodeId: step.nodeId, results: { ...e.results, [step.nodeId]: step.output } }
+            : e,
+        ))
+      }
+
+      const result = await runWorkflow(workflow, {
+        toolExecutor,
+        resolveAgent,
+        defaultModel: appSettings?.defaultTemperature !== undefined
+          ? (agents?.[0]?.model ?? 'gpt-4o-mini')
+          : 'gpt-4o-mini',
+        onStep,
+      })
+
+      // Cost tracking — tokens may be 0 if the workflow had no agent
+      // nodes, in which case trackCost still records a zero entry to
+      // make the run discoverable in the cost dashboard.
+      const primaryModel = result.modelsUsed[0] ?? 'gpt-4o-mini'
+      if (result.tokensIn > 0 || result.tokensOut > 0) {
+        trackCost(result.tokensIn, result.tokensOut, primaryModel, 'workflow', workflow.id, workflow.name)
+      }
+
+      setWorkflowExecutions(prev => (prev || []).map(e =>
+        e.id === executionId
+          ? {
+              ...e,
+              status: result.status === 'completed' ? 'completed' : 'error',
+              completedAt: Date.now(),
+              currentNodeId: undefined,
+              results: result.results,
+              error: result.error,
+            }
+          : e,
+      ))
+
+      if (result.status === 'completed') {
+        toast.success(`Workflow "${workflow.name}" completed`)
+        analytics.track('workflow_completed', 'workflow', 'complete_workflow', {
+          label: workflow.name,
+          duration: Date.now() - startTime,
+          metadata: { workflowId: id, executionId, stepsCount: result.steps.length },
+        })
+      } else {
+        toast.error(`Workflow failed: ${result.error ?? 'unknown error'}`)
+        analytics.track('workflow_failed', 'workflow', 'workflow_error', {
+          label: workflow.name,
+          duration: Date.now() - startTime,
+          metadata: { workflowId: id, executionId, error: result.error },
+        })
+      }
+    } catch (error) {
+      setWorkflowExecutions(prev => (prev || []).map(e =>
+        e.id === executionId
+          ? { ...e, status: 'error', completedAt: Date.now(), error: error instanceof Error ? error.message : String(error) }
+          : e,
+      ))
+      toast.error('Workflow execution failed')
+      console.error(error)
+      analytics.track('workflow_failed', 'workflow', 'workflow_error', {
+        label: workflow.name,
+        duration: Date.now() - startTime,
+        metadata: { workflowId: id, executionId, error: String(error) },
+      })
+    }
+  }, [workflows, agents, appSettings, setWorkflowExecutions, trackCost])
 
   const useWorkflowTemplate = useCallback((template: WorkflowTemplate) => {
     const newWorkflow: Workflow = {

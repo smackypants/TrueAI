@@ -438,6 +438,8 @@ export type AnalyticsEventType =
   | 'workflow_saved'
   | 'workflow_deleted'
   | 'workflow_executed'
+  | 'workflow_completed'
+  | 'workflow_failed'
   | 'template_used'
   | 'budget_created'
   | 'app_project_created'
