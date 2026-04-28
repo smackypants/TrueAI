@@ -45,13 +45,19 @@ globalThis.ResizeObserver = class ResizeObserver {
   unobserve() {}
 }
 
-// Mock IndexedDB
-const indexedDB = {
-  open: vi.fn(),
-  deleteDatabase: vi.fn(),
-  databases: vi.fn(),
-}
-globalThis.indexedDB = indexedDB as unknown as IDBFactory
+// IndexedDB is intentionally NOT mocked. jsdom doesn't ship a working
+// implementation, and a partial stub (e.g. `{ open: vi.fn() }` returning
+// `undefined`) caused every kv-store-touching test to log a noisy
+// `[kv-store] IndexedDB unavailable, falling back to localStorage` stack
+// trace as the kv-store tried to attach `onupgradeneeded` to an undefined
+// request. By leaving `globalThis.indexedDB` unset, the kv-store's
+// `hasIndexedDB()` check correctly returns false in tests and the
+// localStorage fallback is taken silently.
+//
+// Tests that need a working (or deliberately failing) IDB — e.g.
+// kv-store.test.ts's setSecure regression test — install their own
+// `window.indexedDB` via `Object.defineProperty` and restore it in
+// `finally`.
 
 // Mock spark global
 declare global {

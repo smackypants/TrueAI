@@ -7,6 +7,8 @@
  * itself throw and break the error UI.
  */
 
+import { copyText as nativeCopyText } from '@/lib/native/clipboard'
+
 export interface DiagnosticReport {
   appVersion: string
   timestamp: string
@@ -164,12 +166,15 @@ export function formatDiagnosticReport(report: DiagnosticReport): string {
  * Best-effort copy to clipboard. Delegates to the native Capacitor
  * Clipboard plugin on Android/iOS and to the Web Clipboard / legacy
  * execCommand on the web.
+ *
+ * `nativeCopyText` is imported statically at the top of this file:
+ * `@/lib/native/clipboard` is already statically referenced by other
+ * modules (MessageActions, ThemeSwitcher, native/index, native/share),
+ * so a dynamic import here would be ineffective for chunking (Vite warns
+ * about exactly that) without offering any test-harness benefit.
  */
 export async function copyToClipboard(text: string): Promise<boolean> {
-  // Late import so this module remains import-safe in any test harness
-  // that hasn't loaded the native layer yet.
-  const { copyText } = await import('@/lib/native/clipboard')
-  return copyText(text)
+  return nativeCopyText(text)
 }
 
 /**
