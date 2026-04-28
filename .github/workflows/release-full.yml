@@ -1,0 +1,492 @@
+name: Full APK Release
+
+# End-to-end release pipeline in a single workflow run:
+#   1. Bump version (package.json, build.gradle, CHANGELOG, fastlane changelogs)
+#   2. Build signed release APKs (play + fdroid flavors) and a signed AAB
+#   3. Create / upsert the GitHub Release and attach all APKs
+#   4. (optional) Upload the signed AAB to Google Play Store
+#   5. (optional) Publish the signed F-Droid APK to the self-hosted F-Droid repo
+#
+# Trigger: Actions → Full APK Release → Run workflow
+#
+# REQUIRED REPOSITORY / ENVIRONMENT SECRETS:
+#   release environment:
+#     ANDROID_KEYSTORE_BASE64       — base64-encoded release keystore (.jks)
+#     ANDROID_KEYSTORE_PASSWORD     — keystore password
+#     ANDROID_KEY_ALIAS             — key alias inside the keystore
+#     ANDROID_KEY_PASSWORD          — password for that alias
+#
+# OPTIONAL SECRETS (only needed when the corresponding input is enabled):
+#   play environment:
+#     PLAY_SERVICE_ACCOUNT_JSON     — Google Cloud service-account JSON with
+#                                     "Release manager" access to the Play Console
+#   fdroid environment:
+#     FDROID_REPO_KEYSTORE_BASE64   — base64-encoded F-Droid repo-index keystore
+#     FDROID_REPO_KEYSTORE_PASSWORD — repo-index keystore password
+#     FDROID_REPO_KEY_ALIAS         — repo-index key alias (usually "repo_key")
+#     FDROID_REPO_KEY_PASSWORD      — repo-index key password
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New release version, semver only (e.g. 8.0.0 — no leading "v")'
+        required: true
+      notes:
+        description: 'Short release-notes line for CHANGELOG.md and the fastlane changelog'
+        required: false
+        default: 'Maintenance release.'
+      upload_play:
+        description: 'Upload signed AAB to Google Play Store'
+        required: false
+        type: boolean
+        default: false
+      play_track:
+        description: 'Play Store release track (only used when upload_play is true)'
+        required: false
+        type: choice
+        default: 'internal'
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      play_status:
+        description: 'Play Store release status (only used when upload_play is true)'
+        required: false
+        type: choice
+        default: 'draft'
+        options:
+          - draft       # Saved on the track page; review/promote manually.
+          - completed   # Immediately starts staged rollout.
+          - inProgress
+          - halted
+      publish_fdroid:
+        description: 'Publish to self-hosted F-Droid repository on GitHub Pages'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# Only one full-release run can be in-flight at a time on any given ref.
+concurrency:
+  group: full-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ─── 1. VERSION BUMP ─────────────────────────────────────────────────────
+  # Bumps package.json, android versionCode/versionName, CHANGELOG, and
+  # fastlane changelogs; commits; creates an annotated tag vX.Y.Z; pushes both.
+  # The tag push also triggers release.yml's `on: push: tags: v*` listener,
+  # but that run is idempotent — softprops/action-gh-release upserts the
+  # GitHub Release, so duplicate runs don't cause failures.
+  bump:
+    uses: ./.github/workflows/release-bump.yml
+    permissions:
+      contents: write
+    with:
+      version: ${{ inputs.version }}
+      notes: ${{ inputs.notes }}
+
+  # ─── 2. SIGNED BUILDS + GITHUB RELEASE ───────────────────────────────────
+  # Checks out the freshly-pushed tag, builds all APK / AAB variants with
+  # the release signing key, creates/updates the GitHub Release, and uploads
+  # artifacts for consumption by the optional play and fdroid jobs.
+  build:
+    needs: bump
+    runs-on: ubuntu-latest
+    # App-signing secrets are scoped to the `release` environment. The owner
+    # can require manual approval there before any signed artifact is produced.
+    environment: release
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.bump.outputs.tag }}
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Setup Java JDK 21 (Capacitor 8 requires --release 21)
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build web bundle (production)
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          TAG="${{ needs.bump.outputs.tag }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Decode release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::Required secret ANDROID_KEYSTORE_BASE64 is missing — cannot produce signed APKs."
+            exit 1
+          fi
+          KEYSTORE_PATH="${RUNNER_TEMP}/release-signing.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Build signed release APKs (play + fdroid flavors)
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: android
+        run: ./gradlew assemblePlayRelease assembleFdroidRelease --no-daemon
+
+      - name: Build debug APK (play flavor — for reference/testing)
+        working-directory: android
+        run: ./gradlew assemblePlayDebug --no-daemon
+
+      - name: Build signed AAB (play flavor — for Google Play upload)
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: android
+        run: ./gradlew bundlePlayRelease --no-daemon
+
+      - name: Stage release artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts
+
+          # Debug APK
+          if [ -f android/app/build/outputs/apk/play/debug/app-play-debug.apk ]; then
+            cp android/app/build/outputs/apk/play/debug/app-play-debug.apk \
+               release-artifacts/TrueAI-LocalAI-debug.apk
+          fi
+
+          # Play release APK — signed preferred; unsigned fallback when no signing config
+          for f in \
+            android/app/build/outputs/apk/play/release/app-play-release.apk \
+            android/app/build/outputs/apk/play/release/app-play-release-unsigned.apk; do
+            if [ -f "$f" ]; then
+              cp "$f" release-artifacts/TrueAI-LocalAI-play-release.apk
+              echo "Play release APK: $f"
+              break
+            fi
+          done
+
+          # F-Droid release APK — signed preferred; unsigned fallback
+          for f in \
+            android/app/build/outputs/apk/fdroid/release/app-fdroid-release.apk \
+            android/app/build/outputs/apk/fdroid/release/app-fdroid-release-unsigned.apk; do
+            if [ -f "$f" ]; then
+              cp "$f" release-artifacts/TrueAI-LocalAI-fdroid-release.apk
+              echo "F-Droid release APK: $f"
+              break
+            fi
+          done
+
+          echo "Staged artifacts:"
+          ls -lh release-artifacts/
+
+      - name: Verify APK signatures
+        run: |
+          set -euo pipefail
+          for apk in release-artifacts/*.apk; do
+            [ -f "$apk" ] || continue
+            if apksigner verify --verbose "$apk" 2>&1 | grep -q "Verified using"; then
+              echo "✓ Signed: $apk"
+            else
+              echo "::warning::APK may be unsigned or signature verification failed: $apk"
+            fi
+          done
+
+      - name: Upload APK artifacts (shared with fdroid job)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apks-${{ steps.version.outputs.version }}
+          path: release-artifacts/*.apk
+          if-no-files-found: error
+
+      - name: Upload AAB artifact (shared with play job)
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-aab-${{ steps.version.outputs.version }}
+          path: android/app/build/outputs/bundle/playRelease/*.aab
+          if-no-files-found: warn
+
+      - name: Upload ProGuard mapping (shared with play job)
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-mapping-${{ steps.version.outputs.version }}
+          path: android/app/build/outputs/mapping/playRelease/mapping.txt
+          if-no-files-found: ignore
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          body: |
+            ## TrueAI LocalAI ${{ steps.version.outputs.tag }}
+
+            ### APK Downloads
+
+            | File | Description |
+            |---|---|
+            | `TrueAI-LocalAI-debug.apk` | Debug build (Play flavor) — for testing |
+            | `TrueAI-LocalAI-play-release.apk` | Play-flavor release APK — for sideloading |
+            | `TrueAI-LocalAI-fdroid-release.apk` | F-Droid-flavor release APK |
+
+            ### Installation
+
+            1. Download the APK for your preferred flavor.
+            2. On your Android device, enable **Settings → Install unknown apps** for your browser or file manager.
+            3. Open the downloaded APK and follow the on-screen prompts.
+
+            ### Requirements
+
+            - Android 7.0 (API level 24) or higher
+            - Approximately 50 MB of free storage
+          draft: false
+          prerelease: false
+          files: release-artifacts/*.apk
+
+      - name: Cleanup release keystore
+        if: always()
+        run: rm -f "${ANDROID_KEYSTORE_PATH:-}"
+
+  # ─── 3. GOOGLE PLAY UPLOAD (optional) ────────────────────────────────────
+  # Downloads the signed AAB produced by the build job and uploads it to
+  # Google Play. Requires the `play` environment to be configured with the
+  # PLAY_SERVICE_ACCOUNT_JSON secret and (optionally) manual approval.
+  play:
+    needs: build
+    if: ${{ inputs.upload_play }}
+    runs-on: ubuntu-latest
+    environment:
+      name: play
+      url: https://play.google.com/console
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout (fastlane changelogs only)
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.build.outputs.tag }}
+          sparse-checkout: fastlane/metadata
+          sparse-checkout-cone-mode: true
+
+      - name: Download signed AAB
+        uses: actions/download-artifact@v4
+        with:
+          name: play-aab-${{ needs.build.outputs.version }}
+          path: aab/
+
+      - name: Download ProGuard mapping (optional)
+        uses: actions/download-artifact@v4
+        with:
+          name: play-mapping-${{ needs.build.outputs.version }}
+          path: mapping/
+        continue-on-error: true
+
+      - name: Locate AAB and mapping
+        id: artifacts
+        run: |
+          set -euo pipefail
+          AAB=$(ls aab/*.aab 2>/dev/null | head -n1)
+          if [ -z "$AAB" ]; then
+            echo "::error::No AAB found in downloaded artifacts."
+            exit 1
+          fi
+          echo "aab=$AAB" >> "$GITHUB_OUTPUT"
+          if [ -f mapping/mapping.txt ]; then
+            echo "mapping=mapping/mapping.txt" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload to Google Play (${{ inputs.play_track }} track)
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.trueai.localai
+          releaseFiles: ${{ steps.artifacts.outputs.aab }}
+          mappingFile: ${{ steps.artifacts.outputs.mapping }}
+          track: ${{ inputs.play_track }}
+          status: ${{ inputs.play_status }}
+          whatsNewDirectory: fastlane/metadata/android/en-US/changelogs
+          inAppUpdatePriority: 2
+
+  # ─── 4. F-DROID SELF-HOSTED REPO PUBLISH (optional) ──────────────────────
+  # Downloads the signed F-Droid APK from the build job, runs `fdroid update`
+  # to generate/update the repo index, and publishes it to GitHub Pages.
+  #
+  # Custom repo URL (after first publish):
+  #   https://smackypants.github.io/trueai-localai/fdroid/repo
+  fdroid:
+    needs: build
+    if: ${{ inputs.publish_fdroid }}
+    runs-on: ubuntu-latest
+    environment:
+      name: fdroid
+      url: https://smackypants.github.io/trueai-localai/fdroid/repo
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.build.outputs.tag }}
+
+      - name: Setup Java JDK 21 (fdroidserver uses apksigner/zipalign from Android build-tools)
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install fdroidserver
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fdroidserver apksigner
+          fdroid --version
+
+      - name: Download signed F-Droid APK
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apks-${{ needs.build.outputs.version }}
+          path: downloaded-apks/
+
+      - name: Stage APK and metadata into fdroid/ tree
+        run: |
+          set -euo pipefail
+          mkdir -p fdroid/repo fdroid/metadata
+
+          APK="downloaded-apks/TrueAI-LocalAI-fdroid-release.apk"
+          if [ ! -f "$APK" ]; then
+            echo "::error::Signed F-Droid APK not found in downloaded artifacts."
+            exit 1
+          fi
+          cp "$APK" fdroid/repo/
+          echo "Staged APK: $APK"
+
+          # Mirror fastlane metadata into the F-Droid metadata layout.
+          if [ -d fastlane/metadata/android/en-US ]; then
+            mkdir -p fdroid/metadata/com.trueai.localai
+            cp -r fastlane/metadata/android/en-US fdroid/metadata/com.trueai.localai/
+          fi
+
+          # Include the official F-Droid upstream metadata YAML if present.
+          if [ -f metadata/com.trueai.localai.yml ]; then
+            cp metadata/com.trueai.localai.yml fdroid/metadata/com.trueai.localai.yml
+          fi
+
+      - name: Decode F-Droid repo signing keystore
+        env:
+          FDROID_REPO_KEYSTORE_BASE64: ${{ secrets.FDROID_REPO_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FDROID_REPO_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::Required secret FDROID_REPO_KEYSTORE_BASE64 is missing."
+            exit 1
+          fi
+          REPO_KS="${RUNNER_TEMP}/fdroid-repo.jks"
+          printf '%s' "$FDROID_REPO_KEYSTORE_BASE64" | base64 -d > "$REPO_KS"
+          chmod 600 "$REPO_KS"
+          echo "FDROID_REPO_KEYSTORE=$REPO_KS" >> "$GITHUB_ENV"
+
+      - name: Generate F-Droid repo config
+        env:
+          FDROID_REPO_KEYSTORE_PASSWORD: ${{ secrets.FDROID_REPO_KEYSTORE_PASSWORD }}
+          FDROID_REPO_KEY_ALIAS: ${{ secrets.FDROID_REPO_KEY_ALIAS }}
+          FDROID_REPO_KEY_PASSWORD: ${{ secrets.FDROID_REPO_KEY_PASSWORD }}
+        working-directory: fdroid
+        run: |
+          set -euo pipefail
+          REPO_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY##*/}/fdroid/repo"
+          cat > config.yml <<EOF
+          repo_url: "${REPO_URL}"
+          repo_name: "TrueAI LocalAI"
+          repo_description: "Self-hosted F-Droid repository for TrueAI LocalAI."
+          repo_keyalias: "${FDROID_REPO_KEY_ALIAS}"
+          keystore: "${FDROID_REPO_KEYSTORE}"
+          keystorepass: "${FDROID_REPO_KEYSTORE_PASSWORD}"
+          keypass: "${FDROID_REPO_KEY_PASSWORD}"
+          EOF
+          chmod 600 config.yml
+
+      - name: Run fdroid update
+        working-directory: fdroid
+        run: fdroid update --create-metadata --pretty --verbose
+
+      - name: Build static landing page
+        run: |
+          set -euo pipefail
+          mkdir -p public-fdroid
+          cp -r fdroid public-fdroid/fdroid
+          cat > public-fdroid/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <title>TrueAI LocalAI — F-Droid Repo</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+              code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; }
+              a { color: #0366d6; }
+            </style>
+          </head>
+          <body>
+            <h1>TrueAI LocalAI — Self-hosted F-Droid Repository</h1>
+            <p>Add this URL to your F-Droid client under <strong>Settings → Repositories → +</strong>:</p>
+            <p><code id="repo-url"></code></p>
+            <p>Or <a href="./fdroid/repo/">browse APKs directly</a> to sideload.</p>
+            <script>
+              document.getElementById('repo-url').textContent =
+                location.origin + location.pathname.replace(/index\.html$/, '') + 'fdroid/repo';
+            </script>
+          </body>
+          </html>
+          HTML
+
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public-fdroid
+          publish_branch: gh-pages
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'fdroid-repo: publish ${{ needs.build.outputs.tag }}'
+
+      - name: Cleanup keystores
+        if: always()
+        run: rm -f "${FDROID_REPO_KEYSTORE:-}" fdroid/config.yml
