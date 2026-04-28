@@ -1,0 +1,217 @@
+name: F-Droid Self-Hosted Repo
+
+# Builds the signed `fdroid` flavor APK on every release tag and
+# publishes a self-hosted F-Droid repository to GitHub Pages so users
+# can add it as a custom repo in their F-Droid client without waiting
+# for the official f-droid.org review cycle.
+#
+# Custom repo URL (after first publish):
+#   https://smackypants.github.io/trueai-localai/fdroid/repo
+#
+# REQUIRED REPOSITORY SECRETS:
+#   ANDROID_KEYSTORE_BASE64       — base64 of the F-Droid signing keystore
+#                                   (can be the same as the Play upload key,
+#                                   but a separate F-Droid-only key is
+#                                   recommended for clean key separation)
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+#   FDROID_REPO_KEYSTORE_BASE64   — base64 of the keystore that signs the
+#                                   F-Droid *index* (created once via
+#                                   `fdroid update --create-key`)
+#   FDROID_REPO_KEYSTORE_PASSWORD
+#   FDROID_REPO_KEY_ALIAS         — typically `repo_key`
+#   FDROID_REPO_KEY_PASSWORD
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # publishes to gh-pages
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Setup Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install fdroidserver
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fdroidserver apksigner
+          fdroid --version
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build web bundle (production)
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Decode app signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::Required secret ANDROID_KEYSTORE_BASE64 is missing."
+            exit 1
+          fi
+          KEYSTORE_PATH="${RUNNER_TEMP}/app-signing.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Build signed F-Droid APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: android
+        run: ./gradlew :app:assembleFdroidRelease --no-daemon
+
+      - name: Stage APK + metadata into fdroid/ tree
+        run: |
+          set -euo pipefail
+          mkdir -p fdroid/repo fdroid/metadata
+          # Locate the signed APK (Gradle drops the -unsigned suffix when a
+          # signingConfig is wired into the release build type).
+          APK=""
+          for candidate in \
+            android/app/build/outputs/apk/fdroid/release/app-fdroid-release.apk \
+            android/app/build/outputs/apk/fdroid/release/app-fdroid-release-unsigned.apk; do
+            if [ -f "$candidate" ]; then APK="$candidate"; break; fi
+          done
+          if [ -z "$APK" ]; then
+            echo "::error::No fdroid release APK produced."
+            exit 1
+          fi
+          echo "Using APK: $APK"
+          cp "$APK" fdroid/repo/
+
+          # Mirror fastlane metadata into the F-Droid metadata layout:
+          #   metadata/<package>/<locale>/{title.txt,short_description.txt,...}
+          if [ -d fastlane/metadata/android/en-US ]; then
+            mkdir -p fdroid/metadata/com.trueai.localai
+            cp -r fastlane/metadata/android/en-US fdroid/metadata/com.trueai.localai/
+          fi
+
+          # Reuse the official metadata YAML as the per-app description.
+          if [ -f metadata/com.trueai.localai.yml ]; then
+            cp metadata/com.trueai.localai.yml fdroid/metadata/com.trueai.localai.yml
+          fi
+
+      - name: Decode F-Droid repo signing keystore
+        env:
+          FDROID_REPO_KEYSTORE_BASE64: ${{ secrets.FDROID_REPO_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FDROID_REPO_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::Required secret FDROID_REPO_KEYSTORE_BASE64 is missing."
+            echo "Generate one once with: fdroid update --create-key"
+            exit 1
+          fi
+          REPO_KS="${RUNNER_TEMP}/fdroid-repo.jks"
+          printf '%s' "$FDROID_REPO_KEYSTORE_BASE64" | base64 -d > "$REPO_KS"
+          echo "FDROID_REPO_KEYSTORE=$REPO_KS" >> "$GITHUB_ENV"
+
+      - name: Generate F-Droid repo config
+        env:
+          FDROID_REPO_KEYSTORE_PASSWORD: ${{ secrets.FDROID_REPO_KEYSTORE_PASSWORD }}
+          FDROID_REPO_KEY_ALIAS: ${{ secrets.FDROID_REPO_KEY_ALIAS }}
+          FDROID_REPO_KEY_PASSWORD: ${{ secrets.FDROID_REPO_KEY_PASSWORD }}
+        working-directory: fdroid
+        run: |
+          set -euo pipefail
+          REPO_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY##*/}/fdroid/repo"
+          cat > config.yml <<EOF
+          repo_url: "${REPO_URL}"
+          repo_name: "TrueAI LocalAI"
+          repo_description: "Self-hosted F-Droid repository for TrueAI LocalAI."
+          repo_keyalias: "${FDROID_REPO_KEY_ALIAS}"
+          keystore: "${FDROID_REPO_KEYSTORE}"
+          keystorepass: "${FDROID_REPO_KEYSTORE_PASSWORD}"
+          keypass: "${FDROID_REPO_KEY_PASSWORD}"
+          EOF
+          chmod 600 config.yml
+
+      - name: Run fdroid update
+        working-directory: fdroid
+        run: fdroid update --create-metadata --pretty --verbose
+
+      - name: Build static landing page
+        run: |
+          set -euo pipefail
+          mkdir -p public-fdroid
+          cp -r fdroid public-fdroid/fdroid
+          cat > public-fdroid/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <title>TrueAI LocalAI — F-Droid Repo</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+              code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; }
+              a { color: #0366d6; }
+            </style>
+          </head>
+          <body>
+            <h1>TrueAI LocalAI — Self-hosted F-Droid Repository</h1>
+            <p>Add this repository to your F-Droid client to receive updates immediately, without waiting for the official f-droid.org review cycle.</p>
+            <h2>Add to F-Droid</h2>
+            <ol>
+              <li>Open the F-Droid app on your Android device.</li>
+              <li>Go to <strong>Settings → Repositories → +</strong>.</li>
+              <li>Enter the repository URL: <code id="repo-url"></code></li>
+              <li>Tap <strong>Add</strong> and confirm the fingerprint shown in the F-Droid client matches the one on this page.</li>
+            </ol>
+            <p>Or scan the QR code shown in your F-Droid client after pasting the URL.</p>
+            <h2>Direct APK download</h2>
+            <p>You can also <a href="./fdroid/repo/">browse the APKs directly</a> and sideload them.</p>
+            <script>
+              document.getElementById('repo-url').textContent =
+                location.origin + location.pathname.replace(/index\.html$/, '') + 'fdroid/repo';
+            </script>
+          </body>
+          </html>
+          HTML
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public-fdroid
+          publish_branch: gh-pages
+          # Keep prior content (e.g. docs) — we only replace the fdroid/ subtree.
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'fdroid-repo: publish ${{ github.ref_name }}'
+
+      - name: Cleanup keystores
+        if: always()
+        run: |
+          rm -f "${ANDROID_KEYSTORE_PATH:-}" "${FDROID_REPO_KEYSTORE:-}" fdroid/config.yml

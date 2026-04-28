@@ -55,6 +55,7 @@ jobs:
           npm --no-git-tag-version version "${{ steps.validate.outputs.version }}"
 
       - name: Bump android/app/build.gradle (versionName + versionCode)
+        id: bump_gradle
         run: |
           set -euo pipefail
           GRADLE=android/app/build.gradle
@@ -69,6 +70,41 @@ jobs:
           # Sanity-check that both lines actually changed format-correctly.
           grep -E '^\s*versionCode\s+'"${NEW_CODE}"'$' "$GRADLE" >/dev/null
           grep -E '^\s*versionName\s+"'"${NEW_NAME}"'"$' "$GRADLE" >/dev/null
+          echo "version_code=$NEW_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Write fastlane changelog for new versionCode
+        env:
+          RAW_NOTES: ${{ github.event.inputs.notes }}
+        run: |
+          set -euo pipefail
+          NEW_CODE="${{ steps.bump_gradle.outputs.version_code }}"
+          DEST="fastlane/metadata/android/en-US/changelogs/${NEW_CODE}.txt"
+          mkdir -p "$(dirname "$DEST")"
+          # Both Play and F-Droid cap "what's new" at 500 chars.
+          NOTES=$(printf '%s' "${RAW_NOTES}" | tr '\r' ' ' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
+          if [ -z "${NOTES}" ]; then
+            NOTES="Maintenance release."
+          fi
+          if [ "${#NOTES}" -gt 500 ]; then
+            NOTES="${NOTES:0:497}..."
+          fi
+          printf '%s\n' "${NOTES}" > "$DEST"
+          echo "Wrote $DEST"
+
+      - name: Update F-Droid metadata CurrentVersion / CurrentVersionCode
+        run: |
+          set -euo pipefail
+          META="metadata/com.trueai.localai.yml"
+          if [ ! -f "$META" ]; then
+            echo "::warning::$META not found; skipping F-Droid metadata bump."
+            exit 0
+          fi
+          NEW_NAME="${{ steps.validate.outputs.version }}"
+          NEW_CODE="${{ steps.bump_gradle.outputs.version_code }}"
+          sed -i -E "s|^(CurrentVersion:\s*).*|\1${NEW_NAME}|" "$META"
+          sed -i -E "s|^(CurrentVersionCode:\s*).*|\1${NEW_CODE}|" "$META"
+          grep -E '^CurrentVersion:\s+'"${NEW_NAME}"'$' "$META" >/dev/null
+          grep -E '^CurrentVersionCode:\s+'"${NEW_CODE}"'$' "$META" >/dev/null
 
       - name: Prepend CHANGELOG entry
         env:
@@ -110,7 +146,13 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ steps.validate.outputs.version }}"
-          git add package.json package-lock.json android/app/build.gradle CHANGELOG.md
+          git add package.json package-lock.json android/app/build.gradle CHANGELOG.md fastlane/metadata/android/en-US/changelogs
+          # Optional files — only stage them if they exist (so the
+          # workflow stays usable on older branches that pre-date the
+          # F-Droid metadata).
+          if [ -f metadata/com.trueai.localai.yml ]; then
+            git add metadata/com.trueai.localai.yml
+          fi
           git commit -m "chore(release): v${VERSION}"
           git tag -a "v${VERSION}" -m "Release v${VERSION}"
           git push origin HEAD

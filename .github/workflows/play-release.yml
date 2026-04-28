@@ -1,0 +1,133 @@
+name: Play Release (Signed AAB → Google Play)
+
+# Builds a signed Android App Bundle for the `play` flavor and uploads
+# it to Google Play via the Play Developer API.
+#
+# REQUIRED REPOSITORY SECRETS (set under Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64       — base64 of the upload keystore (.jks)
+#   ANDROID_KEYSTORE_PASSWORD     — keystore password
+#   ANDROID_KEY_ALIAS             — alias of the upload key
+#   ANDROID_KEY_PASSWORD          — password for that alias
+#   PLAY_SERVICE_ACCOUNT_JSON     — JSON key for a Google Cloud service account
+#                                   granted "Release manager" on the Play Console app
+#
+# FIRST-TIME SETUP — see docs/STORE_DEPLOYMENT.md. The very first AAB
+# MUST be uploaded by hand through the Play Console so Google can enrol
+# Play App Signing for the package. Only after that does this workflow
+# work automatically.
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Play release track'
+        required: true
+        type: choice
+        default: 'internal'
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      status:
+        description: 'Release status'
+        required: true
+        type: choice
+        default: 'draft'
+        options:
+          - draft        # Saved on the track page; review/promote manually.
+          - completed    # Immediately starts staged rollout.
+          - inProgress
+          - halted
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Setup Java JDK 21 (Capacitor 8 requires --release 21)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle (production)
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Decode upload keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::Required secret ANDROID_KEYSTORE_BASE64 is missing."
+            exit 1
+          fi
+          KEYSTORE_PATH="${RUNNER_TEMP}/upload-keystore.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Build signed AAB (play flavor)
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: android
+        run: ./gradlew :app:bundlePlayRelease --no-daemon
+
+      - name: Locate AAB + mapping
+        id: artifacts
+        run: |
+          set -euo pipefail
+          AAB=$(ls android/app/build/outputs/bundle/playRelease/*.aab | head -n1)
+          MAPPING="android/app/build/outputs/mapping/playRelease/mapping.txt"
+          echo "aab=$AAB" >> "$GITHUB_OUTPUT"
+          if [ -f "$MAPPING" ]; then
+            echo "mapping=$MAPPING" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload AAB artifact (record-keeping)
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-release-aab
+          path: |
+            ${{ steps.artifacts.outputs.aab }}
+            ${{ steps.artifacts.outputs.mapping }}
+          if-no-files-found: error
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.trueai.localai
+          releaseFiles: ${{ steps.artifacts.outputs.aab }}
+          mappingFile: ${{ steps.artifacts.outputs.mapping }}
+          track: ${{ inputs.track }}
+          status: ${{ inputs.status }}
+          whatsNewDirectory: fastlane/metadata/android/en-US/changelogs
+          # Allow Play to upgrade users who already have the app installed.
+          inAppUpdatePriority: 2
+
+      - name: Cleanup keystore
+        if: always()
+        run: rm -f "${ANDROID_KEYSTORE_PATH:-}"
