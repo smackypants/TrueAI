@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-04-28 — PR #40: Wire toolExecutor into runAgent and activate cost auto-tracking
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/40](https://github.com/smackypants/trueai-localai/pull/40) · merged 34f2b8b1c97a · author @Copilot_
+
+- (No explicit lessons recorded.) PR title: _Wire toolExecutor into runAgent and activate cost auto-tracking_.
+
+---
+
 ## 2026-04-28 — PR #38: F-Droid: integrate and deploy via self-hosted repo + upstream catalog
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/38](https://github.com/smackypants/trueai-localai/pull/38) · merged d245bae6a94c · author @Copilot_
