@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-04-28 — PR #53: feat(ci): add Full APK Release workflow (bump → signed APKs → GitHub Release → Play/F-Droid)
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/53](https://github.com/smackypants/trueai-localai/pull/53) · merged 4c5117cba9ef · author @Copilot_
+
+- When a new release workflow reuses `release-bump.yml` via `workflow_call`, the tag push from the bump job also triggers `release.yml`'s `on: push: tags: v*` listener. That's harmless because `softprops/action-gh-release` upserts — document this in the orchestrator's header comment so future agents don't treat it as a duplicate-run bug.
+- Always `chmod 600` decoded keystore files immediately after writing them to `$RUNNER_TEMP` — default permissions on runner temp are world-readable, exposing signing keys to any co-located process.
+- For a production-only signing workflow, treat a missing `ANDROID_KEYSTORE_BASE64` secret as a hard failure (`exit 1`), not a warning — silently falling through to unsigned artifacts defeats the purpose of the workflow.
+
+---
+
 ## 2026-04-28 — PR #50: Fix Android and CI builds: lock file sync + Node.js 24 action upgrades
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/50](https://github.com/smackypants/trueai-localai/pull/50) · merged c01b1cef5a97 · author @Copilot_
