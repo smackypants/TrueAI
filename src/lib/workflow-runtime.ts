@@ -126,6 +126,8 @@ interface NodeExecResult {
   output: string
   success: boolean
   error?: string
+  /** True/false result of a decision node condition evaluation. */
+  branch?: boolean
   tokensIn?: number
   tokensOut?: number
   model?: string
@@ -194,10 +196,10 @@ async function executeNode(
     }
 
     case 'decision': {
-      // Output mirrors the input; the branch decision is recorded in
-      // metadata via the run loop, not here.
+      // Output mirrors the input; the branch decision is carried in the
+      // dedicated `branch` field rather than overloading `error`.
       const branch = evalCondition(node.data?.condition, input, vars)
-      return { output: input, success: true, error: branch ? 'true' : 'false' }
+      return { output: input, success: true, branch }
     }
 
     case 'loop': {
@@ -348,8 +350,8 @@ export async function runWorkflow(
     }
 
     if (node.type === 'decision') {
-      // exec.error carries 'true' / 'false' — see executeNode.
-      const branch = exec.error !== 'false'
+      // exec.branch is the boolean result of the condition — see executeNode.
+      const branch = exec.branch ?? false
       const edge = pickDecisionEdge(nextEdges, branch)
       currentId = edge?.target
       continue

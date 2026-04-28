@@ -26,6 +26,7 @@ class OfflineQueue {
   private queue: OfflineAction[] = []
   private syncInProgress = false
   private listeners: Set<(queue: OfflineAction[]) => void> = new Set()
+  private _onlineBound: (() => void) | null = null
 
   async initialize() {
     await this.loadQueue()
@@ -64,10 +65,17 @@ class OfflineQueue {
   }
 
   private setupOnlineListener() {
-    window.addEventListener('online', () => {
+    if (typeof window === 'undefined') return
+    // Remove any previously registered listener so multiple initialize()
+    // calls (Strict Mode, HMR) don't stack duplicate listeners.
+    if (this._onlineBound) {
+      window.removeEventListener('online', this._onlineBound)
+    }
+    this._onlineBound = () => {
       console.log('[OfflineQueue] Device is back online, triggering sync')
-      this.sync()
-    })
+      void this.sync()
+    }
+    window.addEventListener('online', this._onlineBound)
   }
 
   async enqueue(action: Omit<OfflineAction, 'id' | 'timestamp' | 'retryCount' | 'status'>) {

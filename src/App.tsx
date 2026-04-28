@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense, memo, useCallback, useMemo, startTransition } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense, memo, useCallback, useMemo } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
@@ -371,11 +371,13 @@ function App() {
   const tabPreloader = useTabPreloader(tabOrder, activeTab, handlePreloadTab)
 
   const handleTabChange = useCallback((newTab: string) => {
-    // Switch the active tab synchronously so the click feels instant.
+    // Switch the active tab immediately so the click feels instant.
+    // Do NOT wrap in startTransition — Radix UI's controlled <Tabs value> prop
+    // must update synchronously in response to onValueChange, or the tab panel
+    // won't visually switch (the controlled component sees the old value and
+    // keeps the old panel visible until React commits the deferred update).
     setIsTabSwitching(true)
-    startTransition(() => {
-      setActiveTab(newTab)
-    })
+    setActiveTab(newTab)
     setTimeout(() => {
       setIsTabSwitching(false)
     }, 150)
@@ -426,7 +428,7 @@ function App() {
   const swipeHandlers = useSwipeGesture({
     onSwipeLeft: useCallback(() => navigateToTab('left'), [navigateToTab]),
     onSwipeRight: useCallback(() => navigateToTab('right'), [navigateToTab])
-  }, 100)
+  }, 50)
 
   const refreshConversations = useCallback(async () => {
     await new Promise(resolve => setTimeout(resolve, 800))
@@ -561,7 +563,7 @@ function App() {
 
     const startTime = Date.now()
     const userMessage: Message = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${crypto.randomUUID()}`,
       conversationId: activeConversationId,
       role: 'user',
       content,
@@ -602,7 +604,7 @@ assistant:`
       const response = await spark.llm(prompt, conversation?.model || 'gpt-4o-mini')
 
       const assistantMessage: Message = {
-        id: `msg-${Date.now() + 1}`,
+        id: `msg-${crypto.randomUUID()}`,
         conversationId: activeConversationId,
         role: 'assistant',
         content: response,
@@ -2491,6 +2493,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                     <CacheManager />
                   </LazyErrorBoundary>
                 </Suspense>
+              </div>
 
               <Separator className="my-6" />
 
@@ -2501,7 +2504,6 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                     <DynamicUIDashboard />
                   </LazyErrorBoundary>
                 </Suspense>
-              </div>
               </div>
             </div>
             </TabErrorBoundary>
@@ -2856,13 +2858,6 @@ Describe what input you would give to the ${tool} tool (one sentence).`
             <FloatingActionButton
               onClick={() => setNewAgentDialog(true)}
               icon={<Plus weight="bold" size={28} />}
-            />
-          )}
-
-          {activeTab === 'workflows' && (
-            <FloatingActionButton
-              onClick={() => handleTabChange('workflows')}
-              icon={<ArrowsClockwise weight="bold" size={28} />}
             />
           )}
         </>

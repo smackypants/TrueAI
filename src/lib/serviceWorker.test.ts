@@ -133,7 +133,7 @@ describe('onOnlineStatusChange', () => {
 // skipWaiting
 // ─────────────────────────────────────────────────────────────────────────────
 describe('skipWaiting', () => {
-  it('does not throw when service worker has no controller', () => {
+  it('does not throw when called with no arguments and no waiting SW', () => {
     const restore = stubServiceWorker(makeMockSW({ controller: null }))
     try {
       expect(() => skipWaiting()).not.toThrow()
@@ -142,15 +142,19 @@ describe('skipWaiting', () => {
     }
   })
 
-  it('posts SKIP_WAITING to the controller when one exists', () => {
+  it('posts SKIP_WAITING to the waiting SW when a registration is provided', () => {
     const postMessage = vi.fn()
-    const restore = stubServiceWorker(makeMockSW({ controller: { postMessage } }))
-    try {
-      skipWaiting()
-      expect(postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' })
-    } finally {
-      restore()
-    }
+    const mockRegistration = {
+      waiting: { postMessage },
+    } as unknown as ServiceWorkerRegistration
+    // No need to stub navigator.serviceWorker — registration is passed directly.
+    expect(() => skipWaiting(mockRegistration)).not.toThrow()
+    expect(postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' })
+  })
+
+  it('does not throw when registration has no waiting SW', () => {
+    const mockRegistration = { waiting: null } as unknown as ServiceWorkerRegistration
+    expect(() => skipWaiting(mockRegistration)).not.toThrow()
   })
 })
 

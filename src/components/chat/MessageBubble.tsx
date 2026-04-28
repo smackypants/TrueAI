@@ -41,6 +41,8 @@ export function MessageBubble({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onTouchStart={() => setIsHovered(true)}
+        onTouchEnd={() => setTimeout(() => setIsHovered(false), 2500)}
+        onTouchCancel={() => setIsHovered(false)}
       >
         <motion.div
           whileHover={{ scale: 1.05 }}

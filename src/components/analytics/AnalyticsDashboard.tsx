@@ -68,10 +68,11 @@ export function AnalyticsDashboard({
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | 'all'>('7d')
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [refreshInterval, setRefreshInterval] = useState<5 | 10 | 30>(5)
-  const [lastRefresh, setLastRefresh] = useState<number>(Date.now())
   const [countdown, setCountdown] = useState<number>(0)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const countdownRef = useRef<NodeJS.Timeout | null>(null)
+  const lastRefreshRef = useRef<number>(Date.now())
+  const isLoadingRef = useRef<boolean>(true)
   const [thresholdConfig, setThresholdConfig] = useKV<ThresholdConfig>('threshold-config', thresholdManager.getConfig())
 
   const safeEvents = events || []
@@ -130,7 +131,9 @@ export function AnalyticsDashboard({
   useEffect(() => {
     if (safeEvents.length > 0) {
       const latestEventTime = Math.max(...safeEvents.map(e => e.timestamp))
-      if (latestEventTime > lastRefresh && !isLoading) {
+      // Use refs (not state) to avoid stale closure — the effect only tracks
+      // safeEvents.length but needs current lastRefresh / isLoading values.
+      if (latestEventTime > lastRefreshRef.current && !isLoadingRef.current) {
         loadMetrics()
       }
     }
@@ -141,10 +144,12 @@ export function AnalyticsDashboard({
     if (!getMetrics) {
       console.warn('Analytics not ready')
       setIsLoading(false)
+      isLoadingRef.current = false
       return
     }
     
     setIsLoading(true)
+    isLoadingRef.current = true
     try {
       const now = Date.now()
       const newFilter: AnalyticsFilter = {}
@@ -157,12 +162,13 @@ export function AnalyticsDashboard({
 
       const data = await getMetrics(newFilter)
       setMetrics(data)
-      setLastRefresh(Date.now())
+      lastRefreshRef.current = Date.now()
     } catch (error) {
       console.error('Failed to load metrics:', error)
       toast.error('Failed to load analytics')
     } finally {
       setIsLoading(false)
+      isLoadingRef.current = false
     }
   }
 

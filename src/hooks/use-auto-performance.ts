@@ -41,6 +41,11 @@ export function useAutoPerformanceOptimization() {
     }
 
     initialize()
+
+    return () => {
+      document.body.classList.remove('low-end-device')
+      document.body.classList.remove('save-data-mode')
+    }
   }, [])
 
   return {

@@ -97,7 +97,7 @@ function mergeConfig(
       typeof patch.temperature === 'number' && patch.temperature >= 0
         ? patch.temperature
         : base.temperature,
-    topP: typeof patch.topP === 'number' && patch.topP > 0 ? patch.topP : base.topP,
+    topP: typeof patch.topP === 'number' && patch.topP >= 0 ? patch.topP : base.topP,
     maxTokens:
       typeof patch.maxTokens === 'number' && patch.maxTokens > 0 ? patch.maxTokens : base.maxTokens,
   }

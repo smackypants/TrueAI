@@ -38,7 +38,7 @@ export function ServiceWorkerUpdate() {
 
   const handleUpdate = () => {
     if (registration?.waiting) {
-      skipWaiting()
+      skipWaiting(registration)
       window.location.reload()
     }
   }

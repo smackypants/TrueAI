@@ -499,7 +499,7 @@ export function WorkflowBuilder({
               <Label>Label</Label>
               <Input
                 placeholder="Node label"
-                defaultValue={selectedNode?.data.label as string}
+                value={(selectedNode?.data.label as string) ?? ''}
                 onChange={(e) => {
                   if (selectedNode) {
                     setSelectedNode({
@@ -571,7 +571,7 @@ export function WorkflowBuilder({
                 <Label>Condition</Label>
                 <Input
                   placeholder="e.g., result > 100"
-                  defaultValue={selectedNode.data.condition as string}
+                  value={(selectedNode?.data.condition as string) ?? ''}
                   onChange={(e) => {
                     if (selectedNode) {
                       setSelectedNode({

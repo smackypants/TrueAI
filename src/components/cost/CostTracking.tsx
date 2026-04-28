@@ -229,7 +229,7 @@ export function CostTracking({
               )}
             </div>
             <div className="text-3xl font-bold">
-              {summary.trend.length > 1 
+              {summary.trend.length > 1 && summary.trend[0].cost > 0
                 ? `${((summary.trend[summary.trend.length - 1].cost / summary.trend[0].cost - 1) * 100).toFixed(1)}%`
                 : '0%'}
             </div>

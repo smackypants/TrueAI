@@ -142,7 +142,9 @@ export class AgentToolExecutor {
     const command = input.toLowerCase().trim()
     
     if (command.startsWith('store:')) {
-      const data = command.replace('store:', '').trim()
+      // Preserve original casing — only use the lowercased command to detect
+      // the prefix; slice the data from the original input.
+      const data = input.trim().slice('store:'.length).trim()
       const key = `agent-memory-${Date.now()}`
       await spark.kv.set(key, data)
 
@@ -282,6 +284,14 @@ export class AgentToolExecutor {
   private executeJsonParser(input: string): ToolResult {
     try {
       const parsed = JSON.parse(input)
+      // JSON.parse('null') returns null; guard before Object.keys()
+      if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
+        return {
+          success: true,
+          output: `Parsed JSON value: ${JSON.stringify(parsed)}`,
+          metadata: { parsed }
+        }
+      }
       const summary = `Parsed JSON with ${Object.keys(parsed).length} top-level keys: ${Object.keys(parsed).join(', ')}`
       
       return {

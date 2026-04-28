@@ -103,14 +103,28 @@ export async function getCacheSize(): Promise<number> {
   return 0
 }
 
-export function skipWaiting() {
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' })
+export function skipWaiting(registration?: ServiceWorkerRegistration | null) {
+  // Post to the *waiting* (new) service worker, not the *controller* (old) one.
+  // If a registration is supplied use its .waiting; otherwise fall back to
+  // querying navigator.serviceWorker.ready (best-effort, async).
+  const target = registration?.waiting ?? null
+  if (target) {
+    target.postMessage({ type: 'SKIP_WAITING' })
+    return
+  }
+  // Legacy fallback: no registration available.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then((reg) => {
+      reg.waiting?.postMessage({ type: 'SKIP_WAITING' })
+    }).catch(() => {/* ignore */})
   }
 }
 
+let _updateCheckInterval: ReturnType<typeof setInterval> | null = null
+
 function checkForUpdates(registration: ServiceWorkerRegistration) {
-  setInterval(() => {
+  if (_updateCheckInterval !== null) clearInterval(_updateCheckInterval)
+  _updateCheckInterval = setInterval(() => {
     registration.update()
   }, 60000)
 }

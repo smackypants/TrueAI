@@ -145,10 +145,12 @@ describe('llm-runtime/config', () => {
     it('rejects invalid stored values and keeps the lower layer', async () => {
       mockFetch(null)
       await kvStore.set(LLM_RUNTIME_CONFIG_KEY, {
-        // Empty baseUrl, negative timeout, NaN topP — all invalid; defaults must be kept.
+        // Empty baseUrl, negative timeout, maxTokens 0, temperature -5 — all
+        // invalid; defaults must be kept.  topP: 0 is now valid (fully
+        // deterministic sampling) so it should be accepted as-is.
         baseUrl: '',
         requestTimeoutMs: -1,
-        topP: 0,
+        topP: -1,
         maxTokens: 0,
         temperature: -5,
         defaultModel: '',
@@ -160,6 +162,13 @@ describe('llm-runtime/config', () => {
       expect(cfg.maxTokens).toBe(DEFAULT_LLM_RUNTIME_CONFIG.maxTokens)
       expect(cfg.temperature).toBe(DEFAULT_LLM_RUNTIME_CONFIG.temperature)
       expect(cfg.defaultModel).toBe(DEFAULT_LLM_RUNTIME_CONFIG.defaultModel)
+    })
+
+    it('accepts topP: 0 (fully deterministic sampling) as a valid value', async () => {
+      mockFetch(null)
+      await kvStore.set(LLM_RUNTIME_CONFIG_KEY, { topP: 0 })
+      const cfg = await ensureLLMRuntimeConfigLoaded()
+      expect(cfg.topP).toBe(0)
     })
 
     it('strips a legacy apiKey field from the stored config blob', async () => {

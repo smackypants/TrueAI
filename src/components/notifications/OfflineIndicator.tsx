@@ -12,18 +12,23 @@ export function OfflineIndicator() {
   useEffect(() => {
     setOffline(isOffline())
     
+    let hideTimer: ReturnType<typeof setTimeout> | null = null
+
     const cleanup = onOnlineStatusChange((isOnline) => {
       setOffline(!isOnline)
       setShowBanner(true)
       
       if (isOnline) {
-        setTimeout(() => {
+        hideTimer = setTimeout(() => {
           setShowBanner(false)
         }, 3000)
       }
     })
 
-    return cleanup
+    return () => {
+      cleanup()
+      if (hideTimer !== null) clearTimeout(hideTimer)
+    }
   }, [])
 
   return (

@@ -221,7 +221,9 @@ export class AgentLearningEngine {
                   newValue: [...updatedAgent.capabilities, capabilityToAdd as AgentCapability],
                   reason: insight.description
                 })
-                updatedAgent.capabilities.push(capabilityToAdd as AgentCapability)
+                // Create a new array rather than mutating the shallow-copied
+                // reference, which would also mutate the original agent object.
+                updatedAgent.capabilities = [...updatedAgent.capabilities, capabilityToAdd as AgentCapability]
               }
               break
             }
