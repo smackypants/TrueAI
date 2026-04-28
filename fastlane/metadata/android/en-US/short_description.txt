@@ -1,1 +1,1 @@
-Local-first AI assistant: chat, agents, workflows, fully on-device by default.
+Privacy-respecting AI assistant that talks to any OpenAI-compatible LLM.

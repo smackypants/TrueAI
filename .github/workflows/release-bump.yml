@@ -15,6 +15,26 @@ on:
         description: 'Short release-notes line for CHANGELOG.md'
         required: false
         default: 'Maintenance release.'
+  # Reusable: lets publish-release.yml (and any future orchestrator)
+  # invoke the bump+tag flow without duplicating its logic.
+  workflow_call:
+    inputs:
+      version:
+        description: 'New release version, semver only (e.g. 1.0.3 — no leading "v")'
+        required: true
+        type: string
+      notes:
+        description: 'Short release-notes line for CHANGELOG.md'
+        required: false
+        type: string
+        default: 'Maintenance release.'
+    outputs:
+      version:
+        description: 'The validated semver version that was committed and tagged.'
+        value: ${{ jobs.bump.outputs.version }}
+      tag:
+        description: 'The annotated tag that was pushed (vX.Y.Z).'
+        value: ${{ jobs.bump.outputs.tag }}
 
 permissions:
   contents: write
@@ -22,6 +42,10 @@ permissions:
 jobs:
   bump:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+      tag: v${{ steps.validate.outputs.version }}
+      version_code: ${{ steps.bump_gradle.outputs.version_code }}
     steps:
       - name: Checkout (full history needed to push a tag)
         uses: actions/checkout@v4
@@ -38,7 +62,7 @@ jobs:
         id: validate
         run: |
           set -euo pipefail
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ inputs.version }}"
           if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "::error::Version '$VERSION' is not valid semver MAJOR.MINOR.PATCH (no leading 'v')."
             exit 1
@@ -70,13 +94,47 @@ jobs:
           # Sanity-check that both lines actually changed format-correctly.
           grep -E '^\s*versionCode\s+'"${NEW_CODE}"'$' "$GRADLE" >/dev/null
           grep -E '^\s*versionName\s+"'"${NEW_NAME}"'"$' "$GRADLE" >/dev/null
-          echo "version_code=${NEW_CODE}" >> "$GITHUB_OUTPUT"
+          echo "version_code=$NEW_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Write fastlane changelog for new versionCode
+        env:
+          RAW_NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          NEW_CODE="${{ steps.bump_gradle.outputs.version_code }}"
+          DEST="fastlane/metadata/android/en-US/changelogs/${NEW_CODE}.txt"
+          mkdir -p "$(dirname "$DEST")"
+          # Both Play and F-Droid cap "what's new" at 500 chars.
+          NOTES=$(printf '%s' "${RAW_NOTES}" | tr '\r' ' ' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
+          if [ -z "${NOTES}" ]; then
+            NOTES="Maintenance release."
+          fi
+          if [ "${#NOTES}" -gt 500 ]; then
+            NOTES="${NOTES:0:497}..."
+          fi
+          printf '%s\n' "${NOTES}" > "$DEST"
+          echo "Wrote $DEST"
+
+      - name: Update F-Droid metadata CurrentVersion / CurrentVersionCode
+        run: |
+          set -euo pipefail
+          META="metadata/com.trueai.localai.yml"
+          if [ ! -f "$META" ]; then
+            echo "::warning::$META not found; skipping F-Droid metadata bump."
+            exit 0
+          fi
+          NEW_NAME="${{ steps.validate.outputs.version }}"
+          NEW_CODE="${{ steps.bump_gradle.outputs.version_code }}"
+          sed -i -E "s|^(CurrentVersion:\s*).*|\1${NEW_NAME}|" "$META"
+          sed -i -E "s|^(CurrentVersionCode:\s*).*|\1${NEW_CODE}|" "$META"
+          grep -E '^CurrentVersion:\s+'"${NEW_NAME}"'$' "$META" >/dev/null
+          grep -E '^CurrentVersionCode:\s+'"${NEW_CODE}"'$' "$META" >/dev/null
 
       - name: Prepend CHANGELOG entry
         env:
           # Pass via env so the value isn't interpolated into the shell script
           # by the runner — avoids quote/newline injection from the input.
-          RAW_NOTES: ${{ github.event.inputs.notes }}
+          RAW_NOTES: ${{ inputs.notes }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.validate.outputs.version }}"
@@ -103,26 +161,6 @@ jobs:
           } > "$TMP"
           mv "$TMP" CHANGELOG.md
 
-      - name: Write F-Droid (Fastlane) changelog for new versionCode
-        env:
-          RAW_NOTES: ${{ github.event.inputs.notes }}
-          NEW_CODE: ${{ steps.bump_gradle.outputs.version_code }}
-        run: |
-          set -euo pipefail
-          # Mirror the (already-trimmed) CHANGELOG entry into the
-          # per-versionCode file F-Droid auto-ingests. Capped at 500
-          # chars per F-Droid recommendation.
-          NOTES=$(printf '%s' "${RAW_NOTES}" | tr '\n\r' '  ' | sed -E 's/^ +| +$//g')
-          if [ -z "${NOTES}" ]; then
-            NOTES="Maintenance release."
-          fi
-          if [ "${#NOTES}" -gt 500 ]; then
-            NOTES="${NOTES:0:497}..."
-          fi
-          DEST_DIR="fastlane/metadata/android/en-US/changelogs"
-          mkdir -p "${DEST_DIR}"
-          printf '%s\n' "${NOTES}" > "${DEST_DIR}/${NEW_CODE}.txt"
-
       - name: Commit, tag, and push
         env:
           GIT_AUTHOR_NAME: github-actions[bot]
@@ -133,6 +171,12 @@ jobs:
           set -euo pipefail
           VERSION="${{ steps.validate.outputs.version }}"
           git add package.json package-lock.json android/app/build.gradle CHANGELOG.md fastlane/metadata/android/en-US/changelogs
+          # Optional files — only stage them if they exist (so the
+          # workflow stays usable on older branches that pre-date the
+          # F-Droid metadata).
+          if [ -f metadata/com.trueai.localai.yml ]; then
+            git add metadata/com.trueai.localai.yml
+          fi
           git commit -m "chore(release): v${VERSION}"
           git tag -a "v${VERSION}" -m "Release v${VERSION}"
           git push origin HEAD

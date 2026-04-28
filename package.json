@@ -20,8 +20,10 @@
         "android:add": "npx cap add android",
         "android:sync": "npm run build && npx cap sync android",
         "android:open": "npx cap open android",
-        "android:build": "npm run build:dev && npx cap sync android && cd android && ./gradlew assembleDebug",
-        "android:build:release": "npm run build && npx cap sync android && cd android && ./gradlew assembleRelease",
+        "android:build": "npm run build:dev && npx cap sync android && cd android && ./gradlew assemblePlayDebug",
+        "android:build:release": "npm run build && npx cap sync android && cd android && ./gradlew assemblePlayRelease",
+        "android:build:fdroid": "npm run build && npx cap sync android && cd android && ./gradlew assembleFdroidRelease",
+        "android:bundle:play": "npm run build && npx cap sync android && cd android && ./gradlew bundlePlayRelease",
         "android:run": "npm run android:sync && npx cap run android"
     },
     "dependencies": {

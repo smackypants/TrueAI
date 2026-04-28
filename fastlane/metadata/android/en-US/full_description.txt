@@ -1,35 +1,31 @@
-TrueAI LocalAI is a local-first AI assistant platform. It runs against
-an on-device LLM runtime by default (Ollama on http://localhost:11434),
-and stores conversations, agents, and settings on your device.
+TrueAI LocalAI is a fully on-device chat client for any OpenAI-compatible
+language model — including local runtimes (llama.cpp server, Ollama,
+LM Studio, vLLM, text-generation-webui) and self-hosted endpoints. You
+choose where your prompts go.
 
-Features:
+KEY FEATURES
 
-* Multi-conversation chat with model switching.
-* Autonomous agents with a configurable tool set.
-* Visual workflow builder for chaining agents and tools.
-* Workflow templates for common automation scenarios.
-* Cost tracking and budget limits when an external paid provider is
-  used.
-* Offline support via service worker and IndexedDB caching of large
-  conversation histories.
-* Mobile-optimised UI with touch gestures, pull-to-refresh, haptics,
-  and dark theme.
+* Bring-your-own LLM endpoint — point the app at any OpenAI-compatible
+  base URL and start chatting. Works fully offline against a local
+  server on your home network.
+* API key stored on-device only — Capacitor secure preferences on
+  Android, IndexedDB on the web. Never written to plain localStorage,
+  never uploaded.
+* Conversation history, agents, models, and settings persist locally
+  via IndexedDB. No account, no cloud sync, no telemetry by default.
+* Local notifications, haptics, share, clipboard, network awareness,
+  and filesystem access via Capacitor — all permission-gated.
+* Mobile-optimised UI with safe-area support, bottom nav, and a
+  dedicated App Builder tab.
 
-Privacy:
+PRIVACY
 
-* No analytics. No tracking. No ads.
-* Default LLM endpoint is the local Ollama server. The app makes no
-  outbound network call until you point it at a hosted provider in
-  Settings.
-* The LLM API key, if you configure one, is stored in app-private
-  storage on Android (Capacitor Preferences) and never written to
-  shared storage or shipped off device.
+* No analytics or tracking by default.
+* No data collection by the developer.
+* The only network destination is the LLM endpoint that YOU configure.
+  Your prompts and responses go to that endpoint and nowhere else.
 
-Anti-Features:
+OPEN SOURCE
 
-* NonFreeNet: the user can optionally configure the LLM runtime to talk
-  to a hosted OpenAI-compatible provider (OpenAI, Anthropic, etc.).
-  This is opt-in per device. The default configuration is fully local.
-
-Source code, issue tracker, and full documentation live at
-https://github.com/smackypants/trueai-localai
+Source code, build instructions, and the full changelog are available
+on GitHub. Released under the MIT license.

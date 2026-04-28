@@ -229,7 +229,7 @@ F-Droid. There are two channels and they are kept in sync automatically:
    and signed by `.github/workflows/fdroid-repo.yml` on every published
    release (and on every `v*` tag push), then deployed to GitHub Pages.
 2. **Upstream `fdroiddata`** catalog — see
-   [`fdroid/upstream/com.trueai.localai.yml`](fdroid/upstream/com.trueai.localai.yml)
+   [`metadata/com.trueai.localai.yml`](metadata/com.trueai.localai.yml)
    for the build recipe, and [`FDROID.md`](FDROID.md) for the
    submission checklist.
 

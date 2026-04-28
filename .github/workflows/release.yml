@@ -10,10 +10,30 @@ on:
         description: 'Release version (e.g., v1.0.0)'
         required: true
         default: 'v1.0.0'
+  # Reusable: lets publish-release.yml call build-and-release directly
+  # after the bump+tag job, so the whole release shows up as one run.
+  workflow_call:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+# Ensure only one build-and-release runs at a time per tag/ref. If a tag
+# push and a workflow_call from publish-release.yml race for the same
+# version, the later run waits for the earlier one to finish (rather
+# than both trying to upsert the same GitHub Release at once).
+concurrency:
+  group: release-${{ inputs.version || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    # Scopes Play/F-Droid/signing secrets to the `release` environment
+    # configured under Settings → Environments. Owner can require
+    # manual approval there for an extra gate before any APK ships.
+    environment: release
     permissions:
       contents: write
 
@@ -45,28 +65,47 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Build Android Debug APK
-        run: cd android && ./gradlew assembleDebug --no-daemon
+      - name: Build Android Debug APKs (both flavors)
+        run: cd android && ./gradlew assemblePlayDebug assembleFdroidDebug --no-daemon
 
-      - name: Build Android Release APK (unsigned)
-        run: cd android && ./gradlew assembleRelease --no-daemon
+      - name: Build Android Release APKs (unsigned, both flavors)
+        run: cd android && ./gradlew assemblePlayRelease assembleFdroidRelease --no-daemon
         continue-on-error: true
 
       - name: Rename APK files
         run: |
           mkdir -p release-artifacts
-          if [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp android/app/build/outputs/apk/debug/app-debug.apk release-artifacts/TrueAI-LocalAI-debug.apk
+          # Debug variants — Gradle outputs are app-{flavor}-debug.apk
+          if [ -f android/app/build/outputs/apk/play/debug/app-play-debug.apk ]; then
+            cp android/app/build/outputs/apk/play/debug/app-play-debug.apk release-artifacts/TrueAI-LocalAI-debug.apk
           fi
-          if [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk release-artifacts/TrueAI-LocalAI-release-unsigned.apk
-          fi
+          # Release variants — unsigned suffix only present when no signing config attached.
+          for f in \
+            android/app/build/outputs/apk/play/release/app-play-release-unsigned.apk \
+            android/app/build/outputs/apk/play/release/app-play-release.apk; do
+            if [ -f "$f" ]; then
+              cp "$f" release-artifacts/TrueAI-LocalAI-play-release.apk
+              break
+            fi
+          done
+          for f in \
+            android/app/build/outputs/apk/fdroid/release/app-fdroid-release-unsigned.apk \
+            android/app/build/outputs/apk/fdroid/release/app-fdroid-release.apk; do
+            if [ -f "$f" ]; then
+              cp "$f" release-artifacts/TrueAI-LocalAI-fdroid-release.apk
+              break
+            fi
+          done
 
       - name: Get version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          # `inputs.version` is populated for both workflow_dispatch and
+          # workflow_call; on a tag push it's empty so we fall back to the
+          # ref name.
+          INPUT_VERSION="${{ inputs.version }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            echo "version=$INPUT_VERSION" >> $GITHUB_OUTPUT
           else
             echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
@@ -82,8 +121,12 @@ jobs:
             ## Installation
 
             Download the APK file and install it on your Android device:
-            - **TrueAI-LocalAI-debug.apk** - Debug version for testing
-            - **TrueAI-LocalAI-release-unsigned.apk** - Release version (unsigned)
+            - **TrueAI-LocalAI-debug.apk** — Debug build (Play flavor) for testing
+            - **TrueAI-LocalAI-play-release.apk** — Play-flavor release (unsigned) for sideloading
+            - **TrueAI-LocalAI-fdroid-release.apk** — F-Droid-flavor release (unsigned) for sideloading
+
+            For the signed Play Store AAB, use the **Play Release** workflow.
+            For the F-Droid self-hosted repo, use the **F-Droid Repo** workflow.
 
             ## What's New in this Release
 

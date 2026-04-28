@@ -63,7 +63,7 @@ re-check:
 - [ ] Non-FOSS assets (icons, fonts) carry a clear license entry in `NOTICE`.
 - [ ] If a new optional non-free network feature is added, expand the
       `NonFreeNet` description in
-      [`fdroid/upstream/com.trueai.localai.yml`](fdroid/upstream/com.trueai.localai.yml)
+      [`metadata/com.trueai.localai.yml`](metadata/com.trueai.localai.yml)
       and the self-hosted repo metadata.
 
 ---
@@ -103,20 +103,28 @@ upstream catalog re-signs APKs with its own key, so the upstream path
 does not need a signing key from us).
 
 `android/app/build.gradle` reads the keystore from environment variables
+(or, for local builds, from a gitignored `android/keystore.properties`)
 so the secrets stay out of the repo:
 
 | Env var | Purpose |
 |---|---|
-| `TRUEAI_KEYSTORE_PATH` | Absolute path to the JKS / PKCS#12 keystore. |
-| `TRUEAI_KEYSTORE_PASSWORD` | Keystore password. |
-| `TRUEAI_KEY_ALIAS` | Key alias inside the keystore. |
-| `TRUEAI_KEY_PASSWORD` | Key password. |
+| `ANDROID_KEYSTORE_PATH` | Absolute path to the JKS / PKCS#12 keystore. |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password. |
+| `ANDROID_KEY_ALIAS` | Key alias inside the keystore. |
+| `ANDROID_KEY_PASSWORD` | Key password. |
 
-When **any** of those env vars is missing the release build falls back
-to the standard unsigned `app-release-unsigned.apk` so existing CI flows
-in [`release.yml`](.github/workflows/release.yml) and
+When `ANDROID_KEYSTORE_PATH` is unset and no `android/keystore.properties`
+exists, the release build falls back to the standard unsigned
+`app-release-unsigned.apk` so existing CI flows in
+[`release.yml`](.github/workflows/release.yml) and
 [`build-android.yml`](.github/workflows/build-android.yml) keep working
 unchanged.
+
+The Android Gradle build also exposes two product flavors —
+**`play`** (default; may include Google Services if
+`google-services.json` is present) and **`fdroid`** (never references
+proprietary Google libraries). For F-Droid distribution always build
+the `fdroid` flavor, e.g. `./gradlew :app:assembleFdroidRelease`.
 
 Reproducibility helpers applied in [`android/build.gradle`](android/build.gradle):
 
@@ -133,8 +141,8 @@ keytool -genkeypair -v \
   -keystore trueai-fdroid.jks \
   -alias trueai-release \
   -keyalg RSA -keysize 4096 -validity 10000 \
-  -storepass "$TRUEAI_KEYSTORE_PASSWORD" \
-  -keypass "$TRUEAI_KEY_PASSWORD" \
+  -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+  -keypass "$ANDROID_KEY_PASSWORD" \
   -dname "CN=TrueAI LocalAI, OU=Releases, O=Advanced Technology Research, C=US"
 ```
 
@@ -143,10 +151,10 @@ Encode and stash for CI:
 ```bash
 base64 -w 0 trueai-fdroid.jks > trueai-fdroid.jks.b64
 # Add to GitHub Actions secrets:
-#   FDROID_KEYSTORE_BASE64        <- contents of trueai-fdroid.jks.b64
-#   FDROID_KEYSTORE_PASSWORD      <- $TRUEAI_KEYSTORE_PASSWORD
-#   FDROID_KEY_ALIAS              <- trueai-release
-#   FDROID_KEY_PASSWORD           <- $TRUEAI_KEY_PASSWORD
+#   ANDROID_KEYSTORE_BASE64       <- contents of trueai-fdroid.jks.b64
+#   ANDROID_KEYSTORE_PASSWORD     <- $ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS             <- trueai-release
+#   ANDROID_KEY_PASSWORD          <- $ANDROID_KEY_PASSWORD
 ```
 
 The **F-Droid repo index** is signed with a *separate* key managed by
@@ -193,15 +201,18 @@ so the repo can be added by scanning from the F-Droid client.
 ## 5. Upstream `fdroiddata` submission
 
 The build recipe for F-Droid's official catalog lives in
-[`fdroid/upstream/com.trueai.localai.yml`](fdroid/upstream/com.trueai.localai.yml).
-This file is **not** consumed by anything in this repo — it's a ready-to-paste
-template for the
-[`fdroiddata`](https://gitlab.com/fdroid/fdroiddata) MR.
+[`metadata/com.trueai.localai.yml`](metadata/com.trueai.localai.yml).
+This file is **not** consumed by anything in this repo at build time —
+it's a ready-to-paste template for the
+[`fdroiddata`](https://gitlab.com/fdroid/fdroiddata) MR. The
+`Release Bump (Tag)` workflow does keep its `CurrentVersion` /
+`CurrentVersionCode` fields in sync with `android/app/build.gradle`
+when bumping releases.
 
 ### Submission checklist
 
 1. Fork `https://gitlab.com/fdroid/fdroiddata`.
-2. Copy `fdroid/upstream/com.trueai.localai.yml` into
+2. Copy `metadata/com.trueai.localai.yml` into
    `metadata/com.trueai.localai.yml` of your fork.
 3. Run, from the `fdroiddata` working copy:
 
@@ -251,7 +262,7 @@ JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64 \
 
 # F-Droid metadata syntax
 pip install fdroidserver
-( cd fdroid/upstream && fdroid lint com.trueai.localai.yml ) || true
+fdroid lint metadata/com.trueai.localai.yml || true
 ```
 
 CI runs all of these on PRs that touch `android/`, `fastlane/`,

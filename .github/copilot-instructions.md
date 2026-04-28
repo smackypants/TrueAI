@@ -122,3 +122,41 @@ violate these rules will be auto-rejected (see
 5. CODEOWNERS reviewer (`@smackypants`) approves.
 6. All review threads resolved.
 7. Auto-merge (squash) takes it from there.
+
+## Continuous learning — read this on every task
+
+This repo accumulates lessons learned across PRs in
+[`.github/copilot/LEARNINGS.md`](./copilot/LEARNINGS.md). It's
+auto-appended by `.github/workflows/learnings-ingest.yml` whenever a
+PR is merged into `main`, parsing the `## Lessons learned` section
+out of each PR body.
+
+**Before starting any non-trivial task**, read `LEARNINGS.md`. Treat
+every entry there as a hard constraint unless your task explicitly
+overrides it. Entries are dated; newer entries supersede older ones
+on the same subject.
+
+**Before opening your PR**, fill in the `## Lessons learned` section
+of `.github/PULL_REQUEST_TEMPLATE.md` with any non-obvious decisions,
+gotchas, or new conventions your work uncovered. Keep entries short
+(one to three bullet points) and actionable. The ingest workflow
+will pick them up automatically — no manual edit of `LEARNINGS.md`
+needed.
+
+If your task makes a previous learning *obsolete* (e.g. a tool was
+removed, a convention changed), say so explicitly in the
+`## Lessons learned` section using the marker `SUPERSEDES:` followed
+by the original entry's title — the ingest workflow will record the
+supersession so future agents know which entry now applies.
+
+## Recommended Copilot model
+
+This repo's recommended coding-agent model is **`claude-opus-4.7`**
+(the latest, largest Anthropic flagship in GitHub Copilot). When you
+trigger an agent task on this repo from the Copilot UI, pick
+`claude-opus-4.7` from the model dropdown. Acceptable fallbacks, in
+priority order: `claude-opus-4.5`, `claude-sonnet-4.6`, `gpt-5.4`,
+`gpt-5.5`, `gpt-5.3-codex`, `gemini-2.5-pro`. See
+[`.github/copilot/AGENT_RUNTIME.md`](./copilot/AGENT_RUNTIME.md) for
+the full rationale and the owner-only toggles (runner size, firewall,
+environments).

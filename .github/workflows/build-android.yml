@@ -42,17 +42,17 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Build Android Debug APK
-        run: cd android && ./gradlew assembleDebug --no-daemon
+      - name: Build Android Debug APK (play flavor)
+        run: cd android && ./gradlew assemblePlayDebug --no-daemon
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/play/debug/app-play-debug.apk
 
-      - name: Build Android Release APK (unsigned)
-        run: cd android && ./gradlew assembleRelease --no-daemon
+      - name: Build Android Release APK (unsigned, play flavor)
+        run: cd android && ./gradlew assemblePlayRelease --no-daemon
         continue-on-error: true
 
       - name: Upload Release APK
@@ -60,4 +60,4 @@ jobs:
         if: success()
         with:
           name: app-release-unsigned
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          path: android/app/build/outputs/apk/play/release/app-play-release-unsigned.apk

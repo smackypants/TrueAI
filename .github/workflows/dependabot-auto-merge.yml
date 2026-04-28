@@ -1,0 +1,61 @@
+name: Dependabot Auto-Merge
+
+# Enables GitHub's auto-merge (squash) on Dependabot pull requests so
+# patch and minor security/version bumps land hands-off once CI passes
+# and CODEOWNERS approval is granted.
+#
+# IMPORTANT — this does NOT remove the owner-approval gate. The
+# default-branch ruleset (`protect-default-branch.json`) still
+# requires:
+#   - 1 approving review from CODEOWNERS (i.e. the owner) AND
+#   - all required status checks green (CodeQL JS/TS, CodeQL Java/Kotlin,
+#     Android CI) AND
+#   - all review threads resolved.
+#
+# This workflow only flips the "Enable auto-merge" toggle so the PR
+# merges automatically the moment those conditions go green. Owner can
+# still dismiss approval or request changes to halt it.
+#
+# Required repo settings (Settings → General → Pull Requests):
+#   ✅ Allow auto-merge
+#   ✅ Allow squash merging
+#   ✅ Allow GitHub Actions to create and approve pull requests
+#      (Settings → Actions → General → Workflow permissions)
+#
+# Major-version bumps are intentionally skipped — those should always
+# get a human review because they may include breaking changes.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for non-major bumps
+        if: ${{ steps.metadata.outputs.update-type != 'version-update:semver-major' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
+
+      - name: Comment on skipped major bumps
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-major' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr comment "$PR_URL" --body \
+            "Skipping auto-merge: this is a **major version bump** (${{ steps.metadata.outputs.dependency-names }} → ${{ steps.metadata.outputs.new-version }}). Please review the changelog manually before merging."

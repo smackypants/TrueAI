@@ -102,10 +102,10 @@ case $choice in
     1)
         echo ""
         echo "Building Debug APK..."
-        ./gradlew assembleDebug --no-daemon
+        ./gradlew assemblePlayDebug --no-daemon
 
         if [ $? -eq 0 ]; then
-            APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+            APK_PATH="app/build/outputs/apk/play/debug/app-play-debug.apk"
             echo ""
             echo -e "${GREEN}=========================================${NC}"
             echo -e "${GREEN}✓ Build successful!${NC}"
@@ -124,10 +124,10 @@ case $choice in
     2)
         echo ""
         echo "Building Release APK..."
-        ./gradlew assembleRelease --no-daemon
+        ./gradlew assemblePlayRelease --no-daemon
 
         if [ $? -eq 0 ]; then
-            APK_PATH="app/build/outputs/apk/release/app-release-unsigned.apk"
+            APK_PATH="app/build/outputs/apk/play/release/app-play-release-unsigned.apk"
             echo ""
             echo -e "${GREEN}=========================================${NC}"
             echo -e "${GREEN}✓ Build successful!${NC}"

@@ -1,0 +1,60 @@
+name: Publish Release (Bump → Tag → APKs)
+
+# One-click full release. Composes the existing reusable workflows so the
+# whole release lifecycle — version bump, tag push, APK build, GitHub
+# Release creation — runs as a single visible workflow run.
+#
+# Trigger this from Actions → Publish Release → Run workflow. An agent
+# (or the owner) can drive the entire release end-to-end without
+# touching local git, as long as github-actions[bot] is in the
+# bypass_actors of the default-branch + release-tag rulesets.
+#
+# Composition:
+#   1. `bump`  — calls release-bump.yml (workflow_call). Bumps
+#       package.json, android versionCode/versionName, prepends
+#       CHANGELOG.md, commits, tags vX.Y.Z, pushes both. Outputs the
+#       canonical tag.
+#   2. `release` — calls release.yml (workflow_call) with the tag from
+#       the bump job. Builds debug + release APKs (both flavors) and
+#       creates the GitHub Release.
+#
+# The tag push from step 1 will *also* trigger release.yml's existing
+# `on: push: tags: [v*]` listener, but that's harmless: the second run
+# is idempotent (softprops/action-gh-release upserts by tag).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New release version, semver only (e.g. 6.0.1 — no leading "v")'
+        required: true
+      notes:
+        description: 'Short release-notes line for CHANGELOG.md and the fastlane changelog'
+        required: false
+        default: 'Maintenance release.'
+
+permissions:
+  contents: write
+
+concurrency:
+  # Prevent two publish runs racing each other on the same branch.
+  group: publish-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    uses: ./.github/workflows/release-bump.yml
+    permissions:
+      contents: write
+    with:
+      version: ${{ inputs.version }}
+      notes: ${{ inputs.notes }}
+
+  release:
+    needs: bump
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+    secrets: inherit
+    with:
+      version: ${{ needs.bump.outputs.tag }}
