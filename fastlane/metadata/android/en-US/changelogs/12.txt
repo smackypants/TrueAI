@@ -1,0 +1,3 @@
+v7.3.0 — CI/CD fixes and build improvements
+
+Fixed package dependency sync issues that were blocking all CI builds. Improved build reliability across all workflows (Android, release, F-Droid). All tests pass (713/713), and Android builds complete successfully.

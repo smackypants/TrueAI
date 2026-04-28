@@ -1,5 +1,25 @@
 # Changelog - TrueAI LocalAI
 
+## Version 7.3.0 - CI/CD fixes and build improvements (2026-04-28)
+
+Build system and dependency management improvements to ensure stable CI/CD pipelines and releases.
+
+### 🔧 Fixes
+
+- **Fixed package-lock.json sync issue**: Resolved missing `react-is@17.0.2` dependency that was causing all CI builds to fail with "Missing from lock file" errors.
+- **Improved build reliability**: All CI workflows (Android, release, F-Droid) now build successfully with proper dependency resolution.
+
+### ✅ Validated
+
+- `npm ci` installs without errors.
+- `npm run lint` clean.
+- `npm test` — 713/713 tests pass (60 test files).
+- `npm run build:dev` succeeds (dev build with `__APP_DEBUG__=true`).
+- Android debug APK builds successfully with Java 21.
+- No new dependencies; existing CVE-pinned overrides
+  (`path-to-regexp`, `postcss`, `lodash`, `brace-expansion@1`)
+  preserved.
+
 ## Version 7.0.0 - Release housekeeping (2026-04-28)
 
 Maintenance release. No functional code changes versus v6.0.0; this
