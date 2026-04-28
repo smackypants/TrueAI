@@ -12,6 +12,7 @@ import { useKV } from '@github/spark/hooks'
 import { Palette, Eye, Sparkle, Download, Upload, Trash, Check, Copy, Plus } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import { copyText } from '@/lib/native/clipboard'
 
 interface ThemeColors {
   background: string
@@ -348,7 +349,7 @@ export function ThemeSwitcher() {
     input.click()
   }
 
-  const handleCopyThemeCode = (theme: CustomTheme) => {
+  const handleCopyThemeCode = async (theme: CustomTheme) => {
     const cssCode = `:root {
 ${Object.entries(theme.colors).map(([key, value]) => {
   if (key === 'radius') return `  --radius: ${value};`
@@ -356,8 +357,12 @@ ${Object.entries(theme.colors).map(([key, value]) => {
   return `  ${cssVarName}: ${value};`
 }).join('\n')}
 }`
-    navigator.clipboard.writeText(cssCode)
-    toast.success('Theme CSS copied to clipboard')
+    const ok = await copyText(cssCode)
+    if (ok) {
+      toast.success('Theme CSS copied to clipboard')
+    } else {
+      toast.error('Failed to copy theme CSS')
+    }
   }
 
   return (

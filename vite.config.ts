@@ -32,7 +32,19 @@ export default defineConfig(({ mode }) => ({
   ],
   resolve: {
     alias: {
-      '@': resolve(projectRoot, 'src')
+      '@': resolve(projectRoot, 'src'),
+      // Redirect the GitHub Spark hosted runtime to local on-device shims so
+      // the Android APK works without the Spark KV / LLM HTTP endpoints. See
+      // src/lib/llm-runtime/* for the IndexedDB-backed KV + OpenAI-compatible
+      // chat-completion client that back these aliases.
+      '@github/spark/hooks': resolve(
+        projectRoot,
+        'src/lib/llm-runtime/spark-hooks-shim.ts',
+      ),
+      '@github/spark/spark': resolve(
+        projectRoot,
+        'src/lib/llm-runtime/install.ts',
+      ),
     }
   },
   build: {

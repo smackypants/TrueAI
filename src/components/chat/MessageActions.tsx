@@ -7,6 +7,8 @@ import { Copy, Check, ArrowBendUpLeft, PencilSimple, Trash, Download } from '@ph
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { Message } from '@/lib/types'
+import { copyText } from '@/lib/native/clipboard'
+import { haptics } from '@/lib/native/haptics'
 
 interface MessageActionsProps {
   message: Message
@@ -33,12 +35,13 @@ export function MessageActions({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(message.content)
+    const ok = await copyText(message.content)
+    if (ok) {
+      void haptics.tap()
       setCopied(true)
       toast.success('Copied to clipboard')
       setTimeout(() => setCopied(false), 2000)
-    } catch (_err) {
+    } else {
       toast.error('Failed to copy')
     }
   }

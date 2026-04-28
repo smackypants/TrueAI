@@ -1,3 +1,5 @@
+import { isOffline } from '@/lib/native/network'
+
 export interface OfflineAction {
   id: string
   type: 'conversation' | 'message' | 'agent' | 'agent-run' | 'model' | 'dataset' | 'job' | 'harness' | 'code' | 'profile' | 'analytics'
@@ -80,7 +82,7 @@ class OfflineQueue {
     this.queue.push(newAction)
     await this.saveQueue()
 
-    if (navigator.onLine) {
+    if (!isOffline()) {
       this.sync()
     } else {
       this.registerBackgroundSync()
@@ -95,7 +97,7 @@ class OfflineQueue {
       return { success: false, syncedCount: 0, failedCount: 0, errors: [] }
     }
 
-    if (!navigator.onLine) {
+    if (isOffline()) {
       console.log('[OfflineQueue] Device is offline, skipping sync')
       return { success: false, syncedCount: 0, failedCount: 0, errors: [] }
     }
@@ -207,7 +209,7 @@ class OfflineQueue {
     })
     await this.saveQueue()
     
-    if (navigator.onLine) {
+    if (!isOffline()) {
       return this.sync()
     }
     

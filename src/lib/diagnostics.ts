@@ -161,66 +161,41 @@ export function formatDiagnosticReport(report: DiagnosticReport): string {
 }
 
 /**
- * Best-effort copy to clipboard. Falls back to a hidden textarea + execCommand
- * for older WebView builds (Android System WebView pre-Clipboard-API).
+ * Best-effort copy to clipboard. Delegates to the native Capacitor
+ * Clipboard plugin on Android/iOS and to the Web Clipboard / legacy
+ * execCommand on the web.
  */
 export async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-      return true
-    }
-  } catch {
-    // fall through to legacy path
-  }
-  try {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.setAttribute('readonly', '')
-    ta.style.position = 'fixed'
-    ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.select()
-    const ok = document.execCommand('copy')
-    document.body.removeChild(ta)
-    return ok
-  } catch {
-    return false
-  }
-}
-
-interface CapacitorShareLike {
-  share: (opts: { title?: string; text?: string; dialogTitle?: string }) => Promise<unknown>
+  // Late import so this module remains import-safe in any test harness
+  // that hasn't loaded the native layer yet.
+  const { copyText } = await import('@/lib/native/clipboard')
+  return copyText(text)
 }
 
 /**
- * Returns the Capacitor Share plugin if it has been registered at runtime.
- * We do not import @capacitor/share (it is not a dependency); we only use it
- * if the host APK already provides it.
+ * Synchronous probe used by the pre-mount error fallback to decide whether
+ * to render a "Share report" button. We deliberately do **not** import any
+ * Capacitor module here: the pre-mount fallback must remain robust to the
+ * native plugin layer failing to load. Returns a truthy sentinel object
+ * when Capacitor's native shell is detected — actual sharing goes through
+ * `shareDiagnosticReport`, which uses the unified native/web `share()`.
  */
-export function getCapacitorShare(): CapacitorShareLike | null {
+export function getCapacitorShare(): { share: true } | null {
   return safe(() => {
     const cap = (window as unknown as {
-      Capacitor?: { Plugins?: Record<string, unknown> }
+      Capacitor?: { isNativePlatform?: () => boolean }
     }).Capacitor
-    const share = cap?.Plugins?.Share as CapacitorShareLike | undefined
-    return share && typeof share.share === 'function' ? share : null
+    return cap?.isNativePlatform?.() ? { share: true as const } : null
   }, null)
 }
 
 export async function shareDiagnosticReport(report: DiagnosticReport): Promise<boolean> {
-  const share = getCapacitorShare()
-  if (!share) return false
-  try {
-    await share.share({
-      title: 'TrueAI LocalAI diagnostic report',
-      text: formatDiagnosticReport(report),
-      dialogTitle: 'Share diagnostic report',
-    })
-    return true
-  } catch {
-    return false
-  }
+  const { share } = await import('@/lib/native/share')
+  return share({
+    title: 'TrueAI LocalAI diagnostic report',
+    text: formatDiagnosticReport(report),
+    dialogTitle: 'Share diagnostic report',
+  })
 }
 
 /**

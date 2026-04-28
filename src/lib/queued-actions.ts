@@ -1,9 +1,10 @@
 import { offlineQueue } from '@/lib/offline-queue'
+import { isOffline } from '@/lib/native/network'
 import type { Conversation, Message, Agent, ModelConfig } from '@/lib/types'
 
 export const queuedActions = {
   async createConversation(conversation: Conversation) {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineQueue.enqueue({
         type: 'conversation',
         action: 'create',
@@ -13,7 +14,7 @@ export const queuedActions = {
   },
 
   async updateConversation(conversation: Conversation) {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineQueue.enqueue({
         type: 'conversation',
         action: 'update',
@@ -23,7 +24,7 @@ export const queuedActions = {
   },
 
   async deleteConversation(conversationId: string) {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineQueue.enqueue({
         type: 'conversation',
         action: 'delete',
@@ -33,7 +34,7 @@ export const queuedActions = {
   },
 
   async createMessage(message: Message) {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineQueue.enqueue({
         type: 'message',
         action: 'create',
@@ -43,7 +44,7 @@ export const queuedActions = {
   },
 
   async createAgent(agent: Agent) {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineQueue.enqueue({
         type: 'agent',
         action: 'create',
@@ -53,7 +54,7 @@ export const queuedActions = {
   },
 
   async updateAgent(agent: Agent) {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineQueue.enqueue({
         type: 'agent',
         action: 'update',
@@ -63,7 +64,7 @@ export const queuedActions = {
   },
 
   async deleteAgent(agentId: string) {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineQueue.enqueue({
         type: 'agent',
         action: 'delete',
@@ -73,7 +74,7 @@ export const queuedActions = {
   },
 
   async updateModel(model: ModelConfig) {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineQueue.enqueue({
         type: 'model',
         action: 'update',
@@ -83,7 +84,7 @@ export const queuedActions = {
   },
 
   async saveCode(fileName: string, code: string) {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineQueue.enqueue({
         type: 'code',
         action: 'update',
@@ -93,7 +94,7 @@ export const queuedActions = {
   },
 
   async trackAnalytics(event: string, category: string, action: string, metadata?: Record<string, unknown>) {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineQueue.enqueue({
         type: 'analytics',
         action: 'create',

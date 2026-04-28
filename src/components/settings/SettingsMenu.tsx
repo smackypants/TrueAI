@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Gear, Palette, Bell, Lock, Database, Sparkle, Lightning} from '@phosphor-icons/react'
+import { Gear, Palette, Bell, Lock, Database, Sparkle, Lightning, Cpu} from '@phosphor-icons/react'
 import { GeneralSettings } from './GeneralSettings'
 import { AppearanceSettings } from './AppearanceSettings'
 import { NotificationSettings } from './NotificationSettings'
@@ -10,6 +10,7 @@ import { PrivacySettings } from './PrivacySettings'
 import { DataSettings } from './DataSettings'
 import { AdvancedSettings } from './AdvancedSettings'
 import { AISettings } from './AISettings'
+import { LLMRuntimeSettings } from './LLMRuntimeSettings'
 import { useIsMobile } from '@/hooks/use-mobile'
 import type { AppSettings } from '@/lib/types'
 
@@ -64,6 +65,13 @@ export function SettingsMenu({ open, onOpenChange, settings, onSettingsChange }:
                       activeTab={activeTab}
                       icon={<Sparkle weight="fill" size={20} />}
                       label="AI Behavior"
+                      onValueChange={setActiveTab}
+                    />
+                    <SettingsTabButton
+                      value="llm-runtime"
+                      activeTab={activeTab}
+                      icon={<Cpu weight="fill" size={20} />}
+                      label="LLM Runtime"
                       onValueChange={setActiveTab}
                     />
                     <SettingsTabButton
@@ -133,6 +141,10 @@ export function SettingsMenu({ open, onOpenChange, settings, onSettingsChange }:
 
                   <TabsContent value="ai" className="mt-0">
                     <AISettings settings={settings} onSettingsChange={onSettingsChange} />
+                  </TabsContent>
+
+                  <TabsContent value="llm-runtime" className="mt-0">
+                    <LLMRuntimeSettings />
                   </TabsContent>
 
                   <TabsContent value="notifications" className="mt-0">

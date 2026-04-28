@@ -13,6 +13,10 @@ import {
 } from './lib/preMountErrorCapture'
 import { reloadBypassingCache, getCapacitorInfo } from './lib/diagnostics'
 import { checkForApkUpdate } from './lib/apkUpdateCheck'
+// Bootstrap native mobile capabilities (status bar, splash, keyboard,
+// Android back button, lifecycle hooks). Side-effect import so it runs
+// before the React tree mounts. No-op on web.
+import './lib/native/install'
 
 import "./main.css"
 

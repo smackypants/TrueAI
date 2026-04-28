@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { offlineQueue, type OfflineAction, type SyncResult } from '@/lib/offline-queue'
+import {
+  getNetworkStatusSync,
+  onNetworkStatusChange,
+  onAppResume,
+} from '@/lib/native'
 
 export interface UseOfflineQueueReturn {
   queue: OfflineAction[]
@@ -17,7 +22,7 @@ export interface UseOfflineQueueReturn {
 
 export function useOfflineQueue(): UseOfflineQueueReturn {
   const [queue, setQueue] = useState<OfflineAction[]>([])
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [isOnline, setIsOnline] = useState(getNetworkStatusSync().connected)
   const [isSyncing, setIsSyncing] = useState(false)
 
   useEffect(() => {
@@ -29,16 +34,23 @@ export function useOfflineQueue(): UseOfflineQueueReturn {
 
     setQueue(offlineQueue.getQueue())
 
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
+    const unsubscribeNetwork = onNetworkStatusChange((status) => {
+      setIsOnline(status.connected)
+    })
 
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
+    // Flush queue when the app returns from background — common when the
+    // user grants WiFi permission, switches networks, or just leaves and
+    // comes back to the app on Android.
+    const unsubscribeResume = onAppResume(() => {
+      void offlineQueue.sync().catch(() => {
+        // sync errors are surfaced via the queue listener; swallow here.
+      })
+    })
 
     return () => {
       unsubscribe()
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
+      unsubscribeNetwork()
+      unsubscribeResume()
     }
   }, [])
 

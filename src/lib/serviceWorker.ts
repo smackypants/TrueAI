@@ -4,6 +4,8 @@ export interface ServiceWorkerConfig {
   onError?: (error: Error) => void
 }
 
+import { isOffline as nativeIsOffline, onNetworkStatusChange } from './native/network'
+
 export async function register(config?: ServiceWorkerConfig) {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', async () => {
@@ -114,20 +116,14 @@ function checkForUpdates(registration: ServiceWorkerRegistration) {
 }
 
 export function isOffline(): boolean {
-  return !navigator.onLine
+  // Delegate to the native network module so this is correct on Android
+  // (where the WebView's online/offline events are unreliable) as well as
+  // on the web. Kept as a sync helper to preserve the existing API.
+  return nativeIsOffline()
 }
 
 export function onOnlineStatusChange(callback: (isOnline: boolean) => void) {
-  const handleOnline = () => callback(true)
-  const handleOffline = () => callback(false)
-  
-  window.addEventListener('online', handleOnline)
-  window.addEventListener('offline', handleOffline)
-  
-  return () => {
-    window.removeEventListener('online', handleOnline)
-    window.removeEventListener('offline', handleOffline)
-  }
+  return onNetworkStatusChange((status) => callback(status.connected))
 }
 
 export async function preloadAssets(urls: string[]) {

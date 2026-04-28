@@ -145,7 +145,7 @@ See [BACKGROUND_SYNC.md](BACKGROUND_SYNC.md) for complete documentation.
 - **Icons**: Phosphor Icons
 - **Animations**: Framer Motion
 - **Build**: Vite 7
-- **State**: React Hooks + Spark KV
+- **State**: React Hooks + on-device IndexedDB KV (drop-in replacement for Spark KV)
 - **Offline**: Service Workers + Background Sync API
 
 ### Project Structure
@@ -174,6 +174,32 @@ src/
 - **Optimized Forms**: Mobile-friendly inputs
 - **Safe Areas**: Notch support
 
+### Native Capabilities (Android APK)
+
+The Android build uses Capacitor 8 first-party plugins to provide a fully
+native experience. All integrations live behind a single abstraction
+(`src/lib/native/`) so call sites work identically on web and native.
+
+| Capability | Native plugin | Web fallback |
+| --- | --- | --- |
+| Secure credential storage (LLM API keys) | `@capacitor/preferences` (app-private SharedPreferences) | IndexedDB-only (never localStorage) |
+| Network reachability | `@capacitor/network` (OS connectivity manager) | `navigator.onLine` + `online`/`offline` events |
+| Clipboard | `@capacitor/clipboard` | `navigator.clipboard.writeText` + `execCommand('copy')` |
+| Share sheet | `@capacitor/share` | Web Share API → clipboard |
+| Haptic feedback | `@capacitor/haptics` | `navigator.vibrate` |
+| App lifecycle (back button, resume) | `@capacitor/app` | `visibilitychange` event |
+| Status bar | `@capacitor/status-bar` | n/a |
+| Splash screen | `@capacitor/splash-screen` | n/a |
+| Keyboard handling | `@capacitor/keyboard` | n/a |
+| Local notifications (agent completion) | `@capacitor/local-notifications` | `Notification` API |
+| File save (chat exports) | `@capacitor/filesystem` (Documents directory) | Blob + anchor download |
+
+The Android back button is wired to a global handler stack: open
+dialogs/sheets register a handler with `pushBackHandler(...)`; otherwise
+the WebView navigates back, and on the home view the app minimises rather
+than exits, mirroring standard Android behaviour. The offline action queue
+auto-flushes when the app returns to the foreground via `onAppResume`.
+
 ## 🛠️ Development
 
 ### Available Scripts
@@ -191,13 +217,44 @@ npm run lint         # Lint code
 - Vite 7
 - Service Workers
 - Background Sync API
-- Spark Runtime SDK
+- On-device LLM runtime (OpenAI-compatible: Ollama, llama.cpp, LM Studio, OpenAI)
+
+## 🧠 LLM Runtime (on-device / user-hosted)
+
+The app no longer depends on the GitHub Spark hosted LLM/KV runtime. All
+`spark.llm` / `spark.llmPrompt` / `spark.kv` / `useKV` call sites resolve to
+local shims under `src/lib/llm-runtime/`:
+
+- **Chat & agents** call any OpenAI-compatible `POST {baseUrl}/chat/completions`
+  endpoint.
+- **State (`useKV`)** is persisted in IndexedDB (with a `localStorage`
+  fallback for restricted WebViews).
+
+### Configuring an LLM endpoint
+
+Open **Settings → LLM Runtime** in the app and pick a provider preset, or
+edit the base URL directly. Suggested setups:
+
+| Provider | Base URL | Default model |
+| --- | --- | --- |
+| Ollama | `http://localhost:11434/v1` | `llama3.2` |
+| llama.cpp `llama-server` | `http://localhost:8080/v1` | (server-loaded model) |
+| LM Studio | `http://localhost:1234/v1` | (server-loaded model) |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+
+The "Test connection" button probes `{baseUrl}/models` and lists the models
+your server reports — handy on Android, where `localhost` is the device
+itself; point the app at your LAN IP (e.g. `http://192.168.1.10:11434/v1`)
+to talk to a server on another machine.
+
+Defaults can also be baked into the APK by editing the `llm` block in
+`public/runtime.config.json` before building.
 
 ## 🔐 Security
 
-- No external API calls (fully local)
+- No external API calls by default (fully local; only talks to the LLM endpoint you configure)
 - Secure service worker implementation
-- Local data storage via Spark KV
+- Local data storage via on-device IndexedDB
 - No telemetry or tracking
 
 ## 🤝 Contributing
