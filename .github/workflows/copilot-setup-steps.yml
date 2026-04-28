@@ -22,8 +22,16 @@ jobs:
   # The job MUST be named `copilot-setup-steps` or the Copilot cloud agent
   # will not pick it up.
   copilot-setup-steps:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Use the largest runner the org has provisioned (e.g. ubuntu-4-core,
+    # ubuntu-8-core) by setting the repository / org Actions variable
+    # COPILOT_RUNNER. Falls back to standard ubuntu-latest so this
+    # workflow keeps working even if larger runners aren't enabled.
+    # See: Settings → Secrets and variables → Actions → Variables.
+    runs-on: ${{ vars.COPILOT_RUNNER || 'ubuntu-latest' }}
+    # Maximum allowed by the Copilot cloud agent (cap is 59). Gives the
+    # agent the longest possible window to install deps, build the
+    # Android project, run tests, etc., before its task starts.
+    timeout-minutes: 59
 
     # Lowest permissions needed for the setup steps. Copilot is given its
     # own (separate, broader) token for its actual work after these steps

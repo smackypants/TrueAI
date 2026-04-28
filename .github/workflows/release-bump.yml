@@ -15,6 +15,26 @@ on:
         description: 'Short release-notes line for CHANGELOG.md'
         required: false
         default: 'Maintenance release.'
+  # Reusable: lets publish-release.yml (and any future orchestrator)
+  # invoke the bump+tag flow without duplicating its logic.
+  workflow_call:
+    inputs:
+      version:
+        description: 'New release version, semver only (e.g. 1.0.3 — no leading "v")'
+        required: true
+        type: string
+      notes:
+        description: 'Short release-notes line for CHANGELOG.md'
+        required: false
+        type: string
+        default: 'Maintenance release.'
+    outputs:
+      version:
+        description: 'The validated semver version that was committed and tagged.'
+        value: ${{ jobs.bump.outputs.version }}
+      tag:
+        description: 'The annotated tag that was pushed (vX.Y.Z).'
+        value: ${{ jobs.bump.outputs.tag }}
 
 permissions:
   contents: write
@@ -22,6 +42,10 @@ permissions:
 jobs:
   bump:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+      tag: v${{ steps.validate.outputs.version }}
+      version_code: ${{ steps.bump_gradle.outputs.version_code }}
     steps:
       - name: Checkout (full history needed to push a tag)
         uses: actions/checkout@v4
@@ -38,7 +62,7 @@ jobs:
         id: validate
         run: |
           set -euo pipefail
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ inputs.version }}"
           if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "::error::Version '$VERSION' is not valid semver MAJOR.MINOR.PATCH (no leading 'v')."
             exit 1
@@ -74,7 +98,7 @@ jobs:
 
       - name: Write fastlane changelog for new versionCode
         env:
-          RAW_NOTES: ${{ github.event.inputs.notes }}
+          RAW_NOTES: ${{ inputs.notes }}
         run: |
           set -euo pipefail
           NEW_CODE="${{ steps.bump_gradle.outputs.version_code }}"
@@ -110,7 +134,7 @@ jobs:
         env:
           # Pass via env so the value isn't interpolated into the shell script
           # by the runner — avoids quote/newline injection from the input.
-          RAW_NOTES: ${{ github.event.inputs.notes }}
+          RAW_NOTES: ${{ inputs.notes }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.validate.outputs.version }}"

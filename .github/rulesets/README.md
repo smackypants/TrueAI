@@ -16,6 +16,37 @@ and `NOTICE` files (see [`/CONTRIBUTING.md`](../../CONTRIBUTING.md)).
 
 ## How to import (one-time, owner only)
 
+### Option A — automated (recommended): `scripts/configure-rulesets.sh`
+
+From a workstation where `gh` is authenticated as a repo admin (and `jq`
++ `python3` are installed):
+
+```bash
+# Dry-run first to inspect what will be POSTed.
+scripts/configure-rulesets.sh --dry-run
+
+# Apply for real (idempotent — re-run any time).
+scripts/configure-rulesets.sh
+```
+
+The script:
+
+1. Calls `GET /repos/{owner}/{repo}/installations` to discover the live
+   `app_id` for `github-actions[bot]`, `copilot-swe-agent[bot]`, and
+   `dependabot[bot]`.
+2. Patches each ruleset JSON in this folder, replacing every
+   placeholder `actor_id: -1` with the matching real ID (or dropping the
+   entry entirely if that bot isn't installed).
+3. Recursively strips every `_comment` field (the Rulesets API rejects
+   unknown keys).
+4. POSTs new rulesets, or PUTs over an existing ruleset of the same
+   name — so it's safe to re-run after an `app_id` rotation.
+
+After the script completes, verify under
+`https://github.com/smackypants/trueai-localai/settings/rules`.
+
+### Option B — manual UI
+
 1. Open **Settings → Rules → Rulesets** on the repository.
 2. Click **New ruleset → Import a ruleset**.
 3. Upload one of the JSON files in this folder. Repeat for each file.
@@ -166,13 +197,44 @@ maintainers" checked on the PR (default). If they didn't, you can't push a
 conflict fix to their branch — you have to either ask them to rebase or
 push a fixup commit yourself by checking out their fork locally.
 
-### Dependabot auto-merge (optional)
+### Dependabot auto-merge
 
-To auto-merge Dependabot PRs after CI passes (still requires your CODEOWNERS
-approval), you can either:
+This repo ships `.github/workflows/dependabot-auto-merge.yml`, which
+calls `gh pr merge --auto --squash` on every Dependabot PR that is
+**not** a major version bump. CODEOWNERS approval + all required status
+checks are still required before the merge actually happens — the
+workflow only flips the auto-merge switch.
 
-- Approve and click "Enable auto-merge" manually, or
-- Add a tiny GitHub Actions workflow that calls `gh pr merge --auto --squash`
-  on Dependabot PRs you want to fast-track. This repo does not include such
-  a workflow today; add one only if you want truly hands-off security
-  patching.
+Pre-requisites (one-time, owner sets in the GitHub UI):
+
+- ✅ Settings → General → Pull Requests → **Allow auto-merge**
+- ✅ Settings → General → Pull Requests → **Allow squash merging**
+- ✅ Settings → Actions → General → Workflow permissions →
+  **Read and write permissions** + **Allow GitHub Actions to create
+  and approve pull requests**
+
+Major-version bumps are intentionally skipped; the workflow leaves a
+comment on the PR instead, so you can review breaking changes by hand.
+
+---
+
+## End-to-end "publish a release" flow
+
+For a single-click full release (bump → tag → APK → GitHub Release in
+one visible workflow run):
+
+1. **Actions → Publish Release (Bump → Tag → APKs) → Run workflow.**
+   - Inputs: `version` (semver, no leading `v`) and `notes` (one-line).
+   - Composition: this orchestrator (`publish-release.yml`) calls
+     `release-bump.yml` (which now exposes a `workflow_call` trigger)
+     and then `release.yml` with the resulting `vX.Y.Z` tag.
+2. The `build-and-release` job runs in the **`release`** environment —
+   create that environment under Settings → Environments and attach
+   any signing / publishing secrets you want gated by manual approval.
+3. The `play-release.yml` and `fdroid-repo.yml` workflows similarly run
+   in the **`play`** and **`fdroid`** environments respectively, so
+   Play Console + F-Droid signing keys can be scoped per environment.
+
+The legacy individual workflows (`release-bump.yml`, `tag-release.yml`,
+`release.yml` on tag-push) still work exactly as before — `publish-release.yml`
+is purely additive.

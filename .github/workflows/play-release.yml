@@ -46,6 +46,13 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Scopes Play Console signing + service-account secrets to the
+    # `play` environment under Settings → Environments. Owner can
+    # require manual approval there before any AAB is uploaded to
+    # Google Play.
+    environment:
+      name: play
+      url: https://play.google.com/console
     steps:
       - name: Checkout
         uses: actions/checkout@v4

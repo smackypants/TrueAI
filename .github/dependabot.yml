@@ -5,16 +5,31 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     labels:
       - "dependencies"
       - "javascript"
+    # One grouped PR per run for non-major bumps so the
+    # dependabot-auto-merge workflow can squash-merge them in a
+    # single CI cycle instead of 10+ serial runs.
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+      npm-security:
+        applies-to: "security-updates"
+        update-types:
+          - "minor"
+          - "patch"
+          - "major"
 
   # Devcontainer base image updates
   - package-ecosystem: "devcontainers"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "devcontainer"
@@ -24,17 +39,41 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+      actions-security:
+        applies-to: "security-updates"
+        update-types:
+          - "minor"
+          - "patch"
+          - "major"
 
   # Android Gradle dependencies (capacitor-android, AGP, etc.)
   - package-ecosystem: "gradle"
     directory: "/android"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "android"
+    groups:
+      gradle-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+      gradle-security:
+        applies-to: "security-updates"
+        update-types:
+          - "minor"
+          - "patch"
+          - "major"
 

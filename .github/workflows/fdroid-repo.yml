@@ -35,6 +35,12 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Scopes the F-Droid repo signing keystore secrets to the `fdroid`
+    # environment under Settings → Environments. Owner can require
+    # manual approval before each repo publish.
+    environment:
+      name: fdroid
+      url: https://smackypants.github.io/trueai-localai/fdroid/repo
     steps:
       - name: Checkout
         uses: actions/checkout@v4

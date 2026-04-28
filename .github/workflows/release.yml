@@ -10,10 +10,30 @@ on:
         description: 'Release version (e.g., v1.0.0)'
         required: true
         default: 'v1.0.0'
+  # Reusable: lets publish-release.yml call build-and-release directly
+  # after the bump+tag job, so the whole release shows up as one run.
+  workflow_call:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+# Ensure only one build-and-release runs at a time per tag/ref. If a tag
+# push and a workflow_call from publish-release.yml race for the same
+# version, the later run waits for the earlier one to finish (rather
+# than both trying to upsert the same GitHub Release at once).
+concurrency:
+  group: release-${{ inputs.version || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    # Scopes Play/F-Droid/signing secrets to the `release` environment
+    # configured under Settings → Environments. Owner can require
+    # manual approval there for an extra gate before any APK ships.
+    environment: release
     permissions:
       contents: write
 
@@ -80,8 +100,12 @@ jobs:
       - name: Get version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          # `inputs.version` is populated for both workflow_dispatch and
+          # workflow_call; on a tag push it's empty so we fall back to the
+          # ref name.
+          INPUT_VERSION="${{ inputs.version }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            echo "version=$INPUT_VERSION" >> $GITHUB_OUTPUT
           else
             echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi

@@ -1,0 +1,141 @@
+name: Ingest PR Lessons-Learned
+
+# Auto-curated agent memory: every time a PR is merged into main,
+# parse the "## Lessons learned" section out of the PR body and
+# prepend a structured entry to .github/copilot/LEARNINGS.md so
+# every future Copilot / agent session reads it automatically.
+#
+# Falls back to a one-line stub (PR title + top-level files
+# changed) when the section is empty, so we never silently drop a
+# merge.
+#
+# Skips Dependabot / github-actions[bot] / copilot-swe-agent[bot]
+# PRs unless they actually wrote something into the lessons
+# section, to keep the log signal-rich.
+
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [main, master]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  # Serialise so two concurrent merges don't race on the same file.
+  group: learnings-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          # Need write to push the LEARNINGS update directly.
+          persist-credentials: true
+
+      - name: Append entry to LEARNINGS.md
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_FILES_URL: ${{ github.event.pull_request.url }}/files
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os, re, subprocess, sys, datetime, pathlib, json
+
+          repo_root = pathlib.Path(__file__).resolve().parent if False else pathlib.Path('.').resolve()
+          target = repo_root / '.github' / 'copilot' / 'LEARNINGS.md'
+          if not target.exists():
+              # Bootstrap if a future PR removed it accidentally; never crash the workflow.
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text("# Project learnings — auto-curated agent memory\n\n", encoding='utf-8')
+
+          body = os.environ.get('PR_BODY') or ''
+          title = os.environ.get('PR_TITLE') or '(untitled)'
+          number = os.environ.get('PR_NUMBER') or '?'
+          author = os.environ.get('PR_AUTHOR') or 'unknown'
+          url = os.environ.get('PR_URL') or ''
+          sha = (os.environ.get('PR_MERGE_SHA') or '')[:12]
+          today = datetime.date.today().isoformat()
+
+          # Pull the "## Lessons learned" section. Stop at the next
+          # H2 / H1, or end of body. Tolerant of casing + extra spaces.
+          m = re.search(
+              r'(?im)^[ \t]*##+[ \t]*lessons[ \t]+learned[ \t]*$(.*?)(?=^[ \t]*#{1,2}[ \t]|\Z)',
+              body, re.S)
+          section = (m.group(1).strip() if m else '').strip()
+
+          # Strip HTML comments — those are template hints, not content.
+          section = re.sub(r'<!--.*?-->', '', section, flags=re.S).strip()
+
+          # Detect SUPERSEDES markers to record explicitly. Note the
+          # escaped dash: `[ \t-*]` would be interpreted as the ASCII
+          # range \t (9) → * (42), which excludes `-` (45).
+          supersedes = re.findall(r'(?im)^[ \t\-*]*SUPERSEDES:[ \t]*(.+)$', section)
+
+          if not section:
+              # Fallback stub. Skip noise from bot PRs that didn't volunteer a lesson.
+              if author in ('dependabot[bot]', 'github-actions[bot]', 'copilot-swe-agent[bot]'):
+                  print(f'No lessons-learned section and bot author ({author}); skipping.')
+                  sys.exit(0)
+              section = f"- (No explicit lessons recorded.) PR title: _{title}_."
+
+          # Build the new entry.
+          entry = [f"## {today} — PR #{number}: {title}", ""]
+          entry.append(f"_Source: [{url}]({url}) · merged {sha} · author @{author}_")
+          entry.append("")
+          entry.append(section)
+          if supersedes:
+              entry.append("")
+              for s in supersedes:
+                  entry.append(f"> 🔁 Supersedes: **{s.strip()}**")
+          entry.append("")
+          entry.append("---")
+          entry.append("")
+          new_block = "\n".join(entry)
+
+          existing = target.read_text(encoding='utf-8')
+
+          # Insert immediately after the file's top-level intro (before
+          # the first dated entry) so newest-first ordering is preserved.
+          # The seed file ends its preamble with a single "---" line.
+          parts = existing.split('\n---\n', 1)
+          if len(parts) == 2:
+              new_text = parts[0] + '\n---\n\n' + new_block + parts[1]
+          else:
+              new_text = existing.rstrip() + '\n\n---\n\n' + new_block
+
+          target.write_text(new_text, encoding='utf-8')
+          print(f'Appended entry for PR #{number}.')
+          PY
+
+      - name: Commit + push if changed
+        env:
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .github/copilot/LEARNINGS.md; then
+            echo "No changes to LEARNINGS.md (likely a skipped bot PR)."
+            exit 0
+          fi
+          git add .github/copilot/LEARNINGS.md
+          git commit -m "docs(learnings): ingest lessons from #${PR_NUMBER}"
+          # Retry once on the rare race against a concurrent merge.
+          if ! git push origin HEAD; then
+            git pull --rebase origin "${GITHUB_REF_NAME:-main}"
+            git push origin HEAD
+          fi
