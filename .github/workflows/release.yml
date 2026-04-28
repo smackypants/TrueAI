@@ -19,6 +19,14 @@ on:
         required: true
         type: string
 
+# Ensure only one build-and-release runs at a time per tag/ref. If a tag
+# push and a workflow_call from publish-release.yml race for the same
+# version, the later run waits for the earlier one to finish (rather
+# than both trying to upsert the same GitHub Release at once).
+concurrency:
+  group: release-${{ inputs.version || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
