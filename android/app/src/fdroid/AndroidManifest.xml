@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    F-Droid flavor manifest overlay.
+
+    F-Droid builds must not reference any proprietary Google service.
+    The base manifest does not include any Google-specific providers,
+    receivers, or services, so this overlay is intentionally empty —
+    its presence reserves the manifest source-set for future overrides
+    (e.g. removing a permission only the play flavor needs).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

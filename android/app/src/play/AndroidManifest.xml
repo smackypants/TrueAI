@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Play Store flavor manifest overlay.
+
+    Reserved for Google Play-only entries (e.g. Firebase Messaging
+    services) added when google-services.json is present. Empty by
+    default so the play flavor matches the base manifest exactly.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

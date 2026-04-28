@@ -50,4 +50,6 @@ jobs:
 
     - name: Build with Gradle
       working-directory: android
-      run: ./gradlew assembleDebug --no-daemon
+      # Product flavors split assembleDebug into assemble{Play,Fdroid}Debug.
+      # Build both so PRs catch breakage in either distribution path.
+      run: ./gradlew assemblePlayDebug assembleFdroidDebug --no-daemon

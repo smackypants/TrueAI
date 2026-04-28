@@ -1,0 +1,31 @@
+TrueAI LocalAI is a fully on-device chat client for any OpenAI-compatible
+language model — including local runtimes (llama.cpp server, Ollama,
+LM Studio, vLLM, text-generation-webui) and self-hosted endpoints. You
+choose where your prompts go.
+
+KEY FEATURES
+
+* Bring-your-own LLM endpoint — point the app at any OpenAI-compatible
+  base URL and start chatting. Works fully offline against a local
+  server on your home network.
+* API key stored on-device only — Capacitor secure preferences on
+  Android, IndexedDB on the web. Never written to plain localStorage,
+  never uploaded.
+* Conversation history, agents, models, and settings persist locally
+  via IndexedDB. No account, no cloud sync, no telemetry by default.
+* Local notifications, haptics, share, clipboard, network awareness,
+  and filesystem access via Capacitor — all permission-gated.
+* Mobile-optimised UI with safe-area support, bottom nav, and a
+  dedicated App Builder tab.
+
+PRIVACY
+
+* No analytics or tracking by default.
+* No data collection by the developer.
+* The only network destination is the LLM endpoint that YOU configure.
+  Your prompts and responses go to that endpoint and nowhere else.
+
+OPEN SOURCE
+
+Source code, build instructions, and the full changelog are available
+on GitHub. Released under the MIT license.

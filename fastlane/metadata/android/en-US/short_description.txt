@@ -1,0 +1,1 @@
+Privacy-respecting AI assistant that talks to any OpenAI-compatible LLM.

@@ -1,5 +1,38 @@
 apply plugin: 'com.android.application'
 
+// Load optional release-signing properties.
+//
+// Source order (first match wins):
+//   1. Environment variables — used by GitHub Actions release workflows.
+//      ANDROID_KEYSTORE_PATH / ANDROID_KEYSTORE_PASSWORD /
+//      ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD
+//   2. android/keystore.properties (gitignored) — for local signed builds.
+//
+// If neither is present the release build is left UNSIGNED, preserving
+// the historical local-dev behavior. CI workflows that need a signed
+// artifact MUST export the env vars above.
+def releaseSigning = [:]
+def envKeystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+if (envKeystorePath?.trim()) {
+    releaseSigning.storeFile = file(envKeystorePath)
+    releaseSigning.storePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD') ?: ''
+    releaseSigning.keyAlias = System.getenv('ANDROID_KEY_ALIAS') ?: ''
+    releaseSigning.keyPassword = System.getenv('ANDROID_KEY_PASSWORD') ?: ''
+} else {
+    def keystorePropsFile = rootProject.file('keystore.properties')
+    if (keystorePropsFile.exists()) {
+        def props = new Properties()
+        keystorePropsFile.withInputStream { props.load(it) }
+        if (props['storeFile']) {
+            releaseSigning.storeFile = file(props['storeFile'])
+            releaseSigning.storePassword = props['storePassword'] ?: ''
+            releaseSigning.keyAlias = props['keyAlias'] ?: ''
+            releaseSigning.keyPassword = props['keyPassword'] ?: ''
+        }
+    }
+}
+def hasReleaseSigning = releaseSigning.containsKey('storeFile') && releaseSigning.storeFile?.exists()
+
 android {
     namespace "com.trueai.localai"
     compileSdk rootProject.ext.compileSdkVersion
@@ -16,15 +49,65 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Two product flavors so the same source tree produces:
+    //   * play   — Google Play AAB / APK; may include Google Services if
+    //              google-services.json is present at app/.
+    //   * fdroid — F-Droid build; never references proprietary Google
+    //              libraries and never self-checks for updates outside
+    //              F-Droid (per F-Droid inclusion policy).
+    flavorDimensions += 'distribution'
+    productFlavors {
+        play {
+            dimension 'distribution'
+            // Default flavor — same applicationId so installs upgrade
+            // cleanly between distributions when signed with the same key.
+        }
+        fdroid {
+            dimension 'distribution'
+            // Compile-time flag the JS layer can read at build time if
+            // it ever needs to disable a non-free integration.
+            buildConfigField 'boolean', 'IS_FDROID_BUILD', 'true'
+        }
+    }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile releaseSigning.storeFile
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+            }
+        }
+    }
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Code/resource shrinking — required for a reasonable AAB
+            // size on Play and harmless for F-Droid.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
+    }
+    buildFeatures {
+        buildConfig true
     }
     compileOptions {
         sourceCompatibility rootProject.ext.javaVersion
         targetCompatibility rootProject.ext.javaVersion
+    }
+    // Keep packaging deterministic — required for F-Droid reproducible
+    // builds and avoids "duplicate META-INF" failures.
+    packaging {
+        resources {
+            excludes += [
+                'META-INF/AL2.0',
+                'META-INF/LGPL2.1',
+                'META-INF/*.kotlin_module',
+            ]
+        }
     }
 }
 
@@ -48,10 +131,20 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
+// Apply google-services plugin only for the `play` flavor and only when
+// the credentials file is present. F-Droid builds must never reference
+// proprietary Google libraries.
 try {
     def servicesJSON = file('google-services.json')
     if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
+        def variantNames = android.applicationVariants.collect { it.name.toLowerCase() }
+        def buildingPlay = gradle.startParameter.taskNames.any { taskName ->
+            def lower = taskName.toLowerCase()
+            lower.contains('play') || (!lower.contains('fdroid') && variantNames.any { lower.contains(it) })
+        }
+        if (buildingPlay) {
+            apply plugin: 'com.google.gms.google-services'
+        }
     }
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")

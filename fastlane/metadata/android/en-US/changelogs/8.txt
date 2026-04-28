@@ -1,0 +1,6 @@
+v6.0.0 — Local LLM runtime replaces the GitHub Spark hosted runtime.
+Full Capacitor native-mobile layer (secure storage, network, clipboard,
+share, haptics, notifications, filesystem). API key stored securely
+on-device. Vite 7 CVE patches and transitive dependency pins.
+Active-tab persistence, mobile UI fixes, App Builder in mobile bottom
+nav. Android versionCode bumped to 8 / versionName 6.0.0.
