@@ -16,6 +16,15 @@
 
 ---
 
+## 2026-04-28 — PR #52: fix: resolve all lint warnings and lockfile sync issue
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/52](https://github.com/smackypants/trueai-localai/pull/52) · merged c680591b2dd0 · author @Copilot_
+
+- When Capacitor plugin modules are lazily imported via `try/catch` dynamic imports, type the holding variable with `import type { Plugin } from '@capacitor/plugin'` + `| null` instead of `any`. For enum-valued variables (e.g. `Style`, `KeyboardResize`), use `typeof import('@capacitor/status-bar').Style | null` — this gives full enum-member access (`Style.Dark`) without losing type safety.
+- A stale `packages/spark-tools` entry with `"extraneous": true` in `package-lock.json` is a pre-existing artefact from when a workspace package was removed; `npm install --package-lock-only` preserves it and `npm ci` ignores it safely.
+
+---
+
 ## 2026-04-28 — PR #53: feat(ci): add Full APK Release workflow (bump → signed APKs → GitHub Release → Play/F-Droid)
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/53](https://github.com/smackypants/trueai-localai/pull/53) · merged 4c5117cba9ef · author @Copilot_
