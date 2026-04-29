@@ -229,39 +229,42 @@ jobs:
           REMAINING="${{ steps.lint_fix.outputs.remaining }}"
           REMAINING="${REMAINING:-0}"
 
-          PR_BODY="## Automated ESLint auto-fix
+          PR_BODY="$(cat <<EOF
+## Automated ESLint auto-fix
 
-          This PR was opened automatically by the **Auto Bug-Fix** workflow.
+This PR was opened automatically by the **Auto Bug-Fix** workflow.
 
-          ### What changed
-          - Applied \`eslint --fix\` to all auto-correctable lint violations.
-          - Changed lines: ${{ steps.diff_check.outputs.changed_lines }} (cap: ${MAX_DIFF_LINES}).
+### What changed
+- Applied \`eslint --fix\` to all auto-correctable lint violations.
+- Changed lines: ${{ steps.diff_check.outputs.changed_lines }} (cap: ${MAX_DIFF_LINES}).
 
-          ### Remaining unfixable errors: ${REMAINING}
-          $(if [ "$REMAINING" -gt "0" ]; then echo "⚠️ ${REMAINING} errors could not be auto-fixed. A separate Copilot fix issue will be dispatched."; else echo "✅ All lint errors were resolved automatically."; fi)
+### Remaining unfixable errors: ${REMAINING}
+$(if [ "$REMAINING" -gt "0" ]; then echo "⚠️ ${REMAINING} errors could not be auto-fixed. A separate Copilot fix issue will be dispatched."; else echo "✅ All lint errors were resolved automatically."; fi)
 
-          ### Checks run
-          - \`npm ci\` ✅
-          $([ '${{ steps.scripts.outputs.has_lint }}' = 'true' ] && echo "- \`npm run lint --fix\` ✅" || echo "- lint: not configured")
-          $([ '${{ steps.scripts.outputs.has_test }}' = 'true' ] && echo "- \`npm test\`: exit ${{ steps.tests.outputs.exit }}" || echo "- test: not configured")
-          $([ '${{ steps.scripts.outputs.has_build_dev }}' = 'true' ] && echo "- \`npm run build:dev\`: exit ${{ steps.build_dev.outputs.exit }}" || echo "- build:dev: not configured")
+### Checks run
+- \`npm ci\` ✅
+$([ '${{ steps.scripts.outputs.has_lint }}' = 'true' ] && echo "- \`npm run lint --fix\` ✅" || echo "- lint: not configured")
+$([ '${{ steps.scripts.outputs.has_test }}' = 'true' ] && echo "- \`npm test\`: exit ${{ steps.tests.outputs.exit }}" || echo "- test: not configured")
+$([ '${{ steps.scripts.outputs.has_build_dev }}' = 'true' ] && echo "- \`npm run build:dev\`: exit ${{ steps.build_dev.outputs.exit }}" || echo "- build:dev: not configured")
 
-          ### Permissions used
-          - \`contents: write\` — push fix branch
-          - \`pull-requests: write\` — open PR and enable auto-merge
-          - \`issues: write\` — dispatch Copilot fix issues for unfixable errors
+### Permissions used
+- \`contents: write\` — push fix branch
+- \`pull-requests: write\` — open PR and enable auto-merge
+- \`issues: write\` — dispatch Copilot fix issues for unfixable errors
 
-          ### Auto-merge behaviour
-          Auto-merge (squash) is enabled on this PR. GitHub will merge it automatically
-          once **all required status checks pass** (CodeQL JS/TS, CodeQL Java/Kotlin,
-          Android CI) and CODEOWNERS approval is granted — exactly the same gate as
-          every other PR. This workflow cannot bypass those protections.
+### Auto-merge behaviour
+Auto-merge (squash) is enabled on this PR. GitHub will merge it automatically
+once **all required status checks pass** (CodeQL JS/TS, CodeQL Java/Kotlin,
+Android CI) and CODEOWNERS approval is granted — exactly the same gate as
+every other PR. This workflow cannot bypass those protections.
 
-          ### Governance
-          - ❌ \`LICENSE\` / \`NOTICE\` not modified
-          - ❌ \`package.json\` overrides pins not weakened
-          - ❌ No telemetry or third-party network calls added
-          - ❌ \`.github/**\` not modified by the fix step"
+### Governance
+- ❌ \`LICENSE\` / \`NOTICE\` not modified
+- ❌ \`package.json\` overrides pins not weakened
+- ❌ No telemetry or third-party network calls added
+- ❌ \`.github/**\` not modified by the fix step
+EOF
+)"
 
           PR_URL=$(gh pr create \
             --repo "$REPO" \
