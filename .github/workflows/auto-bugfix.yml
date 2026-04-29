@@ -214,7 +214,7 @@ jobs:
           echo "no_changes=false" >> "$GITHUB_OUTPUT"
 
           DATE=$(date -u '+%Y-%m-%d')
-          BRANCH="copilot/auto-bugfix-lint-${DATE}"
+          BRANCH="copilot/fix-audit-lint-${DATE}"
 
           # If the branch already exists (re-run same day), reset it
           git checkout -B "$BRANCH"
@@ -263,7 +263,7 @@ jobs:
             --repo "$REPO" \
             --base main \
             --head "$BRANCH" \
-            --title "chore: automated ESLint auto-fix [${DATE}]" \
+            --title "chore: auto-fix audit lint violations [${DATE}]" \
             --body "$PR_BODY")
 
           echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
