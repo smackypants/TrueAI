@@ -1,0 +1,322 @@
+name: Scheduled Repo Audit
+
+# Weekly full-repo audit: lint, unit tests, and coverage.
+# Opens (or updates) pinned GitHub Issues for the Copilot coding agent when
+# quality regressions are detected.
+#
+# Configurable thresholds (edit these env vars to adjust):
+#   MIN_COVERAGE_PCT  — minimum acceptable line coverage percentage (default 80)
+#
+# Issues created follow the copilot-autofix template conventions so the agent
+# has full context to address the regression.
+
+on:
+  schedule:
+    # Every Sunday at 00:00 UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    inputs:
+      min_coverage_pct:
+        description: 'Minimum acceptable coverage % (overrides default 80)'
+        required: false
+        default: '80'
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  MIN_COVERAGE_PCT: ${{ github.event.inputs.min_coverage_pct || '80' }}
+
+jobs:
+  audit:
+    name: Lint + test + coverage audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Lint ──────────────────────────────────────────────────────────────
+      - name: Run ESLint
+        id: lint
+        run: |
+          set +e
+          npm run lint -- --format json --output-file /tmp/lint-results.json
+          LINT_EXIT=$?
+          set -e
+
+          if [ -f /tmp/lint-results.json ]; then
+            node - <<'NODE_EOF'
+          const fs = require('fs');
+          const results = JSON.parse(fs.readFileSync('/tmp/lint-results.json', 'utf8'));
+          const errors = [];
+          results.forEach(f => {
+            f.messages.forEach(m => {
+              if (m.severity === 2) {
+                errors.push(`${f.filePath}:${m.line}:${m.column} [${m.ruleId}] ${m.message}`);
+              }
+            });
+          });
+          const count = errors.length;
+          fs.writeFileSync('/tmp/lint-errors.txt', errors.join('\n'));
+          fs.writeFileSync('/tmp/lint-error-count.txt', String(count));
+          NODE_EOF
+          else
+            echo "0" > /tmp/lint-error-count.txt
+            touch /tmp/lint-errors.txt
+          fi
+
+          ERROR_COUNT=$(cat /tmp/lint-error-count.txt)
+          echo "error_count=$ERROR_COUNT" >> "$GITHUB_OUTPUT"
+          echo "has_errors=$([ "$ERROR_COUNT" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "Lint errors found: $ERROR_COUNT"
+
+      # ── Unit tests ────────────────────────────────────────────────────────
+      - name: Run unit tests
+        id: tests
+        run: |
+          set +e
+          npm test -- --reporter=json --outputFile /tmp/test-results.json
+          TEST_EXIT=$?
+          set -e
+
+          FAILED=0
+          if [ -f /tmp/test-results.json ]; then
+            FAILED=$(node -e "const r=require('/tmp/test-results.json'); console.log(r.numFailedTests||0);" 2>/dev/null || echo 0)
+          fi
+          echo "failed_count=$FAILED"   >> "$GITHUB_OUTPUT"
+          echo "test_exit=$TEST_EXIT"   >> "$GITHUB_OUTPUT"
+          echo "Tests failed: $FAILED"
+
+      # ── Coverage ──────────────────────────────────────────────────────────
+      - name: Run coverage
+        id: coverage
+        run: |
+          set +e
+          npm run test:coverage -- --reporter=json --outputFile /tmp/coverage-test.json
+          COV_EXIT=$?
+          set -e
+
+          # Extract the summary coverage from the v8 JSON report
+          COV_FILE="coverage/coverage-summary.json"
+          if [ -f "$COV_FILE" ]; then
+            LINE_PCT=$(node -e "
+              const s=require('./$COV_FILE').total;
+              console.log(Math.round(s.lines.pct));
+            " 2>/dev/null || echo 0)
+          else
+            LINE_PCT=0
+          fi
+
+          echo "line_pct=$LINE_PCT" >> "$GITHUB_OUTPUT"
+          BELOW=$([ "$LINE_PCT" -lt "$MIN_COVERAGE_PCT" ] && echo true || echo false)
+          echo "below_threshold=$BELOW" >> "$GITHUB_OUTPUT"
+          echo "Coverage: ${LINE_PCT}% (threshold: ${MIN_COVERAGE_PCT}%)"
+
+      # ── Upload artifacts ──────────────────────────────────────────────────
+      - name: Upload lint results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-results
+          path: /tmp/lint-results.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: /tmp/test-results.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # ── Issue management ──────────────────────────────────────────────────
+      - name: Ensure required labels exist
+        if: steps.lint.outputs.has_errors == 'true' || steps.coverage.outputs.below_threshold == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh label create "copilot-fix"      --color "7057ff" --description "Automated fix dispatched to Copilot" --repo "$REPO" --force
+          gh label create "audit"            --color "bfd4f2" --description "Scheduled audit finding"             --repo "$REPO" --force
+          gh label create "lint-error"       --color "fbca04" --description "ESLint error"                       --repo "$REPO" --force
+          gh label create "coverage"         --color "0075ca" --description "Test coverage issue"                --repo "$REPO" --force
+
+      # ── Lint issue ───────────────────────────────────────────────────────
+      - name: Create or update lint-errors issue
+        if: steps.lint.outputs.has_errors == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ERROR_COUNT: ${{ steps.lint.outputs.error_count }}
+          TODAY: ${{ github.run_id }}
+        run: |
+          TITLE="[Audit] Lint errors found"
+          ERROR_LIST=$(cat /tmp/lint-errors.txt | head -100)
+          AUDIT_DATE=$(date -u '+%Y-%m-%d')
+
+          BODY="## Auto-generated by Scheduled Repo Audit
+
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`lint-error\` |
+          | **Severity** | \`medium\` |
+          | **Date** | $AUDIT_DATE |
+          | **Error count** | $ERROR_COUNT |
+          | **Run** | https://github.com/$REPO/actions/runs/${{ github.run_id }} |
+
+          ### ESLint errors (first 100)
+
+          \`\`\`
+          $ERROR_LIST
+          \`\`\`
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] All existing unit tests still pass (\`npm test\`)
+          - [ ] \`npm run lint\` exits 0 (no new errors)
+          - [ ] \`npm run build:dev\` succeeds
+          - [ ] CodeQL must not introduce new alerts
+          - [ ] \`package.json\` overrides pins must not be weakened
+          - [ ] No telemetry, analytics, or third-party network calls added
+
+          ### Instructions for Copilot agent
+
+          1. Fix each ESLint error listed above — do not suppress rules unless truly necessary.
+          2. Run \`npm run lint\` to verify 0 errors before pushing.
+          3. Run \`npm run build:dev\` and \`npm test\` to confirm nothing is broken.
+          4. Use branch name: \`copilot/fix-audit-lint-$AUDIT_DATE\`
+          5. Fill in the \`## Lessons learned\` section of the PR description."
+
+          # Check if an open audit lint issue already exists and update it
+          EXISTING=$(gh issue list \
+            --repo "$REPO" \
+            --label "audit,lint-error" \
+            --state open \
+            --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING" ]; then
+            gh issue edit "$EXISTING" \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY"
+            gh issue comment "$EXISTING" \
+              --repo "$REPO" \
+              --body "🔄 Updated by scheduled audit on $AUDIT_DATE — $ERROR_COUNT error(s) still present."
+            echo "Updated existing issue #$EXISTING"
+          else
+            ISSUE_URL=$(gh issue create \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY" \
+              --label "copilot-fix,audit,lint-error" \
+              --assignee "copilot")
+            echo "Created issue: $ISSUE_URL"
+          fi
+
+      # ── Coverage issue ───────────────────────────────────────────────────
+      - name: Create or update coverage-regression issue
+        if: steps.coverage.outputs.below_threshold == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          LINE_PCT: ${{ steps.coverage.outputs.line_pct }}
+        run: |
+          TITLE="[Audit] Coverage regression"
+          AUDIT_DATE=$(date -u '+%Y-%m-%d')
+
+          BODY="## Auto-generated by Scheduled Repo Audit
+
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`test-failure\` |
+          | **Severity** | \`medium\` |
+          | **Date** | $AUDIT_DATE |
+          | **Current coverage** | $LINE_PCT% lines |
+          | **Threshold** | $MIN_COVERAGE_PCT% |
+          | **Run** | https://github.com/$REPO/actions/runs/${{ github.run_id }} |
+
+          ### Description
+
+          Test line coverage has dropped to **$LINE_PCT%**, which is below the
+          required threshold of **$MIN_COVERAGE_PCT%**.
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] Coverage rises back to ≥ $MIN_COVERAGE_PCT%
+          - [ ] All existing unit tests still pass (\`npm test\`)
+          - [ ] \`npm run lint\` exits 0 (no new errors)
+          - [ ] \`npm run build:dev\` succeeds
+          - [ ] No telemetry, analytics, or third-party network calls added
+
+          ### Instructions for Copilot agent
+
+          1. Run \`npm run test:coverage\` to see which files have the lowest coverage.
+          2. Add missing unit tests to bring coverage back above $MIN_COVERAGE_PCT%.
+          3. Focus on business-logic files in \`src/lib/\` before UI components.
+          4. Follow existing test patterns (Vitest + jsdom, see \`src/test/setup.ts\`).
+          5. Use branch name: \`copilot/fix-coverage-$AUDIT_DATE\`
+          6. Fill in the \`## Lessons learned\` section of the PR description."
+
+          EXISTING=$(gh issue list \
+            --repo "$REPO" \
+            --label "audit,coverage" \
+            --state open \
+            --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING" ]; then
+            gh issue edit "$EXISTING" \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY"
+            gh issue comment "$EXISTING" \
+              --repo "$REPO" \
+              --body "🔄 Updated by scheduled audit on $AUDIT_DATE — coverage is still at $LINE_PCT%."
+            echo "Updated existing issue #$EXISTING"
+          else
+            ISSUE_URL=$(gh issue create \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY" \
+              --label "copilot-fix,audit,coverage" \
+              --assignee "copilot")
+            echo "Created issue: $ISSUE_URL"
+          fi
+
+      # ── Summary ──────────────────────────────────────────────────────────
+      - name: Write job summary
+        if: always()
+        env:
+          LINT_ERRORS: ${{ steps.lint.outputs.error_count }}
+          TEST_FAILED: ${{ steps.tests.outputs.failed_count }}
+          LINE_PCT:    ${{ steps.coverage.outputs.line_pct }}
+        run: |
+          echo "## Scheduled Repo Audit Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ESLint errors | $LINT_ERRORS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Failed tests | $TEST_FAILED |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Line coverage | $LINE_PCT% (threshold: $MIN_COVERAGE_PCT%) |" >> "$GITHUB_STEP_SUMMARY"

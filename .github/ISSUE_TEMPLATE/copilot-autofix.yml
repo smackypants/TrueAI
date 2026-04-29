@@ -1,0 +1,89 @@
+name: "🤖 Copilot Auto-Fix"
+description: >
+  Structured issue created by automated scanning workflows so the Copilot
+  coding agent has all the context it needs to produce a correct fix in one
+  pass. Human reporters can also use this template.
+labels:
+  - "copilot-fix"
+assignees:
+  - "copilot"
+body:
+  - type: dropdown
+    id: bug_type
+    attributes:
+      label: Bug type
+      description: What kind of defect triggered this issue?
+      options:
+        - codeql-alert
+        - lint-error
+        - test-failure
+        - dependency-vuln
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - critical
+        - high
+        - medium
+        - low
+        - unknown
+    validations:
+      required: true
+
+  - type: input
+    id: file_location
+    attributes:
+      label: "File path and line (if known)"
+      description: "e.g. src/lib/foo.ts:42"
+      placeholder: "src/lib/foo.ts:42"
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: >
+        Paste the exact scanner finding, lint error message, test failure
+        output, or advisory summary here. Include the rule/check ID.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps or log excerpt
+      description: >
+        Steps to reproduce, the failing test name + assertion, or the
+        relevant snippet of the CI log. Be as specific as possible.
+      render: text
+
+  - type: textarea
+    id: fix_hint
+    attributes:
+      label: Expected fix hint
+      description: >
+        Optional — a short description of what the correct fix looks like,
+        e.g. "sanitize this value before passing to innerHTML" or
+        "upgrade lodash to ^4.17.24 in package.json overrides".
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints the fix MUST satisfy
+      options:
+        - label: "All existing unit tests still pass (`npm test`)"
+          required: true
+        - label: "`npm run lint` exits 0 (no new errors)"
+          required: true
+        - label: "`npm run build:dev` succeeds"
+          required: true
+        - label: "CodeQL must not introduce new alerts"
+          required: true
+        - label: "`package.json` overrides pins must not be weakened"
+          required: true
+        - label: "No telemetry, analytics, or third-party network calls added"
+          required: true

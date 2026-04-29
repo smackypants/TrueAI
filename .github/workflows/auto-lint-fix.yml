@@ -1,0 +1,140 @@
+name: Auto Lint Fix
+
+# Runs ESLint --fix on pull requests from copilot/* and dependabot/* branches.
+# If fixable violations are corrected, the fixed files are committed back to the
+# PR branch and pushed. If unfixable errors remain after --fix, a PR comment is
+# posted listing them.
+#
+# copilot/* and dependabot/* branches are always in-repo (never fork PRs), so
+# a GITHUB_TOKEN with contents:write can push directly to them.
+# dismiss_stale_reviews_on_push: false in the default-branch ruleset means this
+# bot commit will NOT invalidate an existing owner approval.
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  lint-fix:
+    name: ESLint auto-fix
+    runs-on: ubuntu-latest
+    # Only run on copilot/* and dependabot/* PR branches (same-repo, not forks)
+    if: |
+      (startsWith(github.head_ref, 'copilot/') || startsWith(github.head_ref, 'dependabot/')) &&
+      github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          # Use a PAT or the default GITHUB_TOKEN; the default token is enough
+          # because copilot/* branches are unprotected.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint --fix
+        id: lint_fix
+        # Exit code 1 means fixable+unfixable errors exist; we handle that below.
+        # Exit code 2 means a config/parse error — let that surface as a failure.
+        run: |
+          set +e
+          npm run lint -- --fix --format json --output-file /tmp/lint-results.json
+          LINT_EXIT=$?
+          set -e
+
+          # Reformat JSON to a readable summary
+          if [ -f /tmp/lint-results.json ]; then
+            node - <<'NODE_EOF'
+          const fs = require('fs');
+          const results = JSON.parse(fs.readFileSync('/tmp/lint-results.json', 'utf8'));
+          const errors = [];
+          results.forEach(f => {
+            f.messages.forEach(m => {
+              if (m.severity === 2) {
+                errors.push(`${f.filePath}:${m.line}:${m.column} [${m.ruleId}] ${m.message}`);
+              }
+            });
+          });
+          fs.writeFileSync('/tmp/lint-errors.txt', errors.join('\n'));
+          NODE_EOF
+          fi
+
+          echo "lint_exit=$LINT_EXIT" >> "$GITHUB_OUTPUT"
+          echo "has_errors=$([ -s /tmp/lint-errors.txt ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit auto-fixed files
+        id: commit
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "chore: auto-fix ESLint violations"
+            git push origin "HEAD:$HEAD_REF"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post success comment (fixes applied)
+        if: steps.commit.outputs.changed == 'true' && steps.lint_fix.outputs.has_errors == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr comment "$PR_NUMBER" \
+            --repo "$REPO" \
+            --body "✅ **Auto Lint Fix**: ESLint violations were automatically corrected and committed. No remaining errors."
+
+      - name: Post partial-fix comment (fixes applied + errors remain)
+        if: steps.commit.outputs.changed == 'true' && steps.lint_fix.outputs.has_errors == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          ERRORS=$(cat /tmp/lint-errors.txt | head -50)
+          gh pr comment "$PR_NUMBER" \
+            --repo "$REPO" \
+            --body "⚠️ **Auto Lint Fix**: Some violations were auto-corrected and committed, but the following errors require manual fixes:
+
+          \`\`\`
+          $ERRORS
+          \`\`\`
+
+          Please fix the errors listed above before merging."
+
+      - name: Post unfixable-errors comment (no auto-fixes, errors remain)
+        if: steps.commit.outputs.changed == 'false' && steps.lint_fix.outputs.has_errors == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          ERRORS=$(cat /tmp/lint-errors.txt | head -50)
+          gh pr comment "$PR_NUMBER" \
+            --repo "$REPO" \
+            --body "❌ **Auto Lint Fix**: The following ESLint errors cannot be auto-fixed and must be resolved manually:
+
+          \`\`\`
+          $ERRORS
+          \`\`\`"

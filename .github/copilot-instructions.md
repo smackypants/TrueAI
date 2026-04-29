@@ -149,6 +149,82 @@ removed, a convention changed), say so explicitly in the
 by the original entry's title — the ingest workflow will record the
 supersession so future agents know which entry now applies.
 
+## Auto-fix issue contract
+
+Several GitHub Actions workflows automatically create GitHub Issues and assign
+them to the Copilot coding agent (`@copilot`) when scanners or CI detect a
+defect. This section defines the contract the agent MUST follow when working
+on those issues.
+
+### Recognising auto-generated fix issues
+
+An issue is an auto-generated fix task when **all** of the following are true:
+
+- It carries the label `copilot-fix`.
+- The title starts with one of: `[CodeQL`, `[Auto]`, `[Audit]`, `[Security]`.
+- The body contains a "Bug type" row with one of:
+  `codeql-alert`, `lint-error`, `test-failure`, `dependency-vuln`.
+
+### Branch naming convention
+
+Use **exactly** this pattern — do not invent a different name:
+
+| Bug type | Branch name |
+|---|---|
+| `codeql-alert` | `copilot/fix-codeql-{alert-number}-{rule-id-slug}` |
+| `lint-error` | `copilot/fix-audit-lint-{YYYY-MM-DD}` |
+| `test-failure` | push to the **existing** PR branch listed in the issue body — do NOT open a new branch |
+| `dependency-vuln` | `copilot/fix-dep-{package-name}-{new-version}` |
+| `other` | `copilot/fix-{issue-number}-{short-slug}` |
+
+### Required checks before opening the PR
+
+Run these in order and verify each passes before pushing or marking the PR
+ready for review:
+
+```bash
+npm ci
+npm run lint          # must exit 0 — zero errors
+npm run build:dev     # must succeed (tsc + vite)
+npm test              # must pass — no newly failing tests
+```
+
+If any command fails, fix the failure before proceeding. Do not open a PR
+that you know fails CI — it wastes a CI slot and creates noise.
+
+### PR description requirements
+
+- Reference the triggering issue with `Closes #NNN` so it auto-closes on merge.
+- Fill in the `## Lessons learned` section of the PR template with any
+  non-obvious decisions, gotchas, or new conventions the fix uncovered.
+- If the fix supersedes a previous learning in `LEARNINGS.md`, prefix the
+  entry with `SUPERSEDES: <original title>`.
+
+### CodeQL gate
+
+The fix must not introduce **any new CodeQL alerts**. The
+`Analyze (javascript-typescript)` and `Analyze (java-kotlin)` checks are
+required status checks on `main`; a new alert that reaches the Security tab
+counts as a regression even if CodeQL doesn't fail the PR build outright.
+
+### Hard constraints (never violate these)
+
+- **Do not weaken `package.json` overrides pins** — `path-to-regexp`,
+  `postcss`, `lodash`, `brace-expansion@1`. For dependency vulns, either
+  tighten the pin or upgrade the direct dependency; never remove a pin.
+- **Do not add telemetry, analytics, or third-party network calls.**
+- **Do not modify `LICENSE` or `NOTICE`.**
+- **Do not strip copyright headers.**
+- **Do not touch `.github/**` files** unless the issue explicitly asks for it.
+
+### Minimal-change principle
+
+Fix only what the issue describes. Do not refactor unrelated code, rename
+variables, or reformat files outside the changed lines. The smaller the diff,
+the faster the review and the lower the risk of introducing a regression.
+
+---
+
 ## Recommended Copilot model
 
 This repo's recommended coding-agent model is **`claude-opus-4.7`**
