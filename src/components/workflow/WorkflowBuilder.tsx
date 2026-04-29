@@ -243,10 +243,12 @@ export function WorkflowBuilder({
     setEdges(loadedEdges)
   }
 
-  const newWorkflow = () => {
+  const newWorkflow = ({ clearMetadata = false }: { clearMetadata?: boolean } = {}) => {
     setSelectedWorkflow(null)
-    setWorkflowName('')
-    setWorkflowDescription('')
+    if (clearMetadata) {
+      setWorkflowName('')
+      setWorkflowDescription('')
+    }
     setNodes([
       {
         id: 'start-1',
@@ -296,7 +298,16 @@ export function WorkflowBuilder({
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setNewWorkflowDialog(true)} variant="outline" size="sm">
+          <Button
+            onClick={() => {
+              setSelectedWorkflow(null)
+              setWorkflowName('')
+              setWorkflowDescription('')
+              setNewWorkflowDialog(true)
+            }}
+            variant="outline"
+            size="sm"
+          >
             <Plus weight="bold" size={18} className="mr-2" />
             New Workflow
           </Button>
@@ -399,11 +410,10 @@ export function WorkflowBuilder({
             </Button>
             {selectedWorkflow && (
               <Button
-                onClick={() => {
-                  onDeleteWorkflow(selectedWorkflow.id)
-                  setSelectedWorkflow(null)
-                  newWorkflow()
-                }}
+                  onClick={() => {
+                    onDeleteWorkflow(selectedWorkflow.id)
+                    newWorkflow({ clearMetadata: true })
+                  }}
                 variant="destructive"
                 className="w-full"
                 size="sm"
@@ -481,7 +491,7 @@ export function WorkflowBuilder({
             <Button variant="outline" onClick={() => setNewWorkflowDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={newWorkflow}>Create</Button>
+            <Button onClick={() => newWorkflow()}>Create</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

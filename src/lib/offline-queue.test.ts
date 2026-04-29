@@ -178,4 +178,92 @@ describe('offlineQueue', () => {
       expect(listener).not.toHaveBeenCalled()
     })
   })
+
+  describe('initialize', () => {
+    it('loads persisted queue from kv on initialize', async () => {
+      const persisted: OfflineAction[] = [
+        { id: 'x1', type: 'message', action: 'create', data: {}, timestamp: 1, retryCount: 0, status: 'pending' },
+      ]
+      sparkGlobal.spark.kv.get.mockResolvedValueOnce(persisted)
+      await offlineQueue.initialize()
+      expect(offlineQueue.getQueue()).toHaveLength(1)
+      expect(offlineQueue.getQueue()[0].id).toBe('x1')
+    })
+
+    it('recovers gracefully when kv.get throws during loadQueue (covers error fallback path)', async () => {
+      sparkGlobal.spark.kv.get.mockRejectedValueOnce(new Error('IDB unavailable'))
+      await expect(offlineQueue.initialize()).resolves.not.toThrow()
+      // Queue falls back to empty array
+      expect(offlineQueue.getQueue()).toHaveLength(0)
+    })
+  })
+
+  describe('sync', () => {
+    it('returns early (success=false) when sync is already in progress', async () => {
+      // Enqueue while offline so the item stays and no implicit sync fires
+      vi.mocked(network.isOffline).mockReturnValue(true)
+      await offlineQueue.enqueue({ type: 'agent', action: 'create', data: {} })
+
+      // Go online and fire two concurrent sync calls before the first finishes
+      vi.mocked(network.isOffline).mockReturnValue(false)
+      const first = offlineQueue.sync()
+      // syncInProgress is now true — second call hits the guard
+      const second = offlineQueue.sync()
+      const [firstResult, secondResult] = await Promise.all([first, second])
+
+      expect(secondResult.success).toBe(false)
+      expect(secondResult.syncedCount).toBe(0)
+      expect(firstResult.success).toBe(true)
+    })
+  })
+
+  describe('retryFailed — online path', () => {
+    it('triggers sync when device is online after retryFailed', async () => {
+      vi.mocked(network.isOffline).mockReturnValue(true)
+      await offlineQueue.enqueue({ type: 'agent', action: 'create', data: {} })
+      const items = offlineQueue.getQueue()
+      items[0].status = 'failed'
+      items[0].retryCount = 3
+
+      // Now go online and retry
+      vi.mocked(network.isOffline).mockReturnValue(false)
+      const result = await offlineQueue.retryFailed()
+      // sync was triggered; the item was requeued as pending then synced
+      expect(result.syncedCount).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  describe('registerBackgroundSync', () => {
+    it('does not throw when serviceWorker.ready resolves (with stubbed SW globals)', async () => {
+      vi.mocked(network.isOffline).mockReturnValue(true)
+
+      // jsdom does not define ServiceWorkerRegistration, so we stub the global
+      // so that the guard `'sync' in ServiceWorkerRegistration.prototype` passes.
+      const syncRegisterMock = vi.fn().mockResolvedValue(undefined)
+      const mockRegistration = { sync: { register: syncRegisterMock } }
+
+      vi.stubGlobal('ServiceWorkerRegistration', { prototype: { sync: {} } })
+      const origSW = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker')
+      Object.defineProperty(navigator, 'serviceWorker', {
+        configurable: true,
+        value: { ready: Promise.resolve(mockRegistration) },
+      })
+
+      try {
+        // enqueue with isOffline=true → triggers registerBackgroundSync
+        await expect(
+          offlineQueue.enqueue({ type: 'agent', action: 'create', data: {} })
+        ).resolves.toBeTruthy()
+        // Give the async ready promise a tick to resolve
+        await new Promise((r) => setTimeout(r, 0))
+        // The main assertion is that no error was thrown; sync.register is
+        // called asynchronously and may or may not complete in one tick.
+      } finally {
+        vi.unstubAllGlobals()
+        if (origSW) {
+          Object.defineProperty(navigator, 'serviceWorker', origSW)
+        }
+      }
+    })
+  })
 })

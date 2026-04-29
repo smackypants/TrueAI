@@ -103,7 +103,7 @@ jobs:
         run: |
           set +e
           npm run typecheck 2>&1 | tee /tmp/typecheck-output.txt
-          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
           set -e
 
       - name: Run ESLint (scan, no fix yet)
@@ -132,7 +132,7 @@ jobs:
         run: |
           set +e
           npm test -- --run 2>&1 | tee /tmp/test-output.txt
-          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
           set -e
 
       - name: Run build:dev
@@ -141,7 +141,7 @@ jobs:
         run: |
           set +e
           npm run build:dev 2>&1 | tee /tmp/build-dev-output.txt
-          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
           set -e
 
       - name: Run build
@@ -150,7 +150,7 @@ jobs:
         run: |
           set +e
           npm run build 2>&1 | tee /tmp/build-output.txt
-          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
           set -e
 
       # ---- Auto-fix ----------------------------------------------------------
