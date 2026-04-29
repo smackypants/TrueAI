@@ -116,15 +116,22 @@ jobs:
           set -e
 
           ERRORS=0
-          if [ -f /tmp/lint-scan.json ]; then
+          LINT_FAILED=false
+          if [ -f /tmp/lint-scan.json ] && [ -s /tmp/lint-scan.json ]; then
             ERRORS=$(node -e "
               const r = JSON.parse(require('fs').readFileSync('/tmp/lint-scan.json','utf8'));
               console.log(r.reduce((s,f) => s + f.messages.filter(m=>m.severity===2).length, 0));
             " 2>/dev/null || echo 0)
+          elif [ "$LINT_EXIT" -ne 0 ]; then
+            # Non-zero exit but no JSON output — config/parse error; treat as hard failure
+            LINT_FAILED=true
+            echo "ESLint exited $LINT_EXIT with no JSON output (config/parse error):" >&2
+            cat /tmp/lint-scan.stderr >&2 || true
           fi
 
-          echo "exit=$LINT_EXIT"     >> "$GITHUB_OUTPUT"
-          echo "error_count=$ERRORS" >> "$GITHUB_OUTPUT"
+          echo "exit=$LINT_EXIT"         >> "$GITHUB_OUTPUT"
+          echo "error_count=$ERRORS"     >> "$GITHUB_OUTPUT"
+          echo "lint_failed=$LINT_FAILED" >> "$GITHUB_OUTPUT"
 
       - name: Run tests
         id: tests
@@ -158,13 +165,28 @@ jobs:
         id: lint_fix
         if: >
           steps.scripts.outputs.has_lint == 'true' &&
-          steps.lint_scan.outputs.error_count != '0'
+          (steps.lint_scan.outputs.error_count != '0' ||
+           steps.lint_scan.outputs.lint_failed == 'true')
         run: |
           echo "attempted=true" >> "$GITHUB_OUTPUT"
 
           set +e
           npm run lint -- --fix --format json --output-file /tmp/lint-after.json > /tmp/lint-fix.stdout 2> /tmp/lint-fix.stderr
+          FIX_EXIT=$?
           set -e
+
+          echo "fix_exit=$FIX_EXIT" >> "$GITHUB_OUTPUT"
+
+          # Exit code 2 means a config/parse error — no JSON produced.
+          # Emit fix_config_error=true so downstream dispatch can surface it.
+          if [ "$FIX_EXIT" -eq 2 ]; then
+            echo "fix_config_error=true"  >> "$GITHUB_OUTPUT"
+            echo "remaining=0"            >> "$GITHUB_OUTPUT"
+            echo "ESLint --fix exited 2 (config/parse error):" >&2
+            cat /tmp/lint-fix.stderr >&2 || true
+            exit 0
+          fi
+          echo "fix_config_error=false" >> "$GITHUB_OUTPUT"
 
           REMAINING=0
           if [ -f /tmp/lint-after.json ]; then
@@ -204,10 +226,10 @@ jobs:
             (cd android && ./gradlew --version)
 
             (cd android && ./gradlew lint test) 2>&1 | tee /tmp/android-lint-test-output.txt
-            LT_EXIT=$?
+            LT_EXIT=${PIPESTATUS[0]}
 
             (cd android && ./gradlew assembleDebug) 2>&1 | tee /tmp/android-assemble-output.txt
-            A_EXIT=$?
+            A_EXIT=${PIPESTATUS[0]}
 
             if [ "$LT_EXIT" -ne 0 ] || [ "$A_EXIT" -ne 0 ]; then
               EXIT=1
@@ -339,6 +361,8 @@ EOF
       - name: Ensure labels exist
         if: >
           (steps.lint_fix.outputs.remaining != '' && steps.lint_fix.outputs.remaining != '0') ||
+          steps.lint_fix.outputs.fix_config_error == 'true' ||
+          steps.lint_scan.outputs.lint_failed == 'true' ||
           (steps.android_checks.outputs.exit != '' && steps.android_checks.outputs.exit != '0') ||
           (steps.build_dev.outputs.exit != '' && steps.build_dev.outputs.exit != '0') ||
           (steps.tests.outputs.exit != '' && steps.tests.outputs.exit != '0') ||
@@ -356,15 +380,28 @@ EOF
       # ---- Copilot issue: unfixable lint ------------------------------------
       - name: Dispatch Copilot fix issue for unfixable lint errors
         if: >
-          steps.lint_fix.outputs.remaining != '' &&
-          steps.lint_fix.outputs.remaining != '0'
+          (steps.lint_fix.outputs.remaining != '' && steps.lint_fix.outputs.remaining != '0') ||
+          steps.lint_fix.outputs.fix_config_error == 'true' ||
+          steps.lint_scan.outputs.lint_failed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           AUDIT_DATE=$(date -u '+%Y-%m-%d')
           REMAINING="${{ steps.lint_fix.outputs.remaining }}"
-          ERROR_LIST=$(head -100 /tmp/lint-remaining.txt 2>/dev/null || echo "(error list unavailable)")
+          FIX_CONFIG_ERROR="${{ steps.lint_fix.outputs.fix_config_error }}"
+          LINT_SCAN_FAILED="${{ steps.lint_scan.outputs.lint_failed }}"
+
+          if [ "$FIX_CONFIG_ERROR" = "true" ]; then
+            ERROR_LIST=$(head -100 /tmp/lint-fix.stderr 2>/dev/null || echo "(stderr unavailable)")
+            ISSUE_TITLE="[Auto] ESLint --fix config/parse error on main (${AUDIT_DATE})"
+          elif [ "$LINT_SCAN_FAILED" = "true" ]; then
+            ERROR_LIST=$(head -100 /tmp/lint-scan.stderr 2>/dev/null || echo "(stderr unavailable)")
+            ISSUE_TITLE="[Auto] ESLint scan config/parse error on main (${AUDIT_DATE})"
+          else
+            ERROR_LIST=$(head -100 /tmp/lint-remaining.txt 2>/dev/null || echo "(error list unavailable)")
+            ISSUE_TITLE="[Auto] Unfixable ESLint errors detected on main (${AUDIT_DATE})"
+          fi
 
           BODY="## Auto-generated by Auto Bug-Fix workflow
 
@@ -396,7 +433,7 @@ EOF
 
           ISSUE_URL=$(gh issue create \
             --repo "$REPO" \
-            --title "[Auto] Unfixable ESLint errors detected on main (${AUDIT_DATE})" \
+            --title "$ISSUE_TITLE" \
             --body "$BODY" \
             --label "copilot-fix,lint-error,bug" \
             --assignee "copilot")
