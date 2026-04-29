@@ -28,7 +28,7 @@ describe('LearningDashboard', () => {
         onThresholdConfigChange={vi.fn()}
       />
     )
-    expect(screen.getByText(/learning dashboard/i)).toBeInTheDocument()
+    expect(screen.getByText(/adaptive learning system/i)).toBeInTheDocument()
   })
 
   it('renders without crashing', () => {

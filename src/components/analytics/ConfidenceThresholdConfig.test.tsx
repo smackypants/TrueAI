@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import { ConfidenceThresholdConfig } from './ConfidenceThresholdConfig'
 import type { ThresholdConfig } from '@/lib/confidence-thresholds'
 import { DEFAULT_THRESHOLDS } from '@/lib/confidence-thresholds'
@@ -7,6 +8,20 @@ import { DEFAULT_THRESHOLDS } from '@/lib/confidence-thresholds'
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
+
+// Radix Tabs trigger uses pointer-capture APIs not implemented in jsdom.
+beforeAll(() => {
+  HTMLElement.prototype.hasPointerCapture = vi.fn()
+  HTMLElement.prototype.setPointerCapture = vi.fn()
+  HTMLElement.prototype.releasePointerCapture = vi.fn()
+  HTMLElement.prototype.scrollIntoView = vi.fn()
+})
+afterAll(() => {
+  Reflect.deleteProperty(HTMLElement.prototype, 'hasPointerCapture')
+  Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+  Reflect.deleteProperty(HTMLElement.prototype, 'releasePointerCapture')
+  Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+})
 
 describe('ConfidenceThresholdConfig', () => {
   it('renders heading', () => {
@@ -16,7 +31,11 @@ describe('ConfidenceThresholdConfig', () => {
         onConfigChange={vi.fn()}
       />
     )
-    expect(screen.getByText(/confidence threshold/i)).toBeInTheDocument()
+    // "Confidence Thresholds" appears as both an <h3> and inside the
+    // export-config payload — query the heading role to disambiguate.
+    expect(
+      screen.getByRole('heading', { name: /confidence thresholds/i })
+    ).toBeInTheDocument()
   })
 
   it('renders preset buttons', () => {
@@ -39,17 +58,28 @@ describe('ConfidenceThresholdConfig', () => {
         onConfigChange={onConfigChange}
       />
     )
-    fireEvent.click(screen.getByText('Conservative').closest('button')!)
+    // Preset is a clickable Card (not a <button>); click the parent card
+    // so the onClick handler on the Card receives the event.
+    const conservativeText = screen.getByText('Conservative')
+    const card = conservativeText.closest('[data-slot="card"]') as HTMLElement | null
+    expect(card).not.toBeNull()
+    fireEvent.click(card!)
     expect(onConfigChange).toHaveBeenCalledOnce()
   })
 
-  it('renders severity threshold labels', () => {
+  it('renders severity threshold labels in the Advanced tab', async () => {
+    const user = userEvent.setup()
     render(
       <ConfidenceThresholdConfig
         config={DEFAULT_THRESHOLDS}
         onConfigChange={vi.fn()}
       />
     )
+    // Radix TabsContent only mounts the active panel, so we need to switch
+    // to the Advanced tab first. Use userEvent so Radix sees the full
+    // pointerdown/up sequence (fireEvent.click alone doesn't trigger the
+    // switch in jsdom).
+    await user.click(screen.getByRole('tab', { name: /advanced/i }))
     expect(screen.getAllByText(/critical/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/high/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/medium/i).length).toBeGreaterThan(0)
@@ -79,6 +109,9 @@ describe('ConfidenceThresholdConfig', () => {
         onConfigChange={vi.fn()}
       />
     )
-    expect(screen.getByText(/auto.implement/i)).toBeInTheDocument()
+    // Multiple matches (label + body copy). Use the explicit Switch label.
+    expect(
+      screen.getByLabelText(/enable auto-implementation/i)
+    ).toBeInTheDocument()
   })
 })

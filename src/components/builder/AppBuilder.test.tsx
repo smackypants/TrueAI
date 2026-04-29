@@ -8,9 +8,14 @@ describe('AppBuilder', () => {
     expect(screen.getByText(/app builder/i)).toBeInTheDocument()
   })
 
-  it('renders New Project button or CTA', () => {
+  it('renders New App button', () => {
     render(<AppBuilder models={[]} />)
-    expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument()
+    // Multiple "New App" matches exist (header button "New App" plus
+    // "Create New App" inside an always-rendered dialog). getAllByRole
+    // returns at least one and avoids the duplicate-match error.
+    expect(
+      screen.getAllByRole('button', { name: /new app/i }).length
+    ).toBeGreaterThan(0)
   })
 
   it('renders without crashing', () => {

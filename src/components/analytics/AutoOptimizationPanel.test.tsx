@@ -47,8 +47,17 @@ describe('AutoOptimizationPanel', () => {
         onApplyOptimization={vi.fn()}
         onApplyAutoTune={vi.fn()}
         onCreateProfile={vi.fn()}
+        thresholdConfig={DEFAULT_THRESHOLDS}
+        onThresholdConfigChange={vi.fn()}
       />
     )
-    expect(screen.getByText(/auto.optim|intelligent optim/i)).toBeInTheDocument()
+    // Default tab is "viewer" → "View & Apply". Controls tab is hidden by
+    // default, so its "Auto Optimization Controls" heading isn't in the DOM.
+    expect(
+      screen.getByRole('tab', { name: /view & apply/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('tab', { name: /controls/i })
+    ).toBeInTheDocument()
   })
 })

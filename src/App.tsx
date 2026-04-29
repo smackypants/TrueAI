@@ -1560,6 +1560,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                         size="icon" 
                         className="h-8 w-8 sm:h-10 sm:w-10 relative group"
                         onClick={() => setUiCustomizerOpen(true)}
+                        aria-label="Customize"
                       >
                         <Palette size={isMobile ? 18 : 22} className="text-muted-foreground group-hover:text-foreground transition-colors relative z-10" />
                         <motion.div
@@ -1584,6 +1585,7 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                         size="icon" 
                         className="h-8 w-8 sm:h-10 sm:w-10"
                         onClick={() => setSettingsOpen(true)}
+                        aria-label="Settings"
                       >
                         <Gear size={isMobile ? 18 : 22} className="text-muted-foreground group-hover:text-foreground transition-colors relative z-10" />
                         <motion.div
