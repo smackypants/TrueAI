@@ -15,7 +15,7 @@ name: Test Failure Auto-Fix Dispatch
 
 on:
   workflow_run:
-    workflows: ["Android CI", "Build Android APK"]
+    workflows: ["Android CI", "Build Android APK", "pr-quality"]
     types: [completed]
     branches:
       - "copilot/**"

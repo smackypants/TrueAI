@@ -47,12 +47,12 @@ jobs:
         uses: github/codeql-action/analyze@v3.28.3
         with:
           category: "/language:${{ matrix.language }}"
-        # The SARIF upload step inside analyze@v3 fails the job with
-        # "Code scanning is not enabled for this repository" when the
-        # repository hasn't enabled Code Scanning under Settings → Security.
-        # We still want CodeQL to *run* on every push/PR so the analysis
-        # surfaces errors in the job logs; we just don't want a hard red ❌
-        # blocking the branch when the upload is rejected. As soon as Code
-        # Scanning is enabled in repo settings the upload will succeed and
-        # this becomes a no-op.
-        continue-on-error: true
+        # continue-on-error is controlled by the CODEQL_HARD_GATE repository
+        # variable (Settings → Variables → Actions).
+        #   CODEQL_HARD_GATE not set / empty / 'false'  → soft gate (default)
+        #     The SARIF upload failure does NOT block the PR. Use this when
+        #     Code Scanning is not yet enabled under Settings → Security.
+        #   CODEQL_HARD_GATE = 'true' → hard gate
+        #     The SARIF upload failure DOES block the PR. Set this once Code
+        #     Scanning is enabled so alerts gate the default-branch ruleset.
+        continue-on-error: ${{ vars.CODEQL_HARD_GATE != 'true' }}

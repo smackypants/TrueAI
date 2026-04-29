@@ -1,0 +1,258 @@
+name: Android Proactive Lint Audit
+
+# Proactively runs Android Gradle lint on the `main` branch and dispatches
+# a Copilot fix issue whenever lint errors are detected.  This complements
+# the reactive `test-failure-autofix.yml` (which fires only after a copilot/*
+# branch CI run fails) by catching regressions directly on main *before* any
+# agent branch is created.
+#
+# Schedule: every Saturday at 02:00 UTC — intentionally offset from the
+# JS/TS `scheduled-audit.yml` (Sunday 00:00) to spread CI load.
+#
+# De-duplication: before creating an issue, the workflow searches for an
+# existing open issue labelled `android-lint` so repeated runs don't flood
+# the tracker.
+#
+# Prerequisites (repo owner must complete once):
+#   Settings → Actions → General → Workflow permissions →
+#     ✅ Allow GitHub Actions to create and approve pull requests
+#   Required toolchain: Node 24, Temurin JDK 21, Android SDK.
+
+on:
+  schedule:
+    # Weekly on Saturday at 02:00 UTC
+    - cron: '0 2 * * 6'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  android-lint:
+    name: Android Gradle lint audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build web app (development mode)
+        # Must build before cap sync so Capacitor copies the latest dist/ into
+        # the Android assets folder; lint checks resource references against it.
+        run: npm run build:dev
+
+      - name: Sync Capacitor to Android
+        run: npx cap sync android
+
+      - name: Grant gradlew execute permission
+        run: chmod +x android/gradlew
+
+      # ── Run Android Lint ──────────────────────────────────────────────────
+      - name: Run Android Lint (lintPlayDebug)
+        id: lint
+        working-directory: android
+        run: |
+          set +e
+          JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64 \
+            ./gradlew lintPlayDebug --no-daemon 2>&1 | tee /tmp/android-lint.txt
+          LINT_EXIT=$?
+          set -e
+          echo "lint_exit=$LINT_EXIT" >> "$GITHUB_OUTPUT"
+
+      # ── Parse lint results ────────────────────────────────────────────────
+      - name: Parse lint results
+        id: parse
+        run: |
+          # Primary: count errors from the XML report (more reliable than log parsing)
+          XML_REPORT="android/app/build/reports/lint-results-playDebug.xml"
+          ERROR_COUNT=0
+          WARNING_COUNT=0
+
+          if [ -f "$XML_REPORT" ]; then
+            ERROR_COUNT=$(grep -c 'severity="Error"' "$XML_REPORT" 2>/dev/null || echo 0)
+            WARNING_COUNT=$(grep -c 'severity="Warning"' "$XML_REPORT" 2>/dev/null || echo 0)
+          elif [ -f /tmp/android-lint.txt ]; then
+            # Fallback: scrape "Lint found N error(s)" from stdout
+            MATCH=$(grep -oE 'Lint found [0-9]+ error' /tmp/android-lint.txt | grep -oE '[0-9]+' | head -1 || echo 0)
+            ERROR_COUNT="${MATCH:-0}"
+          fi
+
+          echo "error_count=$ERROR_COUNT"     >> "$GITHUB_OUTPUT"
+          echo "warning_count=$WARNING_COUNT" >> "$GITHUB_OUTPUT"
+          echo "has_errors=$([ "$ERROR_COUNT" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "Android lint: ${ERROR_COUNT} error(s), ${WARNING_COUNT} warning(s)"
+
+      # ── Upload artifacts ──────────────────────────────────────────────────
+      - name: Upload Android lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-lint-audit-report
+          path: android/app/build/reports/lint-results-*.html
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # ── Ensure labels exist ───────────────────────────────────────────────
+      - name: Ensure required labels exist
+        if: steps.parse.outputs.has_errors == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh label create "copilot-fix"   --color "7057ff" --description "Automated fix dispatched to Copilot" --repo "$REPO" --force
+          gh label create "android-lint"  --color "f9c74f" --description "Android Gradle lint failure"         --repo "$REPO" --force
+          gh label create "audit"         --color "bfd4f2" --description "Scheduled audit finding"             --repo "$REPO" --force
+          gh label create "bug"           --color "ee0701" --description "Something is not working"            --repo "$REPO" --force
+
+      # ── Dispatch Copilot fix issue (upsert pattern) ───────────────────────
+      - name: Create or update Android lint issue
+        if: steps.parse.outputs.has_errors == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ERROR_COUNT: ${{ steps.parse.outputs.error_count }}
+          WARNING_COUNT: ${{ steps.parse.outputs.warning_count }}
+        run: |
+          AUDIT_DATE=$(date -u '+%Y-%m-%d')
+          TITLE="[Audit] Android lint errors found"
+
+          # Extract the first 50 error entries from the XML report for context
+          XML_REPORT="android/app/build/reports/lint-results-playDebug.xml"
+          ERROR_DETAILS=""
+          if [ -f "$XML_REPORT" ]; then
+            ERROR_DETAILS=$(grep -A3 'severity="Error"' "$XML_REPORT" \
+              | grep -E '(id=|message=|file=)' \
+              | sed 's/^ *//' \
+              | head -100 || echo "(could not extract details)")
+          else
+            ERROR_DETAILS=$(grep -E "(error:|Error)" /tmp/android-lint.txt | head -50 || echo "(see CI log)")
+          fi
+
+          BODY="## Auto-generated by Android Proactive Lint Audit
+
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`lint-error\` |
+          | **Platform** | Android (Gradle lint) |
+          | **Date** | $AUDIT_DATE |
+          | **Errors** | $ERROR_COUNT |
+          | **Warnings** | $WARNING_COUNT |
+          | **Run** | https://github.com/$REPO/actions/runs/${{ github.run_id }} |
+
+          ### Lint errors (first 50 entries)
+
+          \`\`\`
+          $ERROR_DETAILS
+          \`\`\`
+
+          ### Full report
+          The full HTML lint report is available as a workflow artifact on the
+          [CI run](https://github.com/$REPO/actions/runs/${{ github.run_id }}).
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] \`./android/gradlew lintPlayDebug --no-daemon\` exits 0 (no errors)
+          - [ ] All existing unit tests still pass (\`npm test\`)
+          - [ ] \`npm run lint\` exits 0 (no new errors)
+          - [ ] \`npm run build:dev\` succeeds
+          - [ ] CodeQL must not introduce new alerts
+          - [ ] \`package.json\` overrides pins must not be weakened
+          - [ ] No telemetry, analytics, or third-party network calls added
+
+          ### Instructions for Copilot agent
+
+          1. Run \`JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64 ./android/gradlew lintPlayDebug --no-daemon\` to reproduce the errors.
+          2. Open \`android/app/build/reports/lint-results-playDebug.html\` to see the full report.
+          3. Fix each error — do not suppress lint rules with \`tools:ignore\` unless truly necessary.
+          4. Re-run lint to verify 0 errors remain.
+          5. Run \`npm run build:dev\`, \`npx cap sync android\`, and \`npm test\` to confirm nothing else is broken.
+          6. Use branch name: \`copilot/fix-android-lint-${AUDIT_DATE}\`
+          7. Fill in the \`## Lessons learned\` section of the PR description."
+
+          # Three-way upsert: open → update, closed → reopen, neither → create
+          OPEN_ISSUE=$(gh issue list \
+            --repo "$REPO" \
+            --label "audit,android-lint" \
+            --state open \
+            --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+
+          ISSUE_ACTION="create"
+          EXISTING=""
+          if [ -n "$OPEN_ISSUE" ]; then
+            ISSUE_ACTION="update"
+            EXISTING="$OPEN_ISSUE"
+          else
+            CLOSED_ISSUE=$(gh issue list \
+              --repo "$REPO" \
+              --label "audit,android-lint" \
+              --state closed \
+              --json number \
+              --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$CLOSED_ISSUE" ]; then
+              ISSUE_ACTION="reopen"
+              EXISTING="$CLOSED_ISSUE"
+            fi
+          fi
+
+          if [ "$ISSUE_ACTION" = "update" ]; then
+            gh issue edit "$EXISTING" --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" --body "$BODY"
+            gh issue comment "$EXISTING" --repo "$REPO" \
+              --body "🔄 Updated by Android audit on $AUDIT_DATE — $ERROR_COUNT error(s) still present."
+            echo "Updated existing issue #$EXISTING"
+          elif [ "$ISSUE_ACTION" = "reopen" ]; then
+            gh issue reopen "$EXISTING" --repo "$REPO"
+            gh issue edit "$EXISTING" --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" --body "$BODY"
+            gh issue comment "$EXISTING" --repo "$REPO" \
+              --body "🔄 Regression recurred on $AUDIT_DATE — issue re-opened. $ERROR_COUNT error(s) found."
+            echo "Re-opened closed issue #$EXISTING"
+          else
+            ISSUE_URL=$(gh issue create \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY" \
+              --label "copilot-fix,audit,android-lint,bug" \
+              --assignee "copilot")
+            echo "Created issue: $ISSUE_URL"
+          fi
+
+      # ── Actions step summary ──────────────────────────────────────────────
+      - name: Write step summary
+        if: always()
+        env:
+          ERROR_COUNT:   ${{ steps.parse.outputs.error_count }}
+          WARNING_COUNT: ${{ steps.parse.outputs.warning_count }}
+          LINT_EXIT:     ${{ steps.lint.outputs.lint_exit }}
+        run: |
+          echo "## Android Proactive Lint Audit Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Gradle lint exit code | ${LINT_EXIT:-n/a} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Lint errors | ${ERROR_COUNT:-0} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Lint warnings | ${WARNING_COUNT:-0} |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${ERROR_COUNT:-0}" = "0" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ No Android lint errors found." >> "$GITHUB_STEP_SUMMARY"
+          fi
