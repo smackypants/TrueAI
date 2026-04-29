@@ -1,0 +1,62 @@
+name: Auto-Merge (Trusted Authors)
+
+# Flips GitHub's auto-merge (squash) toggle on PRs opened by trusted
+# authors (the repo owner and the official Copilot / GitHub Actions
+# bots) so they merge automatically the moment all required checks go
+# green AND the CODEOWNERS approval lands.
+#
+# IMPORTANT — this does NOT bypass any branch-protection rule. The
+# default-branch ruleset (`.github/rulesets/protect-default-branch.json`)
+# still requires:
+#   - 1 approving review from CODEOWNERS (the owner) AND
+#   - all required status checks green (CodeQL JS/TS, CodeQL Java/Kotlin,
+#     Android CI) AND
+#   - all review threads resolved AND
+#   - linear history (squash merge).
+#
+# This workflow only saves the manual click of pressing "Enable auto-merge".
+# Owner can still dismiss approval or request changes to halt the merge.
+#
+# Required repo settings (Settings → General → Pull Requests):
+#   ✅ Allow auto-merge
+#   ✅ Allow squash merging
+#   ✅ Allow GitHub Actions to create and approve pull requests
+#      (Settings → Actions → General → Workflow permissions)
+#
+# Dependabot PRs are handled separately by `dependabot-auto-merge.yml`
+# and are skipped here to avoid double-enabling.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, synchronize, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable-auto-merge:
+    # Only act on same-repo PRs (forks have no write token), skip drafts,
+    # skip Dependabot (handled by dependabot-auto-merge.yml), and only
+    # act for explicitly trusted authors.
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      (
+        github.event.pull_request.user.login == 'smackypants' ||
+        github.event.pull_request.user.login == 'copilot-swe-agent[bot]' ||
+        github.event.pull_request.user.login == 'Copilot' ||
+        github.event.pull_request.user.login == 'github-actions[bot]' ||
+        contains(github.event.pull_request.labels.*.name, 'automerge')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge (squash)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          # `gh pr merge --auto` is idempotent — calling it on a PR that
+          # already has auto-merge enabled is a no-op.
+          gh pr merge --auto --squash "$PR_URL"

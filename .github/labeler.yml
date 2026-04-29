@@ -1,0 +1,68 @@
+# Path-based labeler config consumed by `actions/labeler@v5`.
+# Triggered from `.github/workflows/pr-automation.yml` on every PR.
+# Labels are auto-created with default colour if they don't already exist
+# (the labeler action uses sync-labels to add/remove based on diff).
+
+'area/android':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'android/**'
+
+'area/web':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**'
+          - 'public/**'
+          - 'index.html'
+          - 'vite.config.ts'
+          - 'tailwind.config.*'
+          - 'postcss.config.*'
+
+'area/llm-runtime':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/lib/llm-runtime/**'
+
+'area/native':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/lib/native/**'
+
+'area/ci':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**'
+          - '.github/dependabot.yml'
+
+'area/docs':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**'
+
+'area/deps':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'package-lock.json'
+          - 'android/build.gradle*'
+          - 'android/app/build.gradle*'
+          - 'android/gradle/**'
+
+'area/tests':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.test.ts'
+          - '**/*.test.tsx'
+          - 'src/test/**'
+          - 'vitest.config.ts'
+
+'area/release':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/release*.yml'
+          - '.github/workflows/tag-release.yml'
+          - '.github/workflows/play-release.yml'
+          - '.github/workflows/build-android.yml'
+          - 'CHANGELOG.md'
+          - 'fastlane/**'

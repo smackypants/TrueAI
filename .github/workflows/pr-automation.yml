@@ -1,0 +1,193 @@
+name: PR Automation
+
+# Reduces manual toil on every pull request by:
+#   1. Applying path-based labels (via .github/labeler.yml).
+#   2. Auto-requesting a review from the CODEOWNERS owner if the PR has
+#      no reviewers yet (and the author isn't the owner).
+#   3. Auto-linking the related issue when the branch follows the
+#      `copilot/fix-<N>-...` convention from copilot-instructions.md
+#      and the PR body doesn't already reference it.
+#   4. Honoring a `/rebase` slash-command from a maintainer to rebase
+#      the PR branch onto its base.
+#
+# All steps are gated to same-repo PRs (no fork token write attempts).
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, edited]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  # ─── 1. Path-based labeler ──────────────────────────────────────────
+  label:
+    if: >
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          sync-labels: true
+
+  # ─── 2. Auto-assign owner reviewer ──────────────────────────────────
+  assign-reviewer:
+    if: >
+      github.event_name == 'pull_request_target' &&
+      github.event.action != 'edited' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.user.login != 'smackypants'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request review from owner if none assigned
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Skip if any human reviewer is already requested.
+          existing=$(gh pr view "$PR" --repo "$REPO" --json reviewRequests \
+            --jq '[.reviewRequests[]? | select(.__typename == "User") | .login] | length')
+          if [ "${existing:-0}" -gt 0 ]; then
+            echo "Reviewers already requested; skipping."
+            exit 0
+          fi
+          gh pr edit "$PR" --repo "$REPO" --add-reviewer smackypants || true
+
+  # ─── 3. Auto-link related issue from branch name ────────────────────
+  autolink-issue:
+    if: >
+      github.event_name == 'pull_request_target' &&
+      (github.event.action == 'opened' || github.event.action == 'reopened') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add `Closes #N` from `copilot/fix-N-...` branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -e
+          # Match `copilot/fix-<N>-...` or `copilot/fix-codeql-<N>-...`
+          ISSUE_NUM=$(echo "$BRANCH" | sed -nE 's#^copilot/fix-(codeql-)?([0-9]+)-.*#\2#p')
+          if [ -z "$ISSUE_NUM" ]; then
+            echo "Branch '$BRANCH' does not match copilot/fix-<N>-... pattern; nothing to link."
+            exit 0
+          fi
+
+          # Skip if PR body already references the issue (any case-insensitive
+          # form of `closes #N`, `fixes #N`, `resolves #N`, or `#N`).
+          if echo "$BODY" | grep -iE "(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#${ISSUE_NUM}([^0-9]|$)|#${ISSUE_NUM}([^0-9]|$)" >/dev/null; then
+            echo "Issue #${ISSUE_NUM} already referenced; skipping."
+            exit 0
+          fi
+
+          # Confirm the issue actually exists before appending.
+          if ! gh issue view "$ISSUE_NUM" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Issue #${ISSUE_NUM} does not exist; skipping."
+            exit 0
+          fi
+
+          NEW_BODY="${BODY}
+
+          Closes #${ISSUE_NUM}"
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --body "$NEW_BODY"
+
+  # ─── 4. /rebase slash command ───────────────────────────────────────
+  rebase:
+    if: >
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      contains(github.event.comment.body, '/rebase') &&
+      (
+        github.event.comment.user.login == 'smackypants' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: React 👀 to the comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST \
+            "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content=eyes || true
+
+      - name: Resolve PR head and base
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          info=$(gh pr view "${{ github.event.issue.number }}" --repo "${{ github.repository }}" \
+            --json headRefName,headRefOid,baseRefName,headRepository,headRepositoryOwner)
+          {
+            echo "head=$(echo "$info" | jq -r .headRefName)"
+            echo "head_sha=$(echo "$info" | jq -r .headRefOid)"
+            echo "base=$(echo "$info" | jq -r .baseRefName)"
+            echo "head_repo=$(echo "$info" | jq -r '.headRepositoryOwner.login + "/" + .headRepository.name')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Skip rebase for fork PRs
+        if: steps.pr.outputs.head_repo != github.repository
+        run: |
+          echo "::warning::Cannot rebase fork PRs from this workflow."
+          exit 0
+
+      - name: Check out PR head (pinned to resolved SHA)
+        if: steps.pr.outputs.head_repo == github.repository
+        uses: actions/checkout@v4
+        with:
+          # Pinning to the SHA resolved at gate-time mitigates TOCTOU
+          # (CodeQL actions/untrusted-checkout-toctou): even if the head
+          # ref is force-pushed between the gate check and checkout, we
+          # still operate on the SHA we vetted.
+          ref: ${{ steps.pr.outputs.head_sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rebase onto base
+        if: steps.pr.outputs.head_repo == github.repository
+        id: do_rebase
+        env:
+          BASE: ${{ steps.pr.outputs.base }}
+          HEAD: ${{ steps.pr.outputs.head }}
+        run: |
+          set -e
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$BASE"
+          if git rebase "origin/$BASE"; then
+            git push --force-with-lease origin "HEAD:$HEAD"
+            echo "result=success" >> "$GITHUB_OUTPUT"
+          else
+            git rebase --abort || true
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Comment result
+        if: steps.pr.outputs.head_repo == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          RESULT: ${{ steps.do_rebase.outputs.result }}
+          BASE: ${{ steps.pr.outputs.base }}
+        run: |
+          if [ "$RESULT" = "success" ]; then
+            gh pr comment "$PR" --repo "$REPO" --body "✅ Rebased onto \`$BASE\`."
+          else
+            gh pr comment "$PR" --repo "$REPO" --body "❌ Rebase onto \`$BASE\` produced conflicts. Please rebase manually."
+          fi

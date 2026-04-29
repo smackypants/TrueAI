@@ -1,0 +1,105 @@
+name: Nightly Android Debug APK
+
+# Builds an unsigned, debug-flavour Android APK from the tip of `main`
+# every night and publishes it to a single, rolling `nightly` GitHub
+# pre-release. This gives contributors a continuous stream of testable
+# artifacts without touching the signed release pipeline.
+#
+# The signed release flow remains untouched and owner-driven via
+# `release-bump.yml`, `tag-release.yml`, and `release-full.yml`.
+#
+# Trigger:
+#   - schedule: 03:17 UTC daily (off-peak, avoids :00 cron stampede)
+#   - workflow_dispatch: manual run from the Actions tab
+#
+# The `nightly` tag/release is upserted in place — each successful run
+# replaces the previous APK. Only one prerelease is ever kept under that
+# tag so the Releases page does not fill up.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-android
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build debug APK (Play flavour)
+        # `android:build` runs build:dev + cap sync + assemblePlayDebug.
+        # JAVA_HOME is already set to JDK 21 by actions/setup-java above.
+        run: npm run android:build
+
+      - name: Locate APK
+        id: apk
+        run: |
+          APK_PATH=$(find android/app/build/outputs/apk -type f -name '*-debug.apk' -print -quit)
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::No debug APK found"
+            exit 1
+          fi
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          DATE=$(date -u +%Y%m%d)
+          NEW_NAME="trueai-localai-nightly-${DATE}-${SHORT_SHA}-debug.apk"
+          cp "$APK_PATH" "$NEW_NAME"
+          {
+            echo "path=$NEW_NAME"
+            echo "sha=$SHORT_SHA"
+            echo "date=$DATE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upsert `nightly` pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          APK: ${{ steps.apk.outputs.path }}
+          SHA: ${{ steps.apk.outputs.sha }}
+          DATE: ${{ steps.apk.outputs.date }}
+        run: |
+          set -e
+          NOTES="Automated nightly debug build from \`main\` @ \`$SHA\` ($DATE UTC).
+
+          ⚠️ **Unsigned debug APK** — for testing only. Do not distribute.
+          For signed release builds, see the latest \`vX.Y.Z\` release."
+
+          # Delete any existing nightly release+tag so we publish cleanly.
+          if gh release view nightly --repo "$REPO" >/dev/null 2>&1; then
+            gh release delete nightly --repo "$REPO" --yes --cleanup-tag || true
+          fi
+
+          gh release create nightly \
+            --repo "$REPO" \
+            --target main \
+            --prerelease \
+            --title "Nightly ($DATE, $SHA)" \
+            --notes "$NOTES" \
+            "$APK"
