@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PerformanceMonitor } from './PerformanceMonitor'
 
@@ -14,11 +14,12 @@ vi.mock('@/lib/mobile-performance', () => ({
 
 import { usePerformanceMonitor, useDeviceCapabilities } from '@/lib/mobile-performance'
 
-const baseMetrics = { fps: 60, memory: 45 }
+const baseMetrics = { fps: 60, memory: 45, renderTime: 0, interactionDelay: 0, bundleSize: 0 }
 const baseCapabilities = {
   tier: 'high' as const,
   cores: 4,
   memory: 8,
+  gpu: 'unknown',
   connection: '4g',
   batteryLevel: 1,
   charging: true,

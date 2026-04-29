@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-const mockEnsureLoaded = vi.fn()
-const mockSubscribe = vi.fn(() => vi.fn()) // returns unsubscribe fn
-const mockUpdate = vi.fn()
-const mockTestConnection = vi.fn()
+const { mockEnsureLoaded, mockSubscribe, mockUpdate, mockTestConnection } = vi.hoisted(() => ({
+  mockEnsureLoaded: vi.fn(),
+  mockSubscribe: vi.fn(() => vi.fn()), // returns unsubscribe fn
+  mockUpdate: vi.fn(),
+  mockTestConnection: vi.fn(),
+}))
 
 vi.mock('@/lib/llm-runtime/config', () => {
   const DEFAULT_LLM_RUNTIME_CONFIG = {
@@ -20,14 +22,14 @@ vi.mock('@/lib/llm-runtime/config', () => {
   }
   return {
     DEFAULT_LLM_RUNTIME_CONFIG,
-    ensureLLMRuntimeConfigLoaded: (...args: unknown[]) => mockEnsureLoaded(...args),
-    subscribeToLLMRuntimeConfig: (...args: unknown[]) => mockSubscribe(...args),
-    updateLLMRuntimeConfig: (...args: unknown[]) => mockUpdate(...args),
+    ensureLLMRuntimeConfigLoaded: mockEnsureLoaded,
+    subscribeToLLMRuntimeConfig: mockSubscribe,
+    updateLLMRuntimeConfig: mockUpdate,
   }
 })
 
 vi.mock('@/lib/llm-runtime/client', () => ({
-  testLLMRuntimeConnection: (...args: unknown[]) => mockTestConnection(...args),
+  testLLMRuntimeConnection: mockTestConnection,
 }))
 
 import { LLMRuntimeSettings } from './LLMRuntimeSettings'

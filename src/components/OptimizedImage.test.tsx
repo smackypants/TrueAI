@@ -13,7 +13,7 @@ const { mockUseIntersectionObserver, mockImageCache } = vi.hoisted(() => {
 })
 
 vi.mock('@/lib/mobile-performance', () => ({
-  useIntersectionObserver: (...args: unknown[]) => mockUseIntersectionObserver(...args),
+  useIntersectionObserver: mockUseIntersectionObserver,
   ImageCache: mockImageCache,
 }))
 

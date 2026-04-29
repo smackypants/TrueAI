@@ -24,6 +24,7 @@ const baseCapabilities = {
   connectionType: '4g',
   batteryLevel: null as number | null,
   isCharging: false,
+  devicePixelRatio: 1,
 }
 
 function setupMock(overrides: Partial<ReturnType<typeof usePerformanceOptimization>>) {

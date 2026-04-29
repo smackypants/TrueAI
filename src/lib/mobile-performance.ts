@@ -273,7 +273,7 @@ export function useDebounce<T extends (...args: unknown[]) => unknown>(
 }
 
 export function useIntersectionObserver(
-  elementRef: React.RefObject<Element>,
+  elementRef: React.RefObject<Element | null>,
   options: IntersectionObserverInit = {}
 ) {
   const [isIntersecting, setIsIntersecting] = useState(false)
