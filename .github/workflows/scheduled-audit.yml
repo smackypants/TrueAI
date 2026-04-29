@@ -85,7 +85,7 @@ jobs:
         id: tests
         run: |
           set +e
-          npm test -- --reporter=json --outputFile=/tmp/test-results.json
+          npm test -- --reporter=json --outputFile /tmp/test-results.json
           TEST_EXIT=$?
           set -e
 
@@ -102,7 +102,7 @@ jobs:
         id: coverage
         run: |
           set +e
-          npm run test:coverage -- --reporter=json --outputFile=/tmp/coverage-test.json
+          npm run test:coverage -- --reporter=json --outputFile /tmp/coverage-test.json
           COV_EXIT=$?
           set -e
 

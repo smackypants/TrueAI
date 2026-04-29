@@ -60,7 +60,7 @@ jobs:
           # Download the log (plain text)
           gh api "repos/$REPO/actions/jobs/$FAILED_JOB_ID/logs" > /tmp/job.log 2>&1 || true
 
-          # Extract last 100 lines and cap at 8 000 chars for the issue body
+          # Extract last 100 lines and cap at 8,000 chars for the issue body
           tail -100 /tmp/job.log | head -c 8000 > /tmp/log_excerpt.txt
 
           # Escape backticks so they don't break the markdown code block
