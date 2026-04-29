@@ -1,0 +1,92 @@
+name: Copilot cloud agent (fixed)
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  copilot-agent:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      # 1) Checkout with full refs so "main" exists for git diff operations
+      - name: Checkout (full history so main exists)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2) If this is a PR, ensure base branch ref is present locally too
+      - name: Ensure base branch ref exists (PR only)
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Base ref: ${{ github.base_ref }}"
+          git fetch origin "${{ github.base_ref }}":"refs/remotes/origin/${{ github.base_ref }}" --prune
+
+      # 3) Copilot API connectivity preflight (fail fast with useful error)
+      - name: Preflight: verify outbound HTTPS to Copilot endpoints
+        shell: bash
+        env:
+          # If you use a corporate proxy, set these at repo/org level or uncomment:
+          # HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
+          # HTTP_PROXY:  ${{ secrets.HTTP_PROXY }}
+          # NO_PROXY:    ${{ secrets.NO_PROXY }}
+          CONNECT_TIMEOUT_SECS: "10"
+        run: |
+          set -euo pipefail
+
+          echo "== DNS/HTTPS connectivity preflight =="
+          echo "If this fails, your runner firewall/proxy is blocking Copilot endpoints."
+          echo
+
+          # Common Copilot/CAPI endpoints used by GitHub tooling.
+          # (Your network team must allowlist whatever GitHub docs specify for Copilot.)
+          endpoints=(
+            "https://api.github.com"
+            "https://github.com"
+            "https://copilot-proxy.githubusercontent.com"
+          )
+
+          for url in "${endpoints[@]}"; do
+            echo "--- Checking: $url"
+            # -I: HEAD request, -L: follow redirects, -m: max time, --connect-timeout: connect timeout
+            curl -fsSIL -m "${CONNECT_TIMEOUT_SECS}" --connect-timeout "${CONNECT_TIMEOUT_SECS}" "$url" >/dev/null
+            echo "OK: $url"
+          done
+
+          echo
+          echo "Preflight passed."
+
+      # 4) (Optional but recommended) Print git refs for debugging
+      - name: Debug: show key git refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Branches:"
+          git branch -a
+          echo
+          echo "Remotes:"
+          git remote -v
+          echo
+          echo "main commit (if present):"
+          git rev-parse --verify origin/main || true
+
+      # 5) Run your Copilot cloud agent step (replace with your actual action)
+      #    Keep this as-is if you're using the same action as before.
+      - name: Run Copilot cloud agent
+        uses: github/copilot-swe-agent@v1
+        with:
+          # keep your existing inputs here
+          # e.g. instructions, model, etc.
+          # instructions: "..."
+          # model: "..."
+          #
+          # If your setup supports it, also consider limiting payload size to reduce request issues.
+          # (Only add if your action supports such a setting.)
+          #
+          # NOTE: The main fix is network allowlisting; this step will still fail if blocked.
+          pass: true
