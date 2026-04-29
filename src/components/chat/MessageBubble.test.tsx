@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MessageBubble } from './MessageBubble'
 import type { Message } from '@/lib/types'
 
@@ -84,5 +84,49 @@ describe('MessageBubble', () => {
     )
     const cursor = container.querySelector('.inline-block.w-2.h-4.bg-current')
     expect(cursor).not.toBeInTheDocument()
+  })
+
+  it('toggles hover state on mouse enter and leave', () => {
+    const { container } = render(<MessageBubble message={makeMessage({ role: 'assistant' })} />)
+    const outer = container.querySelector('.flex.gap-3') as HTMLElement
+    expect(outer).toBeInTheDocument()
+
+    // Initially the avatar has the no-ring class. After mouse enter, the
+    // hovered ring class is applied.
+    fireEvent.mouseEnter(outer)
+    const ring = container.querySelector('.ring-accent\\/30')
+    expect(ring).toBeInTheDocument()
+
+    fireEvent.mouseLeave(outer)
+    expect(container.querySelector('.ring-accent\\/30')).not.toBeInTheDocument()
+  })
+
+  it('toggles hover state on touch start', () => {
+    const { container } = render(<MessageBubble message={makeMessage({ role: 'assistant' })} />)
+    const outer = container.querySelector('.flex.gap-3') as HTMLElement
+    fireEvent.touchStart(outer)
+    expect(container.querySelector('.ring-accent\\/30')).toBeInTheDocument()
+    fireEvent.touchCancel(outer)
+    expect(container.querySelector('.ring-accent\\/30')).not.toBeInTheDocument()
+  })
+
+  it('renders a User avatar icon for user messages', () => {
+    const { container } = render(<MessageBubble message={makeMessage({ role: 'user' })} />)
+    // Avatar fallback uses the accent background for user messages
+    const fallback = container.querySelector('.bg-accent.text-accent-foreground')
+    expect(fallback).toBeInTheDocument()
+  })
+
+  it('renders a Robot avatar icon for assistant messages', () => {
+    const { container } = render(<MessageBubble message={makeMessage({ role: 'assistant' })} />)
+    const fallback = container.querySelector('.bg-primary.text-primary-foreground')
+    expect(fallback).toBeInTheDocument()
+  })
+
+  it('forwards content with whitespace preserved', () => {
+    const multiline = 'line one\nline two\n  indented'
+    render(<MessageBubble message={makeMessage({ content: multiline })} />)
+    // The <p> has whitespace-pre-wrap so the textContent includes the newlines
+    expect(screen.getByText(/line one/).textContent).toContain('line two')
   })
 })
