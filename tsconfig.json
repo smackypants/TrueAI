@@ -32,6 +32,10 @@
   ],
   "exclude": [
     "src/App-Enhanced.tsx",
-    "src/components/OptimizedImage.tsx"
+    "src/components/OptimizedImage.tsx",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
   ]
 }
