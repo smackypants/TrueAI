@@ -5,12 +5,12 @@
 
 ## Current snapshot
 
-_As of 2026-04-29 (post Phase 2 — root `ErrorFallback.tsx`)._
+_As of 2026-04-29 (post Phase 2 — root `ErrorFallback.tsx` + `ThemeSwitcher`)._
 
 | Metric | Value | Δ vs. Phase 1 |
 |---|---|---|
-| Test files | **122** | +10 |
-| Tests | **1461** | +138 |
+| Test files | **123** | +11 |
+| Tests | **1477** | +154 |
 
 `src/ErrorFallback.tsx` went from **0% → ~100% lines** in this slice.
 The new `src/ErrorFallback.test.tsx` exercises the DEV-mode rethrow,
@@ -19,6 +19,14 @@ Copy, Share, Download, Report on GitHub), the conditional Share /
 GitHub buttons, and all three branches of the automatic background
 submission (`submitted`, `network-error`, silent reasons such as
 `disabled` / `duplicate`).
+
+`src/components/settings/ThemeSwitcher.tsx` (847 lines) went from **0%**
+to broad coverage via the new `ThemeSwitcher.test.tsx` (16 tests). It
+covers default-theme rendering, activate / preview / exit-preview, the
+Create dialog (validation, success, cancel, base-theme selection),
+delete (default-theme guard + custom-theme removal + active-id clear),
+export (Blob download), Copy CSS (success + failure via `copyText`),
+import file-picker invocation, and the editor save / cancel paths.
 
 `npm test` and `npm run test:coverage` both pass cleanly. Coverage reports
 are written to `coverage/` (`text`, `json`, `html`, `lcov`).
@@ -78,7 +86,7 @@ Numbers below are line coverage (`% Lines`) from the latest
 | `src/components/chat` | 72.0% | Some message-bubble + export-dialog branches still uncovered. |
 | `src/components/cost` | 80.9% | |
 | `src/components/notifications` | 41.9% | `NotificationCenter`, `OfflineQueuePanel`, `CacheManager`, `PerformanceIndicator` untested. |
-| `src/components/settings` | 15.0% | Most settings panels untested. |
+| `src/components/settings` | 15.0% | Most settings panels untested; `ThemeSwitcher.tsx` newly covered (was 0%). |
 | `src/components/agent` | low | Only `AgentCard`, `AgentQuickActions`, `AgentStepView` covered. |
 | `src/components/analytics` | mid | Charts covered; dashboards / panels untested. |
 | `src/components/models` | 6.7% | Most model panels untested. |
