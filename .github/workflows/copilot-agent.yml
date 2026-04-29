@@ -1,92 +1,427 @@
-name: Copilot cloud agent (fixed)
+name: Copilot Agent Dispatch
+
+# On-demand workflow that dispatches tasks to the Copilot coding agent.
+#
+# Two modes (select via the task_description input):
+#
+#   1. Custom task  — provide task_description to create a Copilot issue
+#      for the agent to implement (any feature, refactor, or fix).
+#
+#   2. Full scan    — leave task_description blank to run lint + unit tests +
+#      TypeScript type-check + npm audit and dispatch Copilot fix issues for
+#      any findings, mirroring the weekly scheduled-audit but on demand.
+#
+# The Copilot coding agent is triggered automatically when an issue is assigned
+# to @copilot. It uses copilot-setup-steps.yml for environment provisioning and
+# .github/copilot-instructions.md for repo conventions.
 
 on:
   workflow_dispatch:
-  pull_request:
+    inputs:
+      task_description:
+        description: |
+          Task for the Copilot agent to work on.
+          Leave blank to run a full automated scan and create fix issues for any findings.
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
-  copilot-agent:
+  dispatch:
+    name: Dispatch agent task or run full scan
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
 
     steps:
-      # 1) Checkout with full refs so "main" exists for git diff operations
-      - name: Checkout (full history so main exists)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
         with:
-          fetch-depth: 0
+          node-version: '24'
+          cache: 'npm'
 
-      # 2) If this is a PR, ensure base branch ref is present locally too
-      - name: Ensure base branch ref exists (PR only)
-        if: ${{ github.event_name == 'pull_request' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Base ref: ${{ github.base_ref }}"
-          git fetch origin "${{ github.base_ref }}":"refs/remotes/origin/${{ github.base_ref }}" --prune
+      - name: Install dependencies
+        run: npm ci
 
-      # 3) Copilot API connectivity preflight (fail fast with useful error)
-      - name: Preflight: verify outbound HTTPS to Copilot endpoints
-        shell: bash
+      # ── Ensure shared labels exist ─────────────────────────────────────────
+      - name: Ensure required labels exist
         env:
-          # If you use a corporate proxy, set these at repo/org level or uncomment:
-          # HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
-          # HTTP_PROXY:  ${{ secrets.HTTP_PROXY }}
-          # NO_PROXY:    ${{ secrets.NO_PROXY }}
-          CONNECT_TIMEOUT_SECS: "10"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
-          set -euo pipefail
+          gh label create "copilot-fix"   --color "7057ff" --description "Automated fix dispatched to Copilot" --repo "$REPO" --force
+          gh label create "lint-error"    --color "fbca04" --description "ESLint error"                        --repo "$REPO" --force
+          gh label create "test-failure"  --color "e4e669" --description "CI / test failure"                   --repo "$REPO" --force
+          gh label create "security"      --color "d73a4a" --description "Security finding"                    --repo "$REPO" --force
+          gh label create "bug"           --color "ee0701" --description "Something is not working"            --repo "$REPO" --force
 
-          echo "== DNS/HTTPS connectivity preflight =="
-          echo "If this fails, your runner firewall/proxy is blocking Copilot endpoints."
-          echo
+      # ── Custom task path ───────────────────────────────────────────────────
+      # When a task_description is provided, create a structured Copilot issue
+      # and assign it to @copilot so the agent picks it up immediately.
+      - name: Dispatch custom task to Copilot agent
+        if: inputs.task_description != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TASK: ${{ inputs.task_description }}
+          ACTOR: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          DATE=$(date -u '+%Y-%m-%d')
 
-          # Common Copilot/CAPI endpoints used by GitHub tooling.
-          # (Your network team must allowlist whatever GitHub docs specify for Copilot.)
-          endpoints=(
-            "https://api.github.com"
-            "https://github.com"
-            "https://copilot-proxy.githubusercontent.com"
+          # Write the task to a file to safely handle any special characters
+          printf '%s' "$TASK" > /tmp/task_desc.txt
+          TASK_CONTENT=$(cat /tmp/task_desc.txt)
+
+          # Derive a short URL-safe slug for the branch name suggestion
+          SLUG=$(echo "$TASK_CONTENT" | tr '[:upper:]' '[:lower:]' \
+            | tr -cs 'a-z0-9' '-' | sed 's/--*/-/g' | cut -c1-40 | sed 's/-$//')
+
+          cat > /tmp/task_body.md <<BODY_EOF
+          ## Manual agent task dispatch
+
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`other\` |
+          | **Requested by** | @${ACTOR} |
+          | **Date** | ${DATE} |
+          | **Run** | https://github.com/${REPO}/actions/runs/${RUN_ID} |
+
+          ### Task
+
+          ${TASK_CONTENT}
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] All existing unit tests still pass (\`npm test\`)
+          - [ ] \`npm run lint\` exits 0 (no new errors)
+          - [ ] \`npm run build:dev\` succeeds
+          - [ ] CodeQL must not introduce new alerts
+          - [ ] \`package.json\` overrides pins must not be weakened
+          - [ ] No telemetry, analytics, or third-party network calls added
+
+          ### Instructions for Copilot agent
+
+          1. Read the task description above carefully.
+          2. Implement the requested change following all repo conventions in \`.github/copilot-instructions.md\`.
+          3. Read \`.github/copilot/LEARNINGS.md\` before starting — it contains hard constraints from past PRs.
+          4. Run \`npm run lint\`, \`npm run build:dev\`, and \`npm test\` before opening the PR.
+          5. Use branch name: \`copilot/fix-${RUN_NUMBER}-${SLUG}\`
+          6. Fill in the \`## Lessons learned\` section of the PR description.
+          BODY_EOF
+
+          TITLE="[Auto] Agent task: $(echo "$TASK_CONTENT" | cut -c1-80)"
+
+          ISSUE_URL=$(gh issue create \
+            --repo "$REPO" \
+            --title "$TITLE" \
+            --body-file /tmp/task_body.md \
+            --label "copilot-fix" \
+            --assignee "copilot")
+          echo "Created issue: $ISSUE_URL"
+
+          echo "## Copilot Agent Dispatch — Custom Task" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Issue created and assigned to @copilot: $ISSUE_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Full scan path ─────────────────────────────────────────────────────
+      # When no task is provided, run all scanning tools and dispatch Copilot
+      # fix issues for any findings (same logic as scheduled-audit but on demand).
+
+      - name: Run ESLint scan
+        id: lint
+        if: inputs.task_description == ''
+        run: |
+          set +e
+          npm run lint -- --format json --output-file /tmp/lint-results.json
+          LINT_EXIT=$?
+          set -e
+
+          ERROR_COUNT=0
+          if [ -f /tmp/lint-results.json ]; then
+            ERROR_COUNT=$(node -e "
+              const r = JSON.parse(require('fs').readFileSync('/tmp/lint-results.json','utf8'));
+              const errors = [];
+              r.forEach(f => f.messages.forEach(m => {
+                if (m.severity === 2)
+                  errors.push(f.filePath+':'+m.line+':'+m.column+' ['+m.ruleId+'] '+m.message);
+              }));
+              require('fs').writeFileSync('/tmp/lint-errors.txt', errors.join('\n'));
+              console.log(errors.length);
+            " 2>/dev/null || echo 0)
+          fi
+          touch /tmp/lint-errors.txt
+          echo "error_count=$ERROR_COUNT" >> "$GITHUB_OUTPUT"
+          echo "has_errors=$([ "$ERROR_COUNT" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "Lint errors: $ERROR_COUNT"
+
+      - name: Run unit tests
+        id: tests
+        if: inputs.task_description == ''
+        run: |
+          set +e
+          npm test -- --reporter=json --outputFile /tmp/test-results.json
+          TEST_EXIT=$?
+          set -e
+
+          FAILED=0
+          if [ -f /tmp/test-results.json ]; then
+            FAILED=$(node -e "const r=require('/tmp/test-results.json'); console.log(r.numFailedTests||0);" 2>/dev/null || echo 0)
+          fi
+          echo "failed_count=$FAILED" >> "$GITHUB_OUTPUT"
+          echo "has_failures=$([ "$FAILED" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "Tests failed: $FAILED"
+
+      - name: TypeScript type check
+        id: tsc
+        if: inputs.task_description == ''
+        run: |
+          set +e
+          npx tsc --noEmit --pretty false 2>&1 | tee /tmp/tsc-output.txt
+          TSC_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          touch /tmp/ts-errors.txt
+          TS_ERRORS=$(grep -E "error TS[0-9]+" /tmp/tsc-output.txt | head -50 || true)
+          if [ -n "$TS_ERRORS" ]; then
+            printf '%s\n' "$TS_ERRORS" > /tmp/ts-errors.txt
+            echo "has_errors=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_errors=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "TypeScript check exit: $TSC_EXIT"
+
+      - name: Run npm audit (high/critical)
+        id: audit
+        if: inputs.task_description == ''
+        run: |
+          set +e
+          npm audit --json --audit-level=high > /tmp/audit.json 2>&1
+          set -e
+
+          VULN_COUNT=0
+          if [ -f /tmp/audit.json ]; then
+            VULN_COUNT=$(node -e "
+              try {
+                const a = JSON.parse(require('fs').readFileSync('/tmp/audit.json','utf8'));
+                const n = Object.values(a.vulnerabilities||{})
+                  .filter(v => ['high','critical'].includes(v.severity)).length;
+                console.log(n);
+              } catch(e) { console.log(0); }
+            " 2>/dev/null || echo 0)
+          fi
+          echo "vuln_count=$VULN_COUNT" >> "$GITHUB_OUTPUT"
+          echo "has_vulns=$([ "$VULN_COUNT" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "High/critical vulnerabilities: $VULN_COUNT"
+
+      # ── Issue dispatch for scan findings ───────────────────────────────────
+
+      - name: Create lint-errors issue
+        if: inputs.task_description == '' && steps.lint.outputs.has_errors == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ERROR_COUNT: ${{ steps.lint.outputs.error_count }}
+        run: |
+          DATE=$(date -u '+%Y-%m-%d')
+          ERROR_LIST=$(head -100 /tmp/lint-errors.txt)
+
+          BODY="## Auto-generated by Copilot Agent Dispatch (on-demand scan)
+
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`lint-error\` |
+          | **Error count** | ${ERROR_COUNT} |
+          | **Date** | ${DATE} |
+          | **Run** | https://github.com/${REPO}/actions/runs/${{ github.run_id }} |
+
+          ### ESLint errors (first 100)
+
+          \`\`\`
+          ${ERROR_LIST}
+          \`\`\`
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] \`npm run lint\` exits 0 (no new errors)
+          - [ ] All existing unit tests still pass (\`npm test\`)
+          - [ ] \`npm run build:dev\` succeeds
+          - [ ] No telemetry, analytics, or third-party network calls added
+
+          ### Instructions for Copilot agent
+
+          1. Fix each ESLint error listed above — do not suppress rules unless truly necessary.
+          2. Run \`npm run lint\` to verify 0 errors before pushing.
+          3. Run \`npm run build:dev\` and \`npm test\` to confirm nothing is broken.
+          4. Use branch name: \`copilot/fix-audit-lint-${DATE}\`
+          5. Fill in the \`## Lessons learned\` section of the PR description."
+
+          # Upsert: update open issue, reopen closed one, or create new
+          OPEN=$(gh issue list --repo "$REPO" --label "copilot-fix,lint-error" \
+            --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$OPEN" ]; then
+            gh issue edit "$OPEN" --repo "$REPO" \
+              --title "[Audit] Lint errors found (${DATE})" --body "$BODY"
+            echo "Updated open issue #$OPEN"
+          else
+            CLOSED=$(gh issue list --repo "$REPO" --label "copilot-fix,lint-error" \
+              --state closed --json number --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$CLOSED" ]; then
+              gh issue reopen "$CLOSED" --repo "$REPO"
+              gh issue edit "$CLOSED" --repo "$REPO" \
+                --title "[Audit] Lint errors found (${DATE})" --body "$BODY"
+              echo "Reopened and updated issue #$CLOSED"
+            else
+              URL=$(gh issue create --repo "$REPO" \
+                --title "[Audit] Lint errors found (${DATE})" \
+                --body "$BODY" --label "copilot-fix,lint-error" --assignee "copilot")
+              echo "Created issue: $URL"
+            fi
+          fi
+
+      - name: Create test-failure issue
+        if: inputs.task_description == '' && steps.tests.outputs.has_failures == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          FAILED_COUNT: ${{ steps.tests.outputs.failed_count }}
+        run: |
+          DATE=$(date -u '+%Y-%m-%d')
+          FAILED_TESTS=$(node - <<'NODE_EOF' 2>/dev/null || echo "(could not parse test results)"
+          const fs = require('fs');
+          try {
+            const r = JSON.parse(fs.readFileSync('/tmp/test-results.json', 'utf8'));
+            const lines = [];
+            (r.testResults || []).forEach(suite => {
+              const file = (suite.testFilePath || '').replace(/^.*\/(src\/.*)$/, '$1');
+              (suite.assertionResults || []).forEach(t => {
+                if (t.status === 'failed') {
+                  const name = [...(t.ancestorTitles||[]), t.title||''].join(' > ');
+                  lines.push(file + ': ' + name);
+                }
+              });
+            });
+            console.log(lines.slice(0, 30).join('\n'));
+          } catch(e) { console.log('(could not parse test results)'); }
+          NODE_EOF
           )
 
-          for url in "${endpoints[@]}"; do
-            echo "--- Checking: $url"
-            # -I: HEAD request, -L: follow redirects, -m: max time, --connect-timeout: connect timeout
-            curl -fsSIL -m "${CONNECT_TIMEOUT_SECS}" --connect-timeout "${CONNECT_TIMEOUT_SECS}" "$url" >/dev/null
-            echo "OK: $url"
-          done
+          BODY="## Auto-generated by Copilot Agent Dispatch (on-demand scan)
 
-          echo
-          echo "Preflight passed."
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`test-failure\` |
+          | **Failed tests** | ${FAILED_COUNT} |
+          | **Date** | ${DATE} |
+          | **Run** | https://github.com/${REPO}/actions/runs/${{ github.run_id }} |
 
-      # 4) (Optional but recommended) Print git refs for debugging
-      - name: Debug: show key git refs
-        shell: bash
+          ### Failing tests (first 30)
+
+          \`\`\`
+          ${FAILED_TESTS}
+          \`\`\`
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] All existing unit tests still pass (\`npm test\`)
+          - [ ] \`npm run lint\` exits 0 (no new errors)
+          - [ ] \`npm run build:dev\` succeeds
+
+          ### Instructions for Copilot agent
+
+          1. Run \`npm test\` to reproduce the failing tests.
+          2. Fix only the identified failures — do not refactor unrelated code.
+          3. Run \`npm run lint\` and \`npm run build:dev\` to confirm nothing else is broken.
+          4. Use branch name: \`copilot/fix-audit-tests-${DATE}\`
+          5. Fill in the \`## Lessons learned\` section of the PR description."
+
+          OPEN=$(gh issue list --repo "$REPO" --label "copilot-fix,test-failure" \
+            --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$OPEN" ]; then
+            gh issue edit "$OPEN" --repo "$REPO" \
+              --title "[Audit] Unit test failures (${DATE})" --body "$BODY"
+            echo "Updated open issue #$OPEN"
+          else
+            CLOSED=$(gh issue list --repo "$REPO" --label "copilot-fix,test-failure" \
+              --state closed --json number --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$CLOSED" ]; then
+              gh issue reopen "$CLOSED" --repo "$REPO"
+              gh issue edit "$CLOSED" --repo "$REPO" \
+                --title "[Audit] Unit test failures (${DATE})" --body "$BODY"
+              echo "Reopened and updated issue #$CLOSED"
+            else
+              URL=$(gh issue create --repo "$REPO" \
+                --title "[Audit] Unit test failures (${DATE})" \
+                --body "$BODY" --label "copilot-fix,test-failure,bug" --assignee "copilot")
+              echo "Created issue: $URL"
+            fi
+          fi
+
+      - name: Create TypeScript-error issue
+        if: inputs.task_description == '' && steps.tsc.outputs.has_errors == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
-          set -euo pipefail
-          echo "Branches:"
-          git branch -a
-          echo
-          echo "Remotes:"
-          git remote -v
-          echo
-          echo "main commit (if present):"
-          git rev-parse --verify origin/main || true
+          DATE=$(date -u '+%Y-%m-%d')
+          TS_ERROR_LIST=$(head -50 /tmp/ts-errors.txt)
 
-      # 5) Run your Copilot cloud agent step (replace with your actual action)
-      #    Keep this as-is if you're using the same action as before.
-      - name: Run Copilot cloud agent
-        uses: github/copilot-swe-agent@v1
-        with:
-          # keep your existing inputs here
-          # e.g. instructions, model, etc.
-          # instructions: "..."
-          # model: "..."
-          #
-          # If your setup supports it, also consider limiting payload size to reduce request issues.
-          # (Only add if your action supports such a setting.)
-          #
-          # NOTE: The main fix is network allowlisting; this step will still fail if blocked.
-          pass: true
+          BODY="## Auto-generated by Copilot Agent Dispatch (on-demand scan)
+
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`test-failure\` |
+          | **Failure kind** | TypeScript compile error |
+          | **Date** | ${DATE} |
+          | **Run** | https://github.com/${REPO}/actions/runs/${{ github.run_id }} |
+
+          ### TypeScript errors (from \`tsc --noEmit\`)
+
+          \`\`\`
+          ${TS_ERROR_LIST}
+          \`\`\`
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] \`npm run build:dev\` succeeds (no TypeScript errors)
+          - [ ] \`npm run lint\` exits 0
+          - [ ] All existing unit tests still pass (\`npm test\`)
+
+          ### Instructions for Copilot agent
+
+          1. Run \`npx tsc --noEmit\` to reproduce the errors.
+          2. Fix each TypeScript error — do not use \`@ts-ignore\` unless absolutely necessary.
+          3. Run \`npm run build:dev\` to confirm the full build succeeds.
+          4. Use branch name: \`copilot/fix-typescript-${DATE}\`
+          5. Fill in the \`## Lessons learned\` section of the PR description."
+
+          URL=$(gh issue create --repo "$REPO" \
+            --title "[Audit] TypeScript compile errors (${DATE})" \
+            --body "$BODY" --label "copilot-fix,test-failure,bug" --assignee "copilot")
+          echo "Created issue: $URL"
+
+      - name: Write scan summary
+        if: always() && inputs.task_description == ''
+        env:
+          LINT_ERRORS: ${{ steps.lint.outputs.error_count }}
+          TEST_FAILED: ${{ steps.tests.outputs.failed_count }}
+          HAS_TS_ERRORS: ${{ steps.tsc.outputs.has_errors }}
+          VULN_COUNT: ${{ steps.audit.outputs.vuln_count }}
+        run: |
+          echo "## Copilot Agent Dispatch — Scan Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ESLint errors | ${LINT_ERRORS:-0} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Failed tests | ${TEST_FAILED:-0} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| TypeScript errors | ${HAS_TS_ERRORS:-false} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| High/critical npm vulnerabilities | ${VULN_COUNT:-0} |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${LINT_ERRORS:-0}" = "0" ] && [ "${TEST_FAILED:-0}" = "0" ] && \
+             [ "${HAS_TS_ERRORS:-false}" = "false" ] && [ "${VULN_COUNT:-0}" = "0" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ All checks passed — no issues dispatched to Copilot." >> "$GITHUB_STEP_SUMMARY"
+          fi

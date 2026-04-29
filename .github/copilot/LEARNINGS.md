@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-04-29 — PR #76: feat: expand automated bug scanning — fix agent dispatch, add TS check, lint issue dispatch, build CI watch
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/76](https://github.com/smackypants/trueai-localai/pull/76) · merged 9240c2ae13c3 · author @Copilot_
+
+- `github/copilot-swe-agent@v1` is GitHub-internal infrastructure — it is **not** a user-callable action. The Copilot coding agent is triggered by assigning issues to `@copilot`; `copilot-setup-steps.yml` provisions its environment. A `workflow_dispatch` issue-dispatch workflow is the correct pattern for "run the agent on demand".
+- When adding a row to a bash heredoc markdown table, embed the value as a shell variable (`${TS_LABEL}`) inside a fixed-width table row string rather than constructing the entire row as a variable — keeps indentation consistent with the surrounding heredoc.
+- `workflow_run: workflows: [...]` accepts a list; adding a second workflow name is a one-line expansion that costs nothing in extra complexity.
+
+---
+
 ## 2026-04-29 — PR #75: [WIP] Fix unit test failure on explore codebase and fix bugs
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/75](https://github.com/smackypants/trueai-localai/pull/75) · merged 0511f6144575 · author @Copilot_
