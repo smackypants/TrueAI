@@ -5,21 +5,20 @@
 
 ## Current snapshot
 
-_As of 2026-04-29 (post Phase 1)._
+_As of 2026-04-29 (post Phase 2 — root `ErrorFallback.tsx`)._
 
-| Metric | Value | Δ vs. baseline |
+| Metric | Value | Δ vs. Phase 1 |
 |---|---|---|
-| Test files | **112** | +1 |
-| Tests | **1323** | +6 |
-| Statements | **46.1%** | +0.4 pp |
-| Branches | **37.9%** | +0.2 pp |
-| Functions | **39.4%** | +0.1 pp |
-| Lines | **47.2%** | +0.4 pp |
+| Test files | **122** | +10 |
+| Tests | **1461** | +138 |
 
-`src/lib/native/install.ts` went from **0% → 91.1% lines** in this slice
-(remaining gap: `try/catch` debug-log fallbacks for missing optional
-Capacitor modules, which are mocked as present in the test). `src/lib/native`
-overall: **56.0% → 67.4% lines**.
+`src/ErrorFallback.tsx` went from **0% → ~100% lines** in this slice.
+The new `src/ErrorFallback.test.tsx` exercises the DEV-mode rethrow,
+the placeholder/loaded states, every action button (Try Again, Reload,
+Copy, Share, Download, Report on GitHub), the conditional Share /
+GitHub buttons, and all three branches of the automatic background
+submission (`submitted`, `network-error`, silent reasons such as
+`disabled` / `duplicate`).
 
 `npm test` and `npm run test:coverage` both pass cleanly. Coverage reports
 are written to `coverage/` (`text`, `json`, `html`, `lcov`).
@@ -96,7 +95,7 @@ Numbers below are line coverage (`% Lines`) from the latest
 |---|---|---|
 | 0 | Capture baseline coverage | ✅ done |
 | 1 | Cover the last `src/lib/**` gap (`native/install.ts`) | ✅ done |
-| 2 | App shell — `App.tsx`, `App-Enhanced.tsx`, `main.tsx`, root `ErrorFallback.tsx` | ⏳ planned |
+| 2 | App shell — `App.tsx`, `App-Enhanced.tsx`, `main.tsx`, root `ErrorFallback.tsx` | 🟡 in progress (`ErrorFallback.tsx` ✅) |
 | 3.1 | Workflow components | ⏳ planned |
 | 3.2 | Agent components (11) | ⏳ planned |
 | 3.3 | Analytics components (7) | ⏳ planned |
