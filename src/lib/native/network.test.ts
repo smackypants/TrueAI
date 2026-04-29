@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   getNetworkStatus,
   getNetworkStatusSync,
@@ -70,5 +70,51 @@ describe('native/network (web fallback)', () => {
     await new Promise((r) => setTimeout(r, 0))
     expect(connected).toBe(true)
     unsubscribe()
+  })
+
+  it('unsubscribed listeners stop receiving updates', async () => {
+    await getNetworkStatus()
+    const cb = vi.fn()
+    const unsubscribe = onNetworkStatusChange(cb)
+    await new Promise((r) => setTimeout(r, 0))
+    cb.mockClear()
+    unsubscribe()
+    window.dispatchEvent(new Event('offline'))
+    window.dispatchEvent(new Event('online'))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(cb).not.toHaveBeenCalled()
+  })
+
+  it('listener errors are caught and logged without breaking other subscribers', async () => {
+    await getNetworkStatus()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const ok = vi.fn()
+    const throwing = vi.fn(() => {
+      throw new Error('boom')
+    })
+    const u1 = onNetworkStatusChange(throwing)
+    const u2 = onNetworkStatusChange(ok)
+    // Drain initial replays.
+    await new Promise((r) => setTimeout(r, 0))
+    throwing.mockClear()
+    ok.mockClear()
+
+    window.dispatchEvent(new Event('offline'))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(throwing).toHaveBeenCalled()
+    expect(ok).toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalled()
+    u1()
+    u2()
+    errorSpy.mockRestore()
+  })
+
+  it('getNetworkStatusSync returns the cached status after initialisation', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    await getNetworkStatus()
+    const sync = getNetworkStatusSync()
+    expect(sync.connected).toBe(false)
+    expect(sync.connectionType).toBe('none')
   })
 })
