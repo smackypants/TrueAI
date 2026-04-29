@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-04-29 — PR #104: Improve test coverage for HuggingFace + KV store utilities; stabilize brittle model component tests
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/104](https://github.com/smackypants/trueai-localai/pull/104) · merged f1abb64f12f2 · author @Codex_
+
+- (No explicit lessons recorded.) PR title: _Improve test coverage for HuggingFace + KV store utilities; stabilize brittle model component tests_.
+
+---
+
 ## 2026-04-29 — PR #103: test: cover ContextualSuggestionsPanel and smart-layout primitives
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/103](https://github.com/smackypants/trueai-localai/pull/103) · merged 56e753709762 · author @Copilot_
