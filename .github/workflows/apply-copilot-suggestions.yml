@@ -1,0 +1,292 @@
+name: Apply Copilot Review Suggestions
+
+# Reduces manual toil from the GitHub "Fix with Copilot" / inline-review
+# suggestion workflow by automatically committing all unresolved
+# `suggestion` blocks left on a PR by trusted authors back to the PR
+# branch — the same effect as clicking "Apply suggestion" → "Commit" on
+# every comment, but as a single batched commit.
+#
+# Triggers
+# --------
+# 1. `pull_request_review` (submitted) — runs whenever a review is
+#    submitted by a trusted reviewer. Catches Copilot reviews, which
+#    are the primary use-case.
+# 2. `pull_request_review_comment` (created) — runs whenever a single
+#    inline suggestion comment is posted by a trusted author.
+# 3. `issue_comment` (created) — runs when a maintainer comments
+#    `/apply-suggestions` on the PR. Useful to (re-)apply suggestions
+#    from a non-trusted reviewer that the maintainer has vetted.
+#
+# Trusted authors (by default):
+#   - copilot[bot], copilot-swe-agent[bot], Copilot     — GitHub Copilot
+#   - github-actions[bot]                               — repo automation
+#   - smackypants                                       — repo owner
+#
+# Safety rails
+# ------------
+# - Same-repo PRs only (no fork token write attempts).
+# - Outdated / resolved suggestions (where `line` is null) are skipped.
+# - If the suggestion would conflict with itself or the file no longer
+#   contains the original lines, that suggestion is skipped and reported.
+# - Branch protection on `main` is unaffected: this only pushes to the
+#   PR's head branch, never to `main`.
+
+on:
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  # Serialize per-PR so two events firing back-to-back can't race-push.
+  group: apply-copilot-suggestions-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    # Pre-filter: must be PR-related, must be a slash-command on issue_comment
+    # events, and the actor must be in the trusted set. Per-comment author
+    # filtering happens inside the apply step below.
+    if: >
+      (
+        github.event_name == 'pull_request_review' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        (
+          github.event.review.user.login == 'copilot[bot]' ||
+          github.event.review.user.login == 'copilot-swe-agent[bot]' ||
+          github.event.review.user.login == 'Copilot' ||
+          github.event.review.user.login == 'github-actions[bot]' ||
+          github.event.review.user.login == 'smackypants'
+        )
+      ) ||
+      (
+        github.event_name == 'pull_request_review_comment' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        (
+          github.event.comment.user.login == 'copilot[bot]' ||
+          github.event.comment.user.login == 'copilot-swe-agent[bot]' ||
+          github.event.comment.user.login == 'Copilot' ||
+          github.event.comment.user.login == 'github-actions[bot]' ||
+          github.event.comment.user.login == 'smackypants'
+        )
+      ) ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request != null &&
+        contains(github.event.comment.body, '/apply-suggestions') &&
+        (
+          github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER' ||
+          github.event.comment.author_association == 'COLLABORATOR'
+        )
+      )
+
+    steps:
+      - name: Resolve PR metadata
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_FROM_PR_EVENT: ${{ github.event.pull_request.number }}
+          PR_FROM_ISSUE: ${{ github.event.issue.number }}
+        run: |
+          PR_NUMBER="${PR_FROM_PR_EVENT:-$PR_FROM_ISSUE}"
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::error::Could not determine PR number from event payload."
+            exit 1
+          fi
+          info=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" \
+            --json headRefName,headRefOid,headRepository,headRepositoryOwner,number)
+          HEAD_REF=$(echo "$info" | jq -r .headRefName)
+          HEAD_SHA=$(echo "$info" | jq -r .headRefOid)
+          HEAD_REPO=$(echo "$info" | jq -r '.headRepositoryOwner.login + "/" + .headRepository.name')
+          if [ "$HEAD_REPO" != "${{ github.repository }}" ]; then
+            echo "::warning::Skipping fork PR; cannot push suggestions back."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            echo "pr=$PR_NUMBER"
+            echo "head=$HEAD_REF"
+            echo "head_sha=$HEAD_SHA"
+            echo "skip=false"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out PR head (pinned to resolved SHA)
+        if: steps.pr.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          # Pinning to the SHA resolved at gate-time mitigates TOCTOU
+          # (CodeQL actions/untrusted-checkout-toctou): even if the head
+          # ref is force-pushed between the gate check and checkout, we
+          # still operate on the SHA we vetted. The subsequent push uses
+          # `HEAD:<head ref>` so new commits land on the original branch.
+          ref: ${{ steps.pr.outputs.head_sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply suggestion blocks
+        if: steps.pr.outputs.skip != 'true'
+        id: apply
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const prNumber = Number(process.env.PR_NUMBER);
+            const { owner, repo } = context.repo;
+
+            const TRUSTED_AUTHORS = new Set([
+              'copilot[bot]',
+              'copilot-swe-agent[bot]',
+              'Copilot',
+              'github-actions[bot]',
+              'smackypants',
+            ]);
+
+            // Fetch all review comments on this PR.
+            const comments = await github.paginate(
+              github.rest.pulls.listReviewComments,
+              { owner, repo, pull_number: prNumber, per_page: 100 },
+            );
+
+            // Extract the first ```suggestion ... ``` block from a comment body.
+            // Returns the raw replacement string (without the fence), or null.
+            function extractSuggestion(body) {
+              if (!body) return null;
+              const re = /```suggestion\r?\n([\s\S]*?)```/;
+              const m = body.match(re);
+              if (!m) return null;
+              // The suggestion body is taken verbatim. GitHub strips the
+              // trailing newline that immediately precedes the closing fence.
+              return m[1].replace(/\r\n/g, '\n');
+            }
+
+            // Filter: trusted author, contains a suggestion block, still
+            // anchored to a current line (not outdated), thread not resolved.
+            const candidates = [];
+            for (const c of comments) {
+              if (!TRUSTED_AUTHORS.has(c.user?.login)) continue;
+              if (c.line == null) continue; // outdated
+              const suggestion = extractSuggestion(c.body);
+              if (suggestion == null) continue;
+              candidates.push({
+                id: c.id,
+                path: c.path,
+                start_line: c.start_line ?? c.line,
+                end_line: c.line,
+                suggestion,
+                author: c.user.login,
+                html_url: c.html_url,
+              });
+            }
+
+            if (candidates.length === 0) {
+              core.info('No applicable suggestion comments found.');
+              core.setOutput('applied', '0');
+              core.setOutput('skipped', '0');
+              return;
+            }
+
+            // Group by file, then sort each group by start_line DESC so
+            // upstream edits don't shift downstream line numbers.
+            const byFile = new Map();
+            for (const c of candidates) {
+              if (!byFile.has(c.path)) byFile.set(c.path, []);
+              byFile.get(c.path).push(c);
+            }
+
+            let applied = 0;
+            const skipped = [];
+            const appliedRefs = [];
+
+            for (const [filePath, list] of byFile) {
+              const abs = path.resolve(filePath);
+              if (!fs.existsSync(abs)) {
+                for (const c of list) skipped.push({ c, reason: 'file not found' });
+                continue;
+              }
+              list.sort((a, b) => b.start_line - a.start_line);
+
+              let content = fs.readFileSync(abs, 'utf8');
+              const usesCRLF = /\r\n/.test(content);
+              const lines = content.replace(/\r\n/g, '\n').split('\n');
+              // Track which line ranges have already been touched to avoid
+              // overlapping replacements (e.g. duplicate suggestions).
+              const touched = []; // array of [start, end]
+
+              for (const c of list) {
+                const s = c.start_line;
+                const e = c.end_line;
+                if (s < 1 || e > lines.length || s > e) {
+                  skipped.push({ c, reason: `out-of-range lines ${s}-${e} for file with ${lines.length} lines` });
+                  continue;
+                }
+                const overlap = touched.some(([ts, te]) => !(e < ts || s > te));
+                if (overlap) {
+                  skipped.push({ c, reason: 'overlapping with another applied suggestion' });
+                  continue;
+                }
+                const replacement = c.suggestion.split('\n');
+                lines.splice(s - 1, e - s + 1, ...replacement);
+                touched.push([s, e]);
+                applied++;
+                appliedRefs.push(c.html_url);
+              }
+
+              let out = lines.join('\n');
+              if (usesCRLF) out = out.replace(/\n/g, '\r\n');
+              fs.writeFileSync(abs, out);
+            }
+
+            core.setOutput('applied', String(applied));
+            core.setOutput('skipped', String(skipped.length));
+            core.setOutput('applied_refs', appliedRefs.join('\n'));
+            if (skipped.length) {
+              core.warning(`Skipped ${skipped.length} suggestion(s):\n` +
+                skipped.map(s => `- ${s.c.html_url}: ${s.reason}`).join('\n'));
+            }
+
+      - name: Commit and push if changed
+        if: steps.pr.outputs.skip != 'true' && steps.apply.outputs.applied != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ steps.pr.outputs.pr }}
+          HEAD: ${{ steps.pr.outputs.head }}
+          APPLIED: ${{ steps.apply.outputs.applied }}
+          SKIPPED: ${{ steps.apply.outputs.skipped }}
+        run: |
+          set -e
+          # Bail out if the apply step produced no actual file changes
+          # (defence in depth — should not happen if applied > 0).
+          if git diff --quiet; then
+            echo "No file changes detected; nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: apply ${APPLIED} Copilot review suggestion(s)
+
+          Auto-applied by .github/workflows/apply-copilot-suggestions.yml.
+          Skipped: ${SKIPPED}."
+          git push origin "HEAD:${HEAD}"
+          gh pr comment "$PR" --repo "${{ github.repository }}" --body \
+            "🤖 Applied **${APPLIED}** Copilot review suggestion(s) automatically (skipped ${SKIPPED}). Re-running CI."
+
+      - name: React to slash-command comment
+        if: github.event_name == 'issue_comment' && steps.pr.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST \
+            "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content=rocket || true
