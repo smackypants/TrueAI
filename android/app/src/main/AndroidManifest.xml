@@ -47,7 +47,6 @@
     <!-- Allows local notifications to fire after app is closed / device reboot.
          SCHEDULE_EXACT_ALARM/USE_EXACT_ALARM trigger a Play Console policy
          declaration; see docs/STORE_DEPLOYMENT.md for the justification text. -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
