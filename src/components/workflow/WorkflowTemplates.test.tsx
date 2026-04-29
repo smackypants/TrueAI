@@ -1,83 +1,101 @@
-import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-
-// Radix Select stubs
-beforeEach(() => {
-  if (!HTMLElement.prototype.hasPointerCapture) {
-    Object.defineProperty(HTMLElement.prototype, 'hasPointerCapture', {
-      value: vi.fn().mockReturnValue(false), configurable: true,
-    })
-  }
-  if (!HTMLElement.prototype.releasePointerCapture) {
-    Object.defineProperty(HTMLElement.prototype, 'releasePointerCapture', {
-      value: vi.fn(), configurable: true,
-    })
-  }
-  if (!HTMLElement.prototype.setPointerCapture) {
-    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
-      value: vi.fn(), configurable: true,
-    })
-  }
-  if (!HTMLElement.prototype.scrollIntoView) {
-    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-      value: vi.fn(), configurable: true,
-    })
-  }
-})
-
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { WorkflowTemplates } from './WorkflowTemplates'
 
 describe('WorkflowTemplates', () => {
-  it('renders heading', () => {
-    render(<WorkflowTemplates onUseTemplate={vi.fn()} />)
-    expect(screen.getByText(/workflow template/i)).toBeInTheDocument()
+  beforeAll(() => {
+    HTMLElement.prototype.hasPointerCapture = vi.fn()
+    HTMLElement.prototype.setPointerCapture = vi.fn()
+    HTMLElement.prototype.releasePointerCapture = vi.fn()
+    HTMLElement.prototype.scrollIntoView = vi.fn()
   })
 
-  it('renders multiple templates', () => {
+  afterAll(() => {
+    Reflect.deleteProperty(HTMLElement.prototype, 'hasPointerCapture')
+    Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+    Reflect.deleteProperty(HTMLElement.prototype, 'releasePointerCapture')
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+  })
+
+  it('renders the template library with metadata and featured badges', () => {
     render(<WorkflowTemplates onUseTemplate={vi.fn()} />)
+
+    expect(screen.getByRole('heading', { name: /workflow templates/i })).toBeInTheDocument()
     expect(screen.getByText('Content Research & Writing')).toBeInTheDocument()
+    expect(screen.getByText('Data ETL Pipeline')).toBeInTheDocument()
+    expect(screen.getByText('Code Review Automation')).toBeInTheDocument()
+    expect(screen.getByText('Market Research Report')).toBeInTheDocument()
+    expect(screen.getByText('Email Campaign Automation')).toBeInTheDocument()
+    expect(screen.getByText('Customer Support Triage')).toBeInTheDocument()
+    expect(screen.getAllByText('Featured')).toHaveLength(3)
+    expect(screen.getAllByText('TrueAI Team')).toHaveLength(6)
   })
 
-  it('renders search input', () => {
+  it('filters templates by name, description, and tag search text', async () => {
+    const user = userEvent.setup()
     render(<WorkflowTemplates onUseTemplate={vi.fn()} />)
-    expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument()
+
+    const search = screen.getByPlaceholderText(/search templates/i)
+
+    await user.type(search, 'etl')
+    expect(screen.getByText('Data ETL Pipeline')).toBeInTheDocument()
+    expect(screen.queryByText('Content Research & Writing')).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, 'competitors')
+    expect(screen.getByText('Market Research Report')).toBeInTheDocument()
+    expect(screen.queryByText('Data ETL Pipeline')).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, 'support')
+    expect(screen.getByText('Customer Support Triage')).toBeInTheDocument()
+    expect(screen.queryByText('Market Research Report')).not.toBeInTheDocument()
   })
 
-  it('filters templates by search query', () => {
+  it('filters templates by category selection', async () => {
+    const user = userEvent.setup()
     render(<WorkflowTemplates onUseTemplate={vi.fn()} />)
-    fireEvent.change(screen.getByPlaceholderText(/search/i), {
-      target: { value: 'Content' },
-    })
-    expect(screen.getByText('Content Research & Writing')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('combobox'))
+    await user.click(await screen.findByText('Development'))
+
+    expect(screen.getByText('Code Review Automation')).toBeInTheDocument()
+    expect(screen.queryByText('Content Research & Writing')).not.toBeInTheDocument()
+    expect(screen.queryByText('Customer Support Triage')).not.toBeInTheDocument()
   })
 
-  it('shows "No templates found" when search has no results', () => {
+  it('shows an empty state when no templates match search and category filters', async () => {
+    const user = userEvent.setup()
     render(<WorkflowTemplates onUseTemplate={vi.fn()} />)
-    fireEvent.change(screen.getByPlaceholderText(/search/i), {
-      target: { value: 'xyznonexistent123' },
-    })
-    expect(screen.getByText(/no templates/i)).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText(/search templates/i), 'no matching workflow')
+
+    expect(screen.getByText('No templates match your search')).toBeInTheDocument()
+    expect(screen.queryByText('Content Research & Writing')).not.toBeInTheDocument()
   })
 
-  it('renders "Use Template" buttons', () => {
-    render(<WorkflowTemplates onUseTemplate={vi.fn()} />)
-    const buttons = screen.getAllByRole('button', { name: /use template/i })
-    expect(buttons.length).toBeGreaterThan(0)
-  })
-
-  it('calls onUseTemplate with template object when Use Template clicked', () => {
+  it('passes the selected template to onUseTemplate', async () => {
+    const user = userEvent.setup()
     const onUseTemplate = vi.fn()
     render(<WorkflowTemplates onUseTemplate={onUseTemplate} />)
-    const buttons = screen.getAllByRole('button', { name: /use template/i })
-    fireEvent.click(buttons[0])
-    expect(onUseTemplate).toHaveBeenCalledOnce()
-    const arg = onUseTemplate.mock.calls[0][0]
-    expect(arg.id).toBe('template-1')
-  })
 
-  it('renders category badges', () => {
-    render(<WorkflowTemplates onUseTemplate={vi.fn()} />)
-    const badges = document.querySelectorAll('[data-slot="badge"]')
-    expect(badges.length).toBeGreaterThan(0)
+    const useButtons = screen.getAllByRole('button', { name: /use template/i })
+    await user.click(useButtons[2])
+
+    expect(onUseTemplate).toHaveBeenCalledTimes(1)
+    expect(onUseTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'template-3',
+        name: 'Code Review Automation',
+        category: 'development',
+        workflow: expect.objectContaining({
+          nodes: expect.arrayContaining([
+            expect.objectContaining({ type: 'parallel' }),
+            expect.objectContaining({ type: 'merge' }),
+          ]),
+        }),
+      })
+    )
   })
 })
