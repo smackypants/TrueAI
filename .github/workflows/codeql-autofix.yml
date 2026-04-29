@@ -85,11 +85,43 @@ jobs:
 
           echo "body_file=/tmp/issue_body.md" >> "$GITHUB_OUTPUT"
 
+      # ── Deduplication: skip if an open issue already exists for this alert ──
+      # Searches open issues for the alert number (in the title) to avoid
+      # creating duplicate issues when the same alert fires multiple times.
+      - name: Check for existing open issue
+        id: dedup
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ALERT_NUMBER: ${{ github.event.alert.number }}
+          RULE_ID: ${{ github.event.alert.rule.id }}
+        run: |
+          # Search for open issues whose title contains this alert number.
+          # The title format used by both create steps includes "alert #N".
+          EXISTING=$(gh issue list \
+            --repo "$REPO" \
+            --label "copilot-fix,security" \
+            --state open \
+            --json number,title \
+            --jq --arg n "alert #${ALERT_NUMBER}" \
+              '[.[] | select(.title | contains($n))] | .[0].number // empty' \
+            2>/dev/null || echo "")
+
+          if [ -n "$EXISTING" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "existing_issue=$EXISTING" >> "$GITHUB_OUTPUT"
+            echo "Duplicate: open issue #$EXISTING already covers alert #${ALERT_NUMBER} — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "No existing open issue found for alert #${ALERT_NUMBER} — will create."
+          fi
+
       # ── high / critical: assign directly to the Copilot agent ──────────────
       - name: Create issue (critical/high) → assign to Copilot
         if: >
+          steps.dedup.outputs.skip != 'true' && (
           github.event.alert.rule.security_severity_level == 'critical' ||
-          github.event.alert.rule.security_severity_level == 'high'
+          github.event.alert.rule.security_severity_level == 'high')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -109,9 +141,10 @@ jobs:
       # ── medium / low: create issue assigned to Copilot with needs-triage label ─
       - name: Create issue (medium/low) → Copilot triage
         if: >
+          steps.dedup.outputs.skip != 'true' && (
           github.event.alert.rule.security_severity_level == 'medium' ||
           github.event.alert.rule.security_severity_level == 'low' ||
-          github.event.alert.rule.security_severity_level == ''
+          github.event.alert.rule.security_severity_level == '')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}

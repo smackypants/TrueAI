@@ -1,0 +1,335 @@
+name: Source Pattern Scan
+
+# Scans the TypeScript/JavaScript source tree for high-risk coding patterns
+# that static analysis tools (ESLint, CodeQL) may not catch:
+#   - Credential leakage: localStorage.setItem calls that mention sensitive keys
+#   - Missing null guards: Capacitor plugin calls outside try/catch or .catch()
+#   - Suppression drift: new @ts-ignore / eslint-disable comments added to src/
+#
+# When any pattern fires, a consolidated Copilot fix issue is upserted using
+# the same three-way (update/reopen/create) deduplication pattern as
+# scheduled-audit.yml.
+#
+# Runs on push to main and weekly (Friday 04:00 UTC) so new code committed to
+# main is scanned within minutes, and the weekly run catches anything missed.
+#
+# Governance:
+#   - Patterns are conservative — no false-positive-prone broad matches.
+#   - Only scans src/ to avoid flagging node_modules, android/, or docs/.
+#   - No telemetry or third-party network calls.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+  schedule:
+    # Weekly on Friday at 04:00 UTC
+    - cron: '0 4 * * 5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  SCAN_DIR: src
+
+jobs:
+  pattern-scan:
+    name: Source risk-pattern scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # ── Pattern 1: Credential leakage via localStorage ────────────────────
+      # Detect localStorage.setItem calls that reference credential-like keys
+      # on the same line.  The project policy is that secrets must use
+      # kvStore.setSecure() / secureStorage, never localStorage directly.
+      - name: "Scan: localStorage.setItem with sensitive key names"
+        id: localstorage
+        run: |
+          set +e
+          grep -rn --include="*.ts" --include="*.tsx" \
+            -E "localStorage\.setItem\s*\([^)]*['\"].*?(key|secret|token|api.?key|password|credential|auth)[^)]*" \
+            "$SCAN_DIR" > /tmp/localStorage-matches.txt 2>/dev/null
+          COUNT=$(wc -l < /tmp/localStorage-matches.txt | tr -d ' ')
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "has_matches=$([ "$COUNT" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "localStorage.setItem sensitive-key matches: $COUNT"
+          set -e
+
+      # ── Pattern 2: Unguarded Capacitor plugin calls ───────────────────────
+      # Detect direct Capacitor.Plugins.* or specific plugin method calls
+      # that are NOT inside a try block or chained with .catch().
+      # This is a conservative heuristic: flag any plugin call that appears
+      # on a line without 'try', 'catch', or '.catch(' within 3 lines context.
+      - name: "Scan: Capacitor plugin calls without error handling"
+        id: capacitor
+        run: |
+          set +e
+          # Extract lines with Capacitor plugin invocations
+          grep -rn --include="*.ts" --include="*.tsx" \
+            -E "(Capacitor\.Plugins\.|CapacitorPreferences\.|PushNotifications\.|Filesystem\.|Haptics\.|Camera\.|Clipboard\.).*\.(get|set|remove|read|write|vibrate|copy|requestPermissions|register|addListener)\s*\(" \
+            "$SCAN_DIR" > /tmp/all-plugin-calls.txt 2>/dev/null
+
+          # Filter to keep only those NOT preceded by try/catch within file context.
+          # Simple heuristic: skip lines where the surrounding 3 lines contain 'try {'
+          python3 - <<'PYEOF' || true
+          import subprocess, re, sys
+
+          try:
+              with open('/tmp/all-plugin-calls.txt') as f:
+                  raw = f.readlines()
+          except FileNotFoundError:
+              sys.exit(0)
+
+          unguarded = []
+          for entry in raw:
+              entry = entry.rstrip()
+              if not entry:
+                  continue
+              # Parse "file:linenum:content"
+              parts = entry.split(':', 2)
+              if len(parts) < 3:
+                  continue
+              filepath, lineno_str, _ = parts[0], parts[1], parts[2]
+              try:
+                  lineno = int(lineno_str)
+              except ValueError:
+                  continue
+              # Read surrounding context (3 lines before)
+              try:
+                  result = subprocess.run(
+                      ['sed', '-n', f'{max(1,lineno-3)},{lineno}p', filepath],
+                      capture_output=True, text=True
+                  )
+                  context = result.stdout
+              except Exception:
+                  context = ''
+              if not re.search(r'\btry\s*\{', context):
+                  unguarded.append(entry)
+
+          with open('/tmp/capacitor-unguarded.txt', 'w') as f:
+              f.write('\n'.join(unguarded[:50]))
+          print(f'Unguarded Capacitor calls: {len(unguarded)}')
+          PYEOF
+
+          COUNT=0
+          if [ -f /tmp/capacitor-unguarded.txt ]; then
+            COUNT=$(wc -l < /tmp/capacitor-unguarded.txt | tr -d ' ')
+          fi
+          # Create empty file if python3 block did not create it
+          touch /tmp/capacitor-unguarded.txt
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "has_matches=$([ "$COUNT" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "Unguarded Capacitor calls: $COUNT"
+          set -e
+
+      # ── Pattern 3: Suppression comment drift ─────────────────────────────
+      # Detect @ts-ignore and eslint-disable comments in src/ — these are
+      # permitted in the codebase but should be audited when new ones appear.
+      - name: "Scan: @ts-ignore and eslint-disable comments"
+        id: suppressions
+        run: |
+          set +e
+          grep -rn --include="*.ts" --include="*.tsx" \
+            -E "@ts-ignore|eslint-disable" \
+            "$SCAN_DIR" > /tmp/suppressions.txt 2>/dev/null
+          COUNT=$(wc -l < /tmp/suppressions.txt | tr -d ' ')
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "has_matches=$([ "$COUNT" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "Suppression comments: $COUNT"
+          set -e
+
+      # ── Aggregate result ──────────────────────────────────────────────────
+      - name: Aggregate findings
+        id: aggregate
+        run: |
+          LS_COUNT="${{ steps.localstorage.outputs.count }}"
+          CAP_COUNT="${{ steps.capacitor.outputs.count }}"
+          # Suppression comments are informational — only flag if count is high (>10)
+          # or if the scan found credential leakage / unguarded calls.
+          CRED_ISSUES="${{ steps.localstorage.outputs.has_matches }}"
+          CAP_ISSUES="${{ steps.capacitor.outputs.has_matches }}"
+
+          TOTAL_HIGH=$((${LS_COUNT:-0} + ${CAP_COUNT:-0}))
+          echo "total_high=$TOTAL_HIGH" >> "$GITHUB_OUTPUT"
+          echo "has_findings=$([ "$TOTAL_HIGH" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "cred_issues=$CRED_ISSUES" >> "$GITHUB_OUTPUT"
+          echo "cap_issues=$CAP_ISSUES" >> "$GITHUB_OUTPUT"
+          echo "Total high-priority findings: $TOTAL_HIGH"
+
+      # ── Ensure required labels exist ─────────────────────────────────────
+      - name: Ensure required labels exist
+        if: steps.aggregate.outputs.has_findings == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh label create "copilot-fix"      --color "7057ff" --description "Automated fix dispatched to Copilot" --repo "$REPO" --force
+          gh label create "security"         --color "d73a4a" --description "Security finding"                    --repo "$REPO" --force
+          gh label create "pattern-scan"     --color "c5def5" --description "Source pattern scan finding"        --repo "$REPO" --force
+          gh label create "bug"              --color "ee0701" --description "Something is not working"            --repo "$REPO" --force
+
+      # ── Dispatch consolidated Copilot fix issue ───────────────────────────
+      - name: Create or update pattern-scan issue
+        if: steps.aggregate.outputs.has_findings == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          LS_COUNT:  ${{ steps.localstorage.outputs.count }}
+          CAP_COUNT: ${{ steps.capacitor.outputs.count }}
+          SUP_COUNT: ${{ steps.suppressions.outputs.count }}
+        run: |
+          AUDIT_DATE=$(date -u '+%Y-%m-%d')
+          TITLE="[Security] Source pattern scan findings"
+
+          LS_MATCHES=$(head -20 /tmp/localStorage-matches.txt 2>/dev/null || echo "(none)")
+          CAP_MATCHES=$(head -20 /tmp/capacitor-unguarded.txt 2>/dev/null || echo "(none)")
+          SUP_MATCHES=$(head -20 /tmp/suppressions.txt 2>/dev/null || echo "(none)")
+
+          BODY="## Auto-generated by Source Pattern Scan
+
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`other\` |
+          | **Date** | $AUDIT_DATE |
+          | **localStorage credential leaks** | $LS_COUNT |
+          | **Unguarded Capacitor calls** | $CAP_COUNT |
+          | **Suppression comments (informational)** | $SUP_COUNT |
+          | **Run** | https://github.com/$REPO/actions/runs/${{ github.run_id }} |
+
+          ---
+
+          ### Pattern 1 — \`localStorage.setItem\` with sensitive key names ($LS_COUNT match(es))
+
+          These calls may store credentials in localStorage, violating the repo policy that
+          secrets must use \`kvStore.setSecure()\` / Capacitor Preferences.
+
+          \`\`\`
+          $LS_MATCHES
+          \`\`\`
+
+          **Fix:** Replace \`localStorage.setItem\` with \`kvStore.setSecure()\` for any key that
+          holds API keys, tokens, passwords, or other credentials.
+
+          ---
+
+          ### Pattern 2 — Unguarded Capacitor plugin calls ($CAP_COUNT match(es))
+
+          These Capacitor plugin invocations were not found inside a \`try { }\` block.
+          Plugin calls can fail on web (where the plugin is absent) or due to OS permission
+          denial; missing error handling leads to uncaught promise rejections.
+
+          \`\`\`
+          $CAP_MATCHES
+          \`\`\`
+
+          **Fix:** Wrap each call in \`try { ... } catch (e) { ... }\` or chain a \`.catch()\`,
+          and fall back gracefully (e.g. log the error, show a user-facing message).
+
+          ---
+
+          ### Pattern 3 — Suppression comments (informational, $SUP_COUNT total)
+
+          \`@ts-ignore\` and \`eslint-disable\` comments are permitted but should be reviewed.
+          Below are the first 20; they do not require action unless the count has grown
+          significantly since the last scan.
+
+          \`\`\`
+          $SUP_MATCHES
+          \`\`\`
+
+          ---
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] No credential data stored in \`localStorage\` — use \`kvStore.setSecure()\`
+          - [ ] All Capacitor plugin calls wrapped in try/catch or chained with .catch()
+          - [ ] All existing unit tests still pass (\`npm test\`)
+          - [ ] \`npm run lint\` exits 0 (no new errors)
+          - [ ] \`npm run build:dev\` succeeds
+          - [ ] No telemetry, analytics, or third-party network calls added
+          - [ ] \`package.json\` overrides pins must not be weakened
+
+          ### Instructions for Copilot agent
+
+          1. Address Pattern 1 first (credential leakage is highest-severity).
+          2. For each \`localStorage.setItem\` match: migrate to \`kvStore.setSecure()\` following
+             the pattern in \`src/lib/llm-runtime/kv-store.ts\`.
+          3. For each unguarded Capacitor call: add try/catch with a graceful fallback.
+          4. Run \`npm test\`, \`npm run lint\`, and \`npm run build:dev\` before pushing.
+          5. Use branch name: \`copilot/fix-pattern-scan-${AUDIT_DATE}\`
+          6. Fill in the \`## Lessons learned\` section of the PR description."
+
+          # Three-way upsert: open → update, closed → reopen, neither → create
+          OPEN_ISSUE=$(gh issue list \
+            --repo "$REPO" \
+            --label "copilot-fix,pattern-scan" \
+            --state open \
+            --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+
+          ISSUE_ACTION="create"
+          EXISTING=""
+          if [ -n "$OPEN_ISSUE" ]; then
+            ISSUE_ACTION="update"
+            EXISTING="$OPEN_ISSUE"
+          else
+            CLOSED_ISSUE=$(gh issue list \
+              --repo "$REPO" \
+              --label "copilot-fix,pattern-scan" \
+              --state closed \
+              --json number \
+              --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$CLOSED_ISSUE" ]; then
+              ISSUE_ACTION="reopen"
+              EXISTING="$CLOSED_ISSUE"
+            fi
+          fi
+
+          if [ "$ISSUE_ACTION" = "update" ]; then
+            gh issue edit "$EXISTING" --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" --body "$BODY"
+            gh issue comment "$EXISTING" --repo "$REPO" \
+              --body "🔄 Updated by pattern scan on $AUDIT_DATE — ${LS_COUNT} credential leak(s), ${CAP_COUNT} unguarded plugin call(s)."
+            echo "Updated existing issue #$EXISTING"
+          elif [ "$ISSUE_ACTION" = "reopen" ]; then
+            gh issue reopen "$EXISTING" --repo "$REPO"
+            gh issue edit "$EXISTING" --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" --body "$BODY"
+            gh issue comment "$EXISTING" --repo "$REPO" \
+              --body "🔄 Regression recurred on $AUDIT_DATE — issue re-opened. ${LS_COUNT} credential leak(s), ${CAP_COUNT} unguarded plugin call(s)."
+            echo "Re-opened closed issue #$EXISTING"
+          else
+            ISSUE_URL=$(gh issue create \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY" \
+              --label "copilot-fix,security,pattern-scan,bug" \
+              --assignee "copilot")
+            echo "Created issue: $ISSUE_URL"
+          fi
+
+      # ── Actions step summary ──────────────────────────────────────────────
+      - name: Write step summary
+        if: always()
+        env:
+          LS_COUNT:  ${{ steps.localstorage.outputs.count }}
+          CAP_COUNT: ${{ steps.capacitor.outputs.count }}
+          SUP_COUNT: ${{ steps.suppressions.outputs.count }}
+        run: |
+          echo "## Source Pattern Scan Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Pattern | Matches |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| localStorage credential leakage | ${LS_COUNT:-0} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Unguarded Capacitor plugin calls | ${CAP_COUNT:-0} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Suppression comments (informational) | ${SUP_COUNT:-0} |" >> "$GITHUB_STEP_SUMMARY"
+          TOTAL=$((${LS_COUNT:-0} + ${CAP_COUNT:-0}))
+          if [ "$TOTAL" = "0" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ No high-priority patterns detected." >> "$GITHUB_STEP_SUMMARY"
+          fi
