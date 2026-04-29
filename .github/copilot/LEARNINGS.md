@@ -16,6 +16,15 @@
 
 ---
 
+## 2026-04-29 — PR #102: test: cover ThemeSwitcher settings component
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/102](https://github.com/smackypants/trueai-localai/pull/102) · merged f213a0c10df1 · author @Copilot_
+
+- Stateful `useKV` mock via `React.useState` is significantly simpler than the `vi.fn(() => [def, vi.fn()])` pattern when a test needs to drive multi-step UI state.
+- A Proxy-based `framer-motion` passthrough + Fragment `AnimatePresence` is a reusable recipe for testing animation-heavy components in jsdom.
+
+---
+
 ## 2026-04-29 — PR #101: Add comprehensive test coverage for core UI components
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/101](https://github.com/smackypants/trueai-localai/pull/101) · merged 82c993743e2c · author @Claude_
