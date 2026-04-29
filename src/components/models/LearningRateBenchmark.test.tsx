@@ -14,7 +14,11 @@ describe('LearningRateBenchmark', () => {
         onModelUpdate={vi.fn()}
       />
     )
-    expect(screen.getByText(/learning rate/i)).toBeInTheDocument()
+    // Heading is "Learning Rate Optimization"; query the heading role to
+    // disambiguate from body copy that also mentions "learning rate".
+    expect(
+      screen.getByRole('heading', { name: /learning rate optimization/i })
+    ).toBeInTheDocument()
   })
 
   it('renders without crashing', () => {

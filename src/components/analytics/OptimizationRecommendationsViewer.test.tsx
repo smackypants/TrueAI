@@ -1,6 +1,23 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { OptimizationRecommendationsViewer } from './OptimizationRecommendationsViewer'
+import type { OptimizationInsight } from '@/lib/auto-optimizer'
+
+// Apply All button is only rendered when there is at least one actionable
+// insight (one with `suggestedAction` that isn't already applied).
+const actionableInsight: OptimizationInsight = {
+  id: 'insight-1',
+  type: 'performance',
+  severity: 'high',
+  title: 'Reduce response time',
+  description: 'Switch to a faster model for short prompts',
+  recommendation: 'Use a smaller model',
+  impact: 'Reduce latency by ~40%',
+  confidence: 0.9,
+  affectedModels: ['model-1'],
+  suggestedAction: { type: 'change_model', details: {} },
+  timestamp: Date.now(),
+}
 
 describe('OptimizationRecommendationsViewer', () => {
   it('renders heading', () => {
@@ -30,13 +47,14 @@ describe('OptimizationRecommendationsViewer', () => {
         onApplyAll={vi.fn()}
       />
     )
-    expect(screen.getByText(/no recommendations/i)).toBeInTheDocument()
+    // Empty-state copy is "No insights found" (not "No recommendations").
+    expect(screen.getByText(/no insights found/i)).toBeInTheDocument()
   })
 
-  it('shows "Apply All" button', () => {
+  it('shows "Apply All" button when actionable insights exist', () => {
     render(
       <OptimizationRecommendationsViewer
-        insights={[]}
+        insights={[actionableInsight]}
         autoTuneRecommendations={[]}
         models={[]}
         appliedInsights={new Set()}
@@ -52,7 +70,7 @@ describe('OptimizationRecommendationsViewer', () => {
     const onApplyAll = vi.fn()
     render(
       <OptimizationRecommendationsViewer
-        insights={[]}
+        insights={[actionableInsight]}
         autoTuneRecommendations={[]}
         models={[]}
         appliedInsights={new Set()}
