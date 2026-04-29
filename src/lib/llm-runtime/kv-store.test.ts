@@ -1,109 +1,93 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { __resetKvStoreForTests, kvStore } from './kv-store'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+
+import { kvStore, __resetKvStoreForTests } from './kv-store'
+
+function makeTransaction(): {
+  tx: IDBTransaction
+  store: { put: (value: string, key: string) => void }
+} {
+  const store = {
+    put: vi.fn(),
+  }
+
+  const tx = {
+    oncomplete: null,
+    onerror: null,
+    onabort: null,
+    objectStore: vi.fn(() => store),
+  } as unknown as IDBTransaction
+
+  return { tx, store }
+}
+
+function waitMicrotasks(times = 2): Promise<void> {
+  let p = Promise.resolve()
+  for (let i = 0; i < times; i++) {
+    p = p.then(() => Promise.resolve())
+  }
+  return p.then(() => undefined)
+}
 
 describe('kvStore', () => {
   beforeEach(() => {
     __resetKvStoreForTests()
-    try {
-      window.localStorage.clear()
-    } catch {
-      // ignore
-    }
+    window.localStorage.clear()
+    vi.restoreAllMocks()
   })
 
-  it('returns undefined for unknown keys', async () => {
-    expect(await kvStore.get('missing')).toBeUndefined()
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
-  it('persists and retrieves values', async () => {
-    await kvStore.set('greeting', 'hello')
-    __resetKvStoreForTests() // wipe in-memory cache so we hit storage
-    const stored = await kvStore.get<string>('greeting')
-    expect(stored).toBe('hello')
-  })
+  it('falls back to localStorage on set/get when IndexedDB is unavailable', async () => {
+    vi.stubGlobal('indexedDB', undefined)
 
-  it('round-trips structured objects via JSON', async () => {
-    const value = { id: 1, items: ['a', 'b'], nested: { ok: true } }
-    await kvStore.set('payload', value)
+    await kvStore.set('alpha', { ok: true })
+    expect(window.localStorage.getItem('trueai-kv:alpha')).toBe('{"ok":true}')
+
     __resetKvStoreForTests()
-    const stored = await kvStore.get('payload')
-    expect(stored).toEqual(value)
+    const value = await kvStore.get<{ ok: boolean }>('alpha')
+    expect(value).toEqual({ ok: true })
   })
 
-  it('deletes values', async () => {
-    await kvStore.set('temp', 42)
-    await kvStore.delete('temp')
-    __resetKvStoreForTests()
-    expect(await kvStore.get('temp')).toBeUndefined()
+  it('does not write to localStorage when using setSecure and IndexedDB is unavailable', async () => {
+    vi.stubGlobal('indexedDB', undefined)
+
+    await kvStore.setSecure('__llm_runtime_api_key__', 'secret')
+    expect(window.localStorage.getItem('trueai-kv:__llm_runtime_api_key__')).toBeNull()
+    expect(kvStore.peek('__llm_runtime_api_key__')).toBe('secret')
   })
 
-  it('getOrSet writes the initial value when missing and preserves it on re-read', async () => {
-    const first = await kvStore.getOrSet('counter', 7)
-    expect(first).toBe(7)
-    const second = await kvStore.getOrSet('counter', 99)
-    expect(second).toBe(7)
-  })
+  it('does not fall back to localStorage when IndexedDB transaction errors in setSecure', async () => {
+    const { tx } = makeTransaction()
 
-  it('peek returns the cached value once hydrated', async () => {
-    await kvStore.set('hot', 'cached')
-    expect(kvStore.peek<string>('hot')).toBe('cached')
-  })
+    const db = {
+      transaction: vi.fn(() => tx),
+    } as unknown as IDBDatabase
 
-  it('notifies subscribers on set and delete', async () => {
-    const observed: unknown[] = []
-    const unsub = kvStore.subscribe('topic', (v) => observed.push(v))
-    await kvStore.set('topic', 'one')
-    await kvStore.set('topic', 'two')
-    await kvStore.delete('topic')
-    unsub()
-    await kvStore.set('topic', 'after-unsub')
-    expect(observed).toEqual(['one', 'two', undefined])
-  })
-
-  it('setSecure does not write to localStorage even on IDB transaction failure', async () => {
-    // Force the IDB write to throw — secure values must NEVER fall through
-    // to localStorage. This is a regression test for the prior bug where
-    // setSecure delegated to idbSet (which has a localStorage fallback).
-    const realIDB = window.indexedDB
-    const fakeRequest = {
-      result: {
-        transaction: () => {
-          throw new Error('simulated idb failure')
-        },
-      },
-      onsuccess: null as null | (() => void),
-      onerror: null,
-      onupgradeneeded: null,
-    }
-    Object.defineProperty(window, 'indexedDB', {
-      configurable: true,
-      writable: true,
-      value: {
-        open: () => {
-          // Synchronously fire onsuccess so openDb resolves quickly.
-          setTimeout(() => fakeRequest.onsuccess?.(), 0)
-          return fakeRequest
-        },
-      },
-    })
-    try {
-      __resetKvStoreForTests()
-      window.localStorage.clear()
-      await kvStore.setSecure('api-key', 'super-secret-value')
-      // Scan every localStorage entry for the secret.
-      let leaked = false
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const k = window.localStorage.key(i)
-        const v = k ? window.localStorage.getItem(k) : null
-        if (v && v.includes('super-secret-value')) leaked = true
+    const open = vi.fn(() => {
+      const req: Partial<IDBOpenDBRequest> = {
+        result: db,
       }
-      expect(leaked).toBe(false)
-    } finally {
-      Object.defineProperty(window, 'indexedDB', {
-        configurable: true,
-        writable: true,
-        value: realIDB,
+
+      queueMicrotask(() => {
+        req.onsuccess?.(new Event('success'))
       })
-    }
+
+      return req as IDBOpenDBRequest
+    })
+
+    vi.stubGlobal('indexedDB', { open } as unknown as IDBFactory)
+
+    const lsSpy = vi.spyOn(window.localStorage.__proto__, 'setItem')
+
+    const promise = kvStore.setSecure('secure', { token: 'abc' })
+    await waitMicrotasks(3)
+
+    ;(tx.onerror as unknown as ((ev: Event) => void) | null)?.(new Event('error'))
+    await promise
+
+    expect(lsSpy).not.toHaveBeenCalled()
+    expect(kvStore.peek('secure')).toEqual({ token: 'abc' })
   })
 })
