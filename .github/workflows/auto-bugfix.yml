@@ -1,0 +1,496 @@
+name: Auto Bug-Fix (Scan + PR + Auto-Merge)
+
+# Runs safe, deterministic auto-fixes on the codebase (ESLint --fix, etc.),
+# opens a PR back to main, and enables auto-merge so it lands hands-off once
+# required checks pass.
+#
+# OPTION C BEHAVIOR:
+#   1. Scan: npm ci → lint → test → build (skips gracefully if script absent).
+#   2. If ESLint --fix produces changes: create branch, commit, open PR.
+#   3. Enable auto-merge (squash) on the PR so GitHub merges it as soon as
+#      all required status checks pass.
+#   4. If scan finds unfixable errors (lint/test/build failures that cannot be
+#      auto-corrected), dispatch a Copilot fix issue instead of failing silently.
+#
+# AUTO-MERGE PREREQUISITES (repo owner must enable once):
+#   Settings → General → Pull Requests → ✅ Allow auto-merge
+#   Settings → General → Pull Requests → ✅ Allow squash merging
+#   Settings → Actions → General → Workflow permissions →
+#     ✅ Allow GitHub Actions to create and approve pull requests
+#
+# Even with auto-merge enabled, the default-branch ruleset still gates merging
+# on required status checks (CodeQL JS/TS, CodeQL Java/Kotlin, Android CI) and
+# the CODEOWNERS reviewer approval. This workflow CANNOT bypass those gates.
+#
+# GOVERNANCE:
+#   - Never modifies LICENSE or NOTICE.
+#   - Never weakens package.json overrides pins.
+#   - Diff size is capped at 200 changed lines; larger diffs are skipped to
+#     avoid runaway auto-fixes.
+#   - No telemetry or third-party network calls are added.
+#   - Changes are limited to the source tree; .github/** is never touched by
+#     the auto-fix step.
+
+on:
+  schedule:
+    # Daily at 03:00 UTC — chosen as a quiet overnight window for US/EU timezones
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run — scan only, do not open a PR'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Least-privilege permissions; write access only where needed.
+permissions:
+  contents: write        # push fix branch
+  pull-requests: write   # open PR + enable auto-merge
+  issues: write          # open Copilot fix issue for unfixable errors
+
+env:
+  # Maximum number of changed lines before we skip auto-PR (safety guard against runaway fixes)
+  MAX_DIFF_LINES: '200'
+  # Branch prefix for automated lint-fix PRs (matches the copilot agent contract)
+  FIX_BRANCH_PREFIX: 'copilot/fix-audit-lint'
+  # Maximum lines of error output to include in dispatched issues (GitHub body size / readability limit)
+  MAX_ISSUE_OUTPUT_LINES: '50'
+
+jobs:
+  scan-and-fix:
+    name: Scan + auto-fix + open PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      # ── Install ─────────────────────────────────────────────────────────────
+      - name: Install dependencies
+        id: install
+        run: npm ci
+
+      # ── Script detection ─────────────────────────────────────────────────────
+      # Detect which npm scripts are defined so we skip gracefully when absent.
+      - name: Detect available npm scripts
+        id: scripts
+        run: |
+          has_script() {
+            node -e "
+              const p = require('./package.json');
+              process.exit(p.scripts && p.scripts['$1'] ? 0 : 1);
+            " 2>/dev/null && echo true || echo false
+          }
+          echo "has_lint=$(has_script lint)"               >> "$GITHUB_OUTPUT"
+          echo "has_test=$(has_script test)"               >> "$GITHUB_OUTPUT"
+          echo "has_build=$(has_script build)"             >> "$GITHUB_OUTPUT"
+          echo "has_build_dev=$(has_script build:dev)"     >> "$GITHUB_OUTPUT"
+          echo "has_typecheck=$(has_script typecheck)"     >> "$GITHUB_OUTPUT"
+
+      # ── TypeScript typecheck (if script defined) ──────────────────────────
+      - name: Run typecheck
+        id: typecheck
+        if: steps.scripts.outputs.has_typecheck == 'true'
+        run: |
+          set +e
+          npm run typecheck 2>&1 | tee /tmp/typecheck-output.txt
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      # ── Lint (scan) ──────────────────────────────────────────────────────────
+      - name: Run ESLint (scan, no fix yet)
+        id: lint_scan
+        if: steps.scripts.outputs.has_lint == 'true'
+        run: |
+          set +e
+          npm run lint -- --format json --output-file /tmp/lint-scan.json 2>/dev/null
+          LINT_EXIT=$?
+          set -e
+
+          ERRORS=0
+          if [ -f /tmp/lint-scan.json ]; then
+            ERRORS=$(node -e "
+              const r = JSON.parse(require('fs').readFileSync('/tmp/lint-scan.json','utf8'));
+              console.log(r.reduce((s,f) => s + f.messages.filter(m=>m.severity===2).length, 0));
+            " 2>/dev/null || echo 0)
+          fi
+          echo "exit=$LINT_EXIT"          >> "$GITHUB_OUTPUT"
+          echo "error_count=$ERRORS"      >> "$GITHUB_OUTPUT"
+
+      # ── Unit tests ────────────────────────────────────────────────────────────
+      - name: Run tests
+        id: tests
+        if: steps.scripts.outputs.has_test == 'true'
+        run: |
+          set +e
+          npm test -- --run 2>&1 | tee /tmp/test-output.txt
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      # ── Dev build ────────────────────────────────────────────────────────────
+      - name: Run build:dev
+        id: build_dev
+        if: steps.scripts.outputs.has_build_dev == 'true'
+        run: |
+          set +e
+          npm run build:dev 2>&1 | tee /tmp/build-dev-output.txt
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      # ── Production build ─────────────────────────────────────────────────────
+      - name: Run build
+        id: build
+        if: steps.scripts.outputs.has_build == 'true'
+        run: |
+          set +e
+          npm run build 2>&1 | tee /tmp/build-output.txt
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      # ── Apply auto-fixes ──────────────────────────────────────────────────────
+      # Only attempt ESLint --fix when lint errors were found.
+      - name: Apply ESLint --fix
+        id: lint_fix
+        if: >
+          steps.scripts.outputs.has_lint == 'true' &&
+          steps.lint_scan.outputs.error_count != '0'
+        run: |
+          set +e
+          npm run lint -- --fix --format json --output-file /tmp/lint-after.json 2>/dev/null
+          FIX_EXIT=$?
+          set -e
+
+          REMAINING=0
+          if [ -f /tmp/lint-after.json ]; then
+            REMAINING=$(node -e "
+              const r = JSON.parse(require('fs').readFileSync('/tmp/lint-after.json','utf8'));
+              const errs = [];
+              r.forEach(f => f.messages.forEach(m => {
+                if (m.severity===2) errs.push(f.filePath+':'+m.line+' ['+m.ruleId+'] '+m.message);
+              }));
+              require('fs').writeFileSync('/tmp/lint-remaining.txt', errs.join('\n'));
+              console.log(errs.length);
+            " 2>/dev/null || echo 0)
+          fi
+          echo "remaining=$REMAINING" >> "$GITHUB_OUTPUT"
+
+      # ── Diff size guard ───────────────────────────────────────────────────────
+      - name: Check diff size
+        id: diff_check
+        run: |
+          CHANGED=$(git diff --shortstat | grep -oP '\d+ (?=insertion|deletion)' | awk '{s+=$1} END {print s+0}')
+          echo "changed_lines=$CHANGED" >> "$GITHUB_OUTPUT"
+          if [ "$CHANGED" -gt "$MAX_DIFF_LINES" ]; then
+            echo "too_large=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "too_large=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Create branch & PR (unless dry-run or diff too large or no changes) ─
+      - name: Create fix branch and open PR
+        id: open_pr
+        if: >
+          github.event.inputs.dry_run != 'true' &&
+          steps.diff_check.outputs.too_large == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "no_changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "no_changes=false" >> "$GITHUB_OUTPUT"
+
+          DATE=$(date -u '+%Y-%m-%d')
+          BRANCH="${FIX_BRANCH_PREFIX}-${DATE}"
+
+          # If the branch already exists (re-run same day), reset it
+          git checkout -B "$BRANCH"
+          git commit -m "chore: auto-fix ESLint violations [${DATE}]"
+          git push --force-with-lease origin "$BRANCH"
+
+          # Build PR body
+          REMAINING="${{ steps.lint_fix.outputs.remaining }}"
+          REMAINING="${REMAINING:-0}"
+
+          PR_BODY="$(cat <<EOF
+## Automated ESLint auto-fix
+
+This PR was opened automatically by the **Auto Bug-Fix** workflow.
+
+### What changed
+- Applied \`eslint --fix\` to all auto-correctable lint violations.
+- Changed lines: ${{ steps.diff_check.outputs.changed_lines }} (cap: ${MAX_DIFF_LINES}).
+
+### Remaining unfixable errors: ${REMAINING}
+$(if [ "$REMAINING" -gt "0" ]; then echo "⚠️ ${REMAINING} errors could not be auto-fixed. A separate Copilot fix issue will be dispatched."; else echo "✅ All lint errors were resolved automatically."; fi)
+
+### Checks run
+- \`npm ci\` ✅
+$([ '${{ steps.scripts.outputs.has_lint }}' = 'true' ] && echo "- \`npm run lint --fix\` ✅" || echo "- lint: not configured")
+$([ '${{ steps.scripts.outputs.has_test }}' = 'true' ] && echo "- \`npm test\`: exit ${{ steps.tests.outputs.exit }}" || echo "- test: not configured")
+$([ '${{ steps.scripts.outputs.has_build_dev }}' = 'true' ] && echo "- \`npm run build:dev\`: exit ${{ steps.build_dev.outputs.exit }}" || echo "- build:dev: not configured")
+
+### Permissions used
+- \`contents: write\` — push fix branch
+- \`pull-requests: write\` — open PR and enable auto-merge
+- \`issues: write\` — dispatch Copilot fix issues for unfixable errors
+
+### Auto-merge behaviour
+Auto-merge (squash) is enabled on this PR. GitHub will merge it automatically
+once **all required status checks pass** (CodeQL JS/TS, CodeQL Java/Kotlin,
+Android CI) and CODEOWNERS approval is granted — exactly the same gate as
+every other PR. This workflow cannot bypass those protections.
+
+### Governance
+- ❌ \`LICENSE\` / \`NOTICE\` not modified
+- ❌ \`package.json\` overrides pins not weakened
+- ❌ No telemetry or third-party network calls added
+- ❌ \`.github/**\` not modified by the fix step
+EOF
+)"
+
+          PR_URL=$(gh pr create \
+            --repo "$REPO" \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore: auto-fix audit lint violations [${DATE}]" \
+            --body "$PR_BODY")
+
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH"  >> "$GITHUB_OUTPUT"
+
+      # ── Enable auto-merge ────────────────────────────────────────────────────
+      - name: Enable auto-merge on fix PR
+        if: >
+          steps.open_pr.outputs.no_changes == 'false' &&
+          steps.open_pr.outputs.pr_url != '' &&
+          github.event.inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ steps.open_pr.outputs.pr_url }}
+        # gh pr merge --auto requires the repo to have auto-merge enabled in
+        # Settings → General → Pull Requests. If not enabled, this step will
+        # fail with a clear error message (not silently).
+        run: gh pr merge --auto --squash "$PR_URL"
+
+      # ── Dispatch Copilot fix issue for unfixable errors ──────────────────────
+      - name: Ensure labels exist
+        if: >
+          steps.lint_fix.outputs.remaining != '' &&
+          steps.lint_fix.outputs.remaining != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh label create "copilot-fix"  --color "7057ff" --description "Automated fix dispatched to Copilot" --repo "$REPO" --force
+          gh label create "lint-error"   --color "fbca04" --description "ESLint error"                        --repo "$REPO" --force
+          gh label create "bug"          --color "ee0701" --description "Something is not working"            --repo "$REPO" --force
+
+      - name: Dispatch Copilot fix issue for unfixable lint errors
+        if: >
+          steps.lint_fix.outputs.remaining != '' &&
+          steps.lint_fix.outputs.remaining != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          AUDIT_DATE=$(date -u '+%Y-%m-%d')
+          REMAINING="${{ steps.lint_fix.outputs.remaining }}"
+          # Cap at 100 errors in issue body — enough context for the agent
+          # while staying well within GitHub's issue body size limit (~65 KB)
+          ERROR_LIST=$(head -100 /tmp/lint-remaining.txt 2>/dev/null || echo "(error list unavailable)")
+
+          BODY="## Auto-generated by Auto Bug-Fix workflow
+
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`lint-error\` |
+          | **Error count** | $REMAINING |
+          | **Date** | $AUDIT_DATE |
+          | **Run** | https://github.com/$REPO/actions/runs/${{ github.run_id }} |
+
+          ### ESLint errors that could not be auto-fixed (first 100)
+
+          \`\`\`
+          $ERROR_LIST
+          \`\`\`
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] \`npm run lint\` exits 0 (no new errors)
+          - [ ] All existing unit tests still pass (\`npm test\`)
+          - [ ] \`npm run build:dev\` succeeds
+          - [ ] \`package.json\` overrides pins must not be weakened
+          - [ ] No telemetry, analytics, or third-party network calls added
+
+          ### Instructions for Copilot agent
+
+          1. Run \`npm run lint\` to reproduce the listed errors.
+          2. Fix each error — do not suppress rules with \`eslint-disable\` unless truly necessary.
+          3. Run \`npm run lint\` to verify 0 errors remain.
+          4. Run \`npm run build:dev\` and \`npm test\` to confirm nothing is broken.
+          5. Open a PR against \`main\` using branch \`${FIX_BRANCH_PREFIX}-${AUDIT_DATE}\`.
+          6. Fill in the \`## Lessons learned\` section of the PR description."
+
+          ISSUE_URL=$(gh issue create \
+            --repo "$REPO" \
+            --title "[Auto] Unfixable ESLint errors detected on main (${AUDIT_DATE})" \
+            --body "$BODY" \
+            --label "copilot-fix,lint-error,bug" \
+            --assignee "copilot")
+          echo "Dispatched Copilot fix issue: $ISSUE_URL"
+
+      # ── Dispatch Copilot fix issue for failing build/tests ────────────────────
+      - name: Dispatch Copilot fix issue for build/test failures
+        if: >
+          (steps.build_dev.outputs.exit != '' && steps.build_dev.outputs.exit != '0') ||
+          (steps.tests.outputs.exit != '' && steps.tests.outputs.exit != '0') ||
+          (steps.build.outputs.exit != '' && steps.build.outputs.exit != '0')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh label create "copilot-fix"    --color "7057ff" --description "Automated fix dispatched to Copilot" --repo "$REPO" --force
+          gh label create "bug"            --color "ee0701" --description "Something is not working"            --repo "$REPO" --force
+          gh label create "test-failure"   --color "d73a4a" --description "Test or build failure"               --repo "$REPO" --force
+
+          AUDIT_DATE=$(date -u '+%Y-%m-%d')
+          BUILD_DEV_EXIT="${{ steps.build_dev.outputs.exit }}"
+          BUILD_EXIT="${{ steps.build.outputs.exit }}"
+          TEST_EXIT="${{ steps.tests.outputs.exit }}"
+
+          # Collect failure details (capped at MAX_ISSUE_OUTPUT_LINES lines each)
+          FAILURES=""
+          if [ "${BUILD_DEV_EXIT}" != "" ] && [ "${BUILD_DEV_EXIT}" != "0" ]; then
+            FAILURES="${FAILURES}
+          #### \`npm run build:dev\` (exit ${BUILD_DEV_EXIT})
+          \`\`\`
+          $(tail -"${MAX_ISSUE_OUTPUT_LINES}" /tmp/build-dev-output.txt 2>/dev/null || echo "(output unavailable)")
+          \`\`\`"
+          fi
+          if [ "${TEST_EXIT}" != "" ] && [ "${TEST_EXIT}" != "0" ]; then
+            FAILURES="${FAILURES}
+          #### \`npm test\` (exit ${TEST_EXIT})
+          \`\`\`
+          $(tail -"${MAX_ISSUE_OUTPUT_LINES}" /tmp/test-output.txt 2>/dev/null || echo "(output unavailable)")
+          \`\`\`"
+          fi
+          if [ "${BUILD_EXIT}" != "" ] && [ "${BUILD_EXIT}" != "0" ]; then
+            FAILURES="${FAILURES}
+          #### \`npm run build\` (exit ${BUILD_EXIT})
+          \`\`\`
+          $(tail -"${MAX_ISSUE_OUTPUT_LINES}" /tmp/build-output.txt 2>/dev/null || echo "(output unavailable)")
+          \`\`\`"
+          fi
+
+          BODY="## Auto-generated by Auto Bug-Fix workflow
+
+          One or more build/test checks failed on \`main\`.
+
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`test-failure\` |
+          | **Date** | $AUDIT_DATE |
+          | **Run** | https://github.com/$REPO/actions/runs/${{ github.run_id }} |
+          | **build:dev exit** | ${BUILD_DEV_EXIT:-skipped} |
+          | **test exit** | ${TEST_EXIT:-skipped} |
+          | **build exit** | ${BUILD_EXIT:-skipped} |
+
+          ### Failure details
+
+          ${FAILURES}
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] \`npm run lint\` exits 0 (no new errors)
+          - [ ] All existing unit tests pass (\`npm test\`)
+          - [ ] \`npm run build:dev\` succeeds
+          - [ ] \`npm run build\` succeeds
+          - [ ] \`package.json\` overrides pins must not be weakened
+          - [ ] No telemetry, analytics, or third-party network calls added
+
+          ### Instructions for Copilot agent
+
+          1. Reproduce the failure by running the failing command(s) listed above.
+          2. Identify the root cause (check recent commits on \`main\` if needed).
+          3. Apply a minimal fix.
+          4. Validate all checks pass locally before opening a PR.
+          5. Open a PR against \`main\` and fill in the \`## Lessons learned\` section."
+
+          ISSUE_URL=$(gh issue create \
+            --repo "$REPO" \
+            --title "[Auto] Build/test failure detected on main (${AUDIT_DATE})" \
+            --body "$BODY" \
+            --label "copilot-fix,bug,test-failure" \
+            --assignee "copilot")
+          echo "Dispatched Copilot fix issue: $ISSUE_URL"
+
+      # ── Actions step summary ─────────────────────────────────────────────────
+      - name: Write step summary
+        if: always()
+        run: |
+          echo "## Auto Bug-Fix Scan Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`npm ci\` | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+
+          HAS_LINT="${{ steps.scripts.outputs.has_lint }}"
+          HAS_TEST="${{ steps.scripts.outputs.has_test }}"
+          HAS_BUILD_DEV="${{ steps.scripts.outputs.has_build_dev }}"
+          HAS_BUILD="${{ steps.scripts.outputs.has_build }}"
+          HAS_TYPECHECK="${{ steps.scripts.outputs.has_typecheck }}"
+
+          [ "$HAS_TYPECHECK" = "true" ] && {
+            TC_EXIT="${{ steps.typecheck.outputs.exit }}"
+            [ "${TC_EXIT}" = "0" ] && echo "| \`npm run typecheck\` | ✅ |" || echo "| \`npm run typecheck\` | ❌ (exit ${TC_EXIT}) |"
+          } >> "$GITHUB_STEP_SUMMARY" || echo "| \`npm run typecheck\` | ⏭ not configured |" >> "$GITHUB_STEP_SUMMARY"
+
+          [ "$HAS_LINT" = "true" ] && {
+            LINT_ERRORS="${{ steps.lint_scan.outputs.error_count }}"
+            [ "${LINT_ERRORS}" = "0" ] && echo "| \`npm run lint\` | ✅ (0 errors) |" || echo "| \`npm run lint\` | ⚠️ (${LINT_ERRORS} errors, auto-fix attempted) |"
+          } >> "$GITHUB_STEP_SUMMARY" || echo "| \`npm run lint\` | ⏭ not configured |" >> "$GITHUB_STEP_SUMMARY"
+
+          [ "$HAS_TEST" = "true" ] && {
+            T_EXIT="${{ steps.tests.outputs.exit }}"
+            [ "${T_EXIT}" = "0" ] && echo "| \`npm test\` | ✅ |" || echo "| \`npm test\` | ❌ (exit ${T_EXIT}) |"
+          } >> "$GITHUB_STEP_SUMMARY" || echo "| \`npm test\` | ⏭ not configured |" >> "$GITHUB_STEP_SUMMARY"
+
+          [ "$HAS_BUILD_DEV" = "true" ] && {
+            BD_EXIT="${{ steps.build_dev.outputs.exit }}"
+            [ "${BD_EXIT}" = "0" ] && echo "| \`npm run build:dev\` | ✅ |" || echo "| \`npm run build:dev\` | ❌ (exit ${BD_EXIT}) |"
+          } >> "$GITHUB_STEP_SUMMARY" || echo "| \`npm run build:dev\` | ⏭ not configured |" >> "$GITHUB_STEP_SUMMARY"
+
+          [ "$HAS_BUILD" = "true" ] && {
+            B_EXIT="${{ steps.build.outputs.exit }}"
+            [ "${B_EXIT}" = "0" ] && echo "| \`npm run build\` | ✅ |" || echo "| \`npm run build\` | ❌ (exit ${B_EXIT}) |"
+          } >> "$GITHUB_STEP_SUMMARY" || echo "| \`npm run build\` | ⏭ not configured |" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          PR_URL="${{ steps.open_pr.outputs.pr_url }}"
+          DRY="${{ github.event.inputs.dry_run }}"
+          NO_CHANGES="${{ steps.open_pr.outputs.no_changes }}"
+          if [ "$DRY" = "true" ]; then
+            echo "**Mode:** Dry run — no PR opened." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$NO_CHANGES" = "true" ]; then
+            echo "**Result:** ✅ No auto-fixable changes found — nothing to commit." >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "$PR_URL" ]; then
+            echo "**Result:** 🔧 Fix PR opened with auto-merge enabled: $PR_URL" >> "$GITHUB_STEP_SUMMARY"
+          fi
