@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }))
 
 // HardwareOptimizer uses useKV from @github/spark/hooks
@@ -16,9 +16,14 @@ describe('HardwareOptimizer', () => {
     expect(screen.getByText(/hardware optim/i)).toBeInTheDocument()
   })
 
-  it('renders Scan Hardware button', () => {
+  it('renders Scan Device button', () => {
     render(<HardwareOptimizer />)
-    expect(screen.getByRole('button', { name: /scan hardware/i })).toBeInTheDocument()
+    // The component auto-starts a scan on mount, so the button label is
+    // either "Scan Device" or "Scanning..." depending on timing. Match
+    // both so the test isn't flaky.
+    expect(
+      screen.getByRole('button', { name: /scan device|scanning/i })
+    ).toBeInTheDocument()
   })
 
   it('renders without crashing', () => {

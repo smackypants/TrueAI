@@ -33,7 +33,13 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      '@': resolve(__dirname, 'src'),
+      // Mirror the Vite alias so tests that import components which use
+      // `useKV` from `@github/spark/hooks` resolve to the local IndexedDB-
+      // backed shim instead of the published Spark dist bundle (which reads
+      // `import.meta.env.DEV` in a way that throws under Vitest).
+      '@github/spark/hooks': resolve(__dirname, 'src/lib/llm-runtime/spark-hooks-shim.ts'),
+      '@github/spark/spark': resolve(__dirname, 'src/lib/llm-runtime/install.ts'),
     }
   },
 })
