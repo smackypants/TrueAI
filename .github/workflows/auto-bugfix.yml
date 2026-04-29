@@ -276,6 +276,12 @@ EOF
           echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH"  >> "$GITHUB_OUTPUT"
 
+          # Request CODEOWNERS review so the PR doesn't stall waiting for approval.
+          # The auto-merge flag set in the next step will merge it automatically
+          # once all required status checks pass AND this review is granted.
+          gh pr edit "$PR_URL" --add-reviewers "smackypants" 2>/dev/null || \
+            echo "⚠️ Could not add reviewer (token may lack org scope) — PR owner should approve manually."
+
       # ── Enable auto-merge ────────────────────────────────────────────────────
       - name: Enable auto-merge on fix PR
         if: >
