@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-04-29 — PR #73: Add Copilot cloud agent workflow with connectivity preflight and base-ref fix
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/73](https://github.com/smackypants/trueai-localai/pull/73) · merged 06406a583da7 · author @Copilot_
+
+- (No explicit lessons recorded.) PR title: _Add Copilot cloud agent workflow with connectivity preflight and base-ref fix_.
+
+---
+
 ## 2026-04-29 — PR #71: test: fix lint errors and add test coverage for settings and performance components
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/71](https://github.com/smackypants/trueai-localai/pull/71) · merged f749ddb6e74f · author @Copilot_
