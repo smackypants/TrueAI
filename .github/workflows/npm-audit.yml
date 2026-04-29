@@ -1,0 +1,280 @@
+name: npm Vulnerability Audit
+
+# Daily npm audit that converts high/critical CVEs into Copilot fix issues.
+# Complements Dependabot (which tracks available version bumps) by also
+# catching advisories where no patched version exists yet — in which case
+# the agent can add a package.json overrides pin as a short-term mitigation.
+#
+# De-duplication: before creating an issue, the workflow searches for an
+# existing open issue whose title contains the advisory GHSA ID or npm
+# advisory source number. Duplicate issues are skipped.
+#
+# Severity routing:
+#   high / critical  → issue assigned to @copilot
+#   moderate         → issue assigned to @copilot with needs-triage label
+
+on:
+  schedule:
+    # Daily at 06:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    name: npm audit + issue dispatch
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        id: audit
+        run: |
+          set +e
+          npm audit --json --audit-level=moderate > /tmp/audit.json 2>&1
+          AUDIT_EXIT=$?
+          set -e
+          echo "audit_exit=$AUDIT_EXIT" >> "$GITHUB_OUTPUT"
+          echo "Audit exit code: $AUDIT_EXIT"
+
+      - name: Parse vulnerabilities
+        id: parse
+        run: |
+          node - <<'NODE_EOF'
+          const fs = require('fs');
+
+          let audit;
+          try {
+            audit = JSON.parse(fs.readFileSync('/tmp/audit.json', 'utf8'));
+          } catch (e) {
+            console.error('Failed to parse audit JSON:', e.message);
+            fs.writeFileSync('/tmp/advisories.json', '[]');
+            process.exit(0);
+          }
+
+          const vulns = audit.vulnerabilities || {};
+          // Map of advisory URL → advisory object (deduplicates across packages)
+          const advisoryMap = new Map();
+
+          for (const [pkgName, vuln] of Object.entries(vulns)) {
+            const sev = vuln.severity;
+            if (!['critical', 'high', 'moderate'].includes(sev)) continue;
+
+            for (const via of (vuln.via || [])) {
+              if (typeof via === 'object' && via.url) {
+                const key = via.url;
+                if (!advisoryMap.has(key)) {
+                  // Extract GHSA ID from URL if present
+                  const ghsaMatch = via.url.match(/(GHSA-[a-z0-9-]+)/i);
+                  advisoryMap.set(key, {
+                    url: via.url,
+                    ghsa_id: ghsaMatch ? ghsaMatch[1] : String(via.source || ''),
+                    title: via.title || via.name || pkgName,
+                    severity: via.severity || sev,
+                    package: pkgName,
+                    range: via.range || vuln.range || '',
+                    fixAvailable: vuln.fixAvailable,
+                    cwe: (via.cwe || []).join(', '),
+                  });
+                }
+              } else if (typeof via === 'string') {
+                // Transitive dependency — the via is just a package name, no advisory
+                // Only record if there's no richer advisory already
+                const key = `pkg:${pkgName}`;
+                if (!advisoryMap.has(key)) {
+                  advisoryMap.set(key, {
+                    url: '',
+                    ghsa_id: '',
+                    title: `Vulnerable dependency: ${pkgName}`,
+                    severity: sev,
+                    package: pkgName,
+                    range: vuln.range || '',
+                    fixAvailable: vuln.fixAvailable,
+                    cwe: '',
+                  });
+                }
+              }
+            }
+          }
+
+          const result = [...advisoryMap.values()];
+          fs.writeFileSync('/tmp/advisories.json', JSON.stringify(result, null, 2));
+          console.log(`Found ${result.length} unique advisories`);
+          NODE_EOF
+
+          COUNT=$(node -e "console.log(require('/tmp/advisories.json').length)")
+          echo "advisory_count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Unique advisories: $COUNT"
+
+      - name: Ensure required labels exist
+        if: steps.parse.outputs.advisory_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh label create "copilot-fix"      --color "7057ff" --description "Automated fix dispatched to Copilot" --repo "$REPO" --force
+          gh label create "security"         --color "d73a4a" --description "Security finding"                    --repo "$REPO" --force
+          gh label create "dependency-vuln"  --color "e11d48" --description "Vulnerable dependency"              --repo "$REPO" --force
+          gh label create "needs-triage"     --color "e4e669" --description "Low-priority finding awaiting triage" --repo "$REPO" --force
+
+      - name: Create issues for new advisories
+        if: steps.parse.outputs.advisory_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          AUDIT_DATE=$(date -u '+%Y-%m-%d')
+
+          node - <<'NODE_EOF'
+          const { spawnSync } = require('child_process');
+          const fs = require('fs');
+
+          const advisories = JSON.parse(fs.readFileSync('/tmp/advisories.json', 'utf8'));
+          const REPO = process.env.REPO;
+          const AUDIT_DATE = process.env.AUDIT_DATE || new Date().toISOString().slice(0, 10);
+
+          // Fetch all open dependency-vuln issues once and filter in JS to avoid
+          // shell injection risks from advisory titles / GHSA IDs.
+          let openIssues = [];
+          try {
+            const listResult = spawnSync('gh', [
+              'issue', 'list',
+              '--repo', REPO,
+              '--label', 'dependency-vuln',
+              '--state', 'open',
+              '--json', 'number,title',
+              '--limit', '100',
+            ], { env: process.env, encoding: 'utf8' });
+            openIssues = JSON.parse(listResult.stdout || '[]');
+          } catch (_) { /* ignore — will create all issues */ }
+
+          let created = 0;
+          let skipped = 0;
+
+          for (const adv of advisories) {
+            // Unique search token: prefer GHSA ID, fall back to title prefix
+            const searchToken = adv.ghsa_id || adv.title.slice(0, 50);
+
+            // De-duplicate: skip if an open issue already references this advisory
+            const existing = openIssues.find(i => i.title.includes(searchToken));
+            if (existing) {
+              console.log(`Skipping ${searchToken} — issue #${existing.number} already open`);
+              skipped++;
+              continue;
+            }
+
+            // Determine fix hint based on fixAvailable
+            let fixHint = '';
+            if (adv.fixAvailable === true) {
+              fixHint = 'A patched version is available — upgrade the direct dependency.';
+            } else if (adv.fixAvailable && typeof adv.fixAvailable === 'object') {
+              fixHint = `Upgrade \`${adv.fixAvailable.name}\` to \`${adv.fixAvailable.version}\` (${adv.fixAvailable.isSemVerMajor ? 'major bump — review carefully' : 'semver-compatible'}).`;
+            } else {
+              fixHint = 'No patched version available yet — consider adding a `package.json` `overrides` pin to the highest safe version, or replacing the dependency.';
+            }
+
+            const isHighCrit = ['critical', 'high'].includes(adv.severity);
+            const labels = isHighCrit
+              ? 'copilot-fix,security,dependency-vuln'
+              : 'copilot-fix,security,dependency-vuln,needs-triage';
+
+            const priorityNote = isHighCrit
+              ? ''
+              : '\n\n> ⚠️ **Moderate severity** — fix after all critical/high issues are resolved.\n';
+
+            // Sanitize package name for branch name: lowercase, only alphanumeric and hyphens
+            const safePkg = adv.package.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+            const safeSuffix = adv.ghsa_id || AUDIT_DATE;
+
+            const body = `## Auto-generated by npm Vulnerability Audit
+${priorityNote}
+| Field | Value |
+|---|---|
+| **Bug type** | \`dependency-vuln\` |
+| **Severity** | \`${adv.severity}\` |
+| **Package** | \`${adv.package}\` |
+| **Affected range** | \`${adv.range}\` |
+| **Advisory** | ${adv.url ? `[${adv.ghsa_id || adv.title}](${adv.url})` : adv.title} |
+| **CWE** | ${adv.cwe || 'n/a'} |
+| **Date** | ${AUDIT_DATE} |
+| **Run** | https://github.com/${REPO}/actions/runs/${process.env.GITHUB_RUN_ID} |
+
+### Fix hint
+
+${fixHint}
+
+### Constraints the fix MUST satisfy
+
+- [ ] All existing unit tests still pass (\`npm test\`)
+- [ ] \`npm run lint\` exits 0 (no new errors)
+- [ ] \`npm run build:dev\` succeeds
+- [ ] CodeQL must not introduce new alerts
+- [ ] \`package.json\` overrides pins must not be weakened (only tighten or add)
+- [ ] No telemetry, analytics, or third-party network calls added
+
+### Instructions for Copilot agent
+
+1. Review the advisory at the link above and run \`npm audit\` locally to confirm the vulnerability.
+2. **Option A — upgrade:** if a patched version exists and upgrading is semver-safe, bump the direct dependency in \`package.json\`, run \`npm ci\`, fix any resulting build/test failures.
+3. **Option B — overrides pin:** if no patched version exists yet, add or tighten a \`package.json\` \`overrides\` entry to replace the vulnerable transitive version with the highest safe version. Never weaken an existing pin.
+4. Use branch name: \`copilot/fix-dep-${safePkg}-${safeSuffix}\`
+5. Run \`npm audit --audit-level=moderate\` after the fix to confirm the advisory no longer appears.
+6. Fill in the \`## Lessons learned\` section of the PR description.`;
+
+            // Write body to temp file; pass title via spawnSync args to avoid shell injection
+            const bodyFile = `/tmp/adv_body_${created}.md`;
+            fs.writeFileSync(bodyFile, body);
+
+            const titlePrefix = isHighCrit ? '[Security]' : '[Security low-priority]';
+            const title = `${titlePrefix} npm advisory: ${adv.title} (${adv.package}${adv.ghsa_id ? ' ' + adv.ghsa_id : ''})`;
+
+            // Use spawnSync with argument array — no shell interpolation, no injection risk
+            const createResult = spawnSync('gh', [
+              'issue', 'create',
+              '--repo', REPO,
+              '--title', title,
+              '--body-file', bodyFile,
+              '--label', labels,
+              '--assignee', 'copilot',
+            ], { env: process.env, encoding: 'utf8' });
+
+            if (createResult.status === 0) {
+              console.log(`Created issue: ${createResult.stdout.trim()}`);
+              created++;
+            } else {
+              console.error(`Failed to create issue for ${searchToken}: ${createResult.stderr}`);
+            }
+          }
+
+          console.log(`Done — created: ${created}, skipped (already open): ${skipped}`);
+          NODE_EOF
+
+      - name: Write audit summary
+        if: always()
+        env:
+          ADVISORY_COUNT: ${{ steps.parse.outputs.advisory_count }}
+          AUDIT_EXIT:     ${{ steps.audit.outputs.audit_exit }}
+        run: |
+          echo "## npm Vulnerability Audit Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Unique advisories (moderate+) | ${ADVISORY_COUNT:-0} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| npm audit exit code | $AUDIT_EXIT |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${ADVISORY_COUNT:-0}" = "0" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ No moderate/high/critical advisories found." >> "$GITHUB_STEP_SUMMARY"
+          fi

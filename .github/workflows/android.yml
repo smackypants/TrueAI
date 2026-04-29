@@ -33,6 +33,13 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    - name: TypeScript type check
+      # Phase 3: Run tsc as a dedicated step so TypeScript errors appear in a
+      # clean, labelled step rather than buried in the vite build output.
+      # test-failure-autofix.yml detects "error TS" in the log excerpt and
+      # generates a TypeScript-specific issue body for the Copilot agent.
+      run: npx tsc --noEmit
+
     - name: Build web app (development mode)
       # The Android CI workflow only assembles `assembleDebug`, so build the
       # JS in development mode too. This keeps `__APP_DEBUG__` true inside the
@@ -53,3 +60,21 @@ jobs:
       # Product flavors split assembleDebug into assemble{Play,Fdroid}Debug.
       # Build both so PRs catch breakage in either distribution path.
       run: ./gradlew assemblePlayDebug assembleFdroidDebug --no-daemon
+
+    - name: Run Android Lint
+      # Phase 6: Run Gradle lint to catch Java/Kotlin code quality issues.
+      # Runs after the build so lint can reference compiled class metadata.
+      # test-failure-autofix.yml detects lint failures and adds the
+      # android-lint label to the dispatched Copilot issue.
+      working-directory: android
+      run: ./gradlew lintPlayDebug --no-daemon
+
+    - name: Upload Android lint report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-lint-report
+        # Upload both flavour reports so neither distribution path is invisible
+        path: android/app/build/reports/lint-results-*.html
+        if-no-files-found: ignore
+        retention-days: 14

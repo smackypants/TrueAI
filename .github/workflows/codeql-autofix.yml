@@ -4,8 +4,9 @@ name: CodeQL Auto-Fix Dispatch
 # a GitHub Issue assigned to the Copilot coding agent so it can draft a fix.
 #
 # Severity routing:
-#   critical / high  → issue assigned to @copilot (agent writes fix PR)
-#   medium / low     → issue created but assigned to repo owner for manual triage
+#   critical / high  → issue assigned to @copilot with high-priority labels
+#   medium / low     → issue assigned to @copilot with needs-triage label
+#                      (fix only after higher-priority issues are resolved)
 #
 # Prerequisites (owner must complete once):
 #   Settings → Security → Code security → enable Code scanning
@@ -30,9 +31,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
-          gh label create "copilot-fix"  --color "7057ff" --description "Automated fix dispatched to Copilot" --repo "$REPO" --force
-          gh label create "security"     --color "d73a4a" --description "Security finding"                      --repo "$REPO" --force
-          gh label create "bug"          --color "ee0701" --description "Something is not working"              --repo "$REPO" --force
+          gh label create "copilot-fix"   --color "7057ff" --description "Automated fix dispatched to Copilot" --repo "$REPO" --force
+          gh label create "security"      --color "d73a4a" --description "Security finding"                      --repo "$REPO" --force
+          gh label create "bug"           --color "ee0701" --description "Something is not working"              --repo "$REPO" --force
+          gh label create "needs-triage"  --color "e4e669" --description "Low-priority finding awaiting triage" --repo "$REPO" --force
 
       - name: Build issue body
         id: body
@@ -104,8 +106,8 @@ jobs:
             --assignee "copilot")
           echo "Created issue: $ISSUE_URL"
 
-      # ── medium / low: create issue assigned to owner for manual triage ─────
-      - name: Create issue (medium/low) → owner triage
+      # ── medium / low: create issue assigned to Copilot with needs-triage label ─
+      - name: Create issue (medium/low) → Copilot triage
         if: >
           github.event.alert.rule.security_severity_level == 'medium' ||
           github.event.alert.rule.security_severity_level == 'low' ||
@@ -117,12 +119,23 @@ jobs:
           RULE_ID: ${{ github.event.alert.rule.id }}
           SEVERITY: ${{ github.event.alert.rule.security_severity_level }}
           FILE_PATH: ${{ github.event.alert.most_recent_instance.location.path }}
-          OWNER: ${{ github.repository_owner }}
         run: |
+          # Prepend a low-priority note to the existing body before creating the issue
+          cat > /tmp/lowpri_prefix.md <<'PREFIX_EOF'
+          ## ⚠️ Low-priority finding — fix after higher-priority issues
+
+          This is a **low/medium** severity CodeQL finding. Address it only after
+          all `critical` and `high` severity issues are resolved.
+
+          ---
+
+          PREFIX_EOF
+          cat /tmp/lowpri_prefix.md "${{ steps.body.outputs.body_file }}" > /tmp/lowpri_issue_body.md
+
           ISSUE_URL=$(gh issue create \
             --repo "$REPO" \
-            --title "[CodeQL ${{ env.SEVERITY }}] ${{ env.RULE_ID }} in ${{ env.FILE_PATH }} (alert #${{ env.ALERT_NUMBER }})" \
-            --body-file "${{ steps.body.outputs.body_file }}" \
-            --label "security,bug" \
-            --assignee "${{ env.OWNER }}")
-          echo "Created issue (owner triage): $ISSUE_URL"
+            --title "[CodeQL low-priority] ${{ env.RULE_ID }} in ${{ env.FILE_PATH }} (alert #${{ env.ALERT_NUMBER }})" \
+            --body-file /tmp/lowpri_issue_body.md \
+            --label "copilot-fix,needs-triage,security,bug" \
+            --assignee "copilot")
+          echo "Created low-priority issue: $ISSUE_URL"

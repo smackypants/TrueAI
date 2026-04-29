@@ -72,6 +72,10 @@
           {
             "context": "Android CI",
             "_comment": "From .github/workflows/android.yml"
+          },
+          {
+            "context": "Unit tests + coverage",
+            "_comment": "From .github/workflows/pr-quality.yml (job name: Unit tests + coverage). Add this check in Settings → Branches → main → Require status checks after the pr-quality.yml workflow has run at least once on a PR."
           }
         ]
       }

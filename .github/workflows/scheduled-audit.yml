@@ -9,6 +9,11 @@ name: Scheduled Repo Audit
 #
 # Issues created follow the copilot-autofix template conventions so the agent
 # has full context to address the regression.
+#
+# Phase 7: When a regression recurs on a previously-closed issue, the workflow
+# re-opens the closed issue rather than creating a duplicate.
+# Phase 8: Posts an all-green summary to the Actions step summary when all
+# checks pass.
 
 on:
   schedule:
@@ -152,7 +157,10 @@ jobs:
 
       # ── Issue management ──────────────────────────────────────────────────
       - name: Ensure required labels exist
-        if: steps.lint.outputs.has_errors == 'true' || steps.coverage.outputs.below_threshold == 'true'
+        if: >
+          steps.lint.outputs.has_errors == 'true' ||
+          steps.coverage.outputs.below_threshold == 'true' ||
+          (steps.tests.outputs.failed_count != '' && steps.tests.outputs.failed_count != '0')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -161,6 +169,7 @@ jobs:
           gh label create "audit"            --color "bfd4f2" --description "Scheduled audit finding"             --repo "$REPO" --force
           gh label create "lint-error"       --color "fbca04" --description "ESLint error"                       --repo "$REPO" --force
           gh label create "coverage"         --color "0075ca" --description "Test coverage issue"                --repo "$REPO" --force
+          gh label create "test-failure"     --color "e4e669" --description "CI / test failure"                  --repo "$REPO" --force
 
       # ── Lint issue ───────────────────────────────────────────────────────
       - name: Create or update lint-errors issue
@@ -208,15 +217,33 @@ jobs:
           4. Use branch name: \`copilot/fix-audit-lint-$AUDIT_DATE\`
           5. Fill in the \`## Lessons learned\` section of the PR description."
 
-          # Check if an open audit lint issue already exists and update it
-          EXISTING=$(gh issue list \
+          # Phase 7: three-way check — open → update, closed → reopen, neither → create
+          OPEN_ISSUE=$(gh issue list \
             --repo "$REPO" \
             --label "audit,lint-error" \
             --state open \
             --json number \
             --jq '.[0].number' 2>/dev/null || echo "")
 
-          if [ -n "$EXISTING" ]; then
+          ISSUE_ACTION="create"
+          EXISTING=""
+          if [ -n "$OPEN_ISSUE" ]; then
+            ISSUE_ACTION="update"
+            EXISTING="$OPEN_ISSUE"
+          else
+            CLOSED_ISSUE=$(gh issue list \
+              --repo "$REPO" \
+              --label "audit,lint-error" \
+              --state closed \
+              --json number \
+              --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$CLOSED_ISSUE" ]; then
+              ISSUE_ACTION="reopen"
+              EXISTING="$CLOSED_ISSUE"
+            fi
+          fi
+
+          if [ "$ISSUE_ACTION" = "update" ]; then
             gh issue edit "$EXISTING" \
               --repo "$REPO" \
               --title "$TITLE ($AUDIT_DATE)" \
@@ -225,6 +252,16 @@ jobs:
               --repo "$REPO" \
               --body "🔄 Updated by scheduled audit on $AUDIT_DATE — $ERROR_COUNT error(s) still present."
             echo "Updated existing issue #$EXISTING"
+          elif [ "$ISSUE_ACTION" = "reopen" ]; then
+            gh issue reopen "$EXISTING" --repo "$REPO"
+            gh issue edit "$EXISTING" \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY"
+            gh issue comment "$EXISTING" \
+              --repo "$REPO" \
+              --body "🔄 Regression recurred on $AUDIT_DATE — issue re-opened. $ERROR_COUNT error(s) found."
+            echo "Re-opened closed issue #$EXISTING"
           else
             ISSUE_URL=$(gh issue create \
               --repo "$REPO" \
@@ -279,14 +316,33 @@ jobs:
           5. Use branch name: \`copilot/fix-coverage-$AUDIT_DATE\`
           6. Fill in the \`## Lessons learned\` section of the PR description."
 
-          EXISTING=$(gh issue list \
+          # Phase 7: three-way check — open → update, closed → reopen, neither → create
+          OPEN_ISSUE=$(gh issue list \
             --repo "$REPO" \
             --label "audit,coverage" \
             --state open \
             --json number \
             --jq '.[0].number' 2>/dev/null || echo "")
 
-          if [ -n "$EXISTING" ]; then
+          ISSUE_ACTION="create"
+          EXISTING=""
+          if [ -n "$OPEN_ISSUE" ]; then
+            ISSUE_ACTION="update"
+            EXISTING="$OPEN_ISSUE"
+          else
+            CLOSED_ISSUE=$(gh issue list \
+              --repo "$REPO" \
+              --label "audit,coverage" \
+              --state closed \
+              --json number \
+              --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$CLOSED_ISSUE" ]; then
+              ISSUE_ACTION="reopen"
+              EXISTING="$CLOSED_ISSUE"
+            fi
+          fi
+
+          if [ "$ISSUE_ACTION" = "update" ]; then
             gh issue edit "$EXISTING" \
               --repo "$REPO" \
               --title "$TITLE ($AUDIT_DATE)" \
@@ -295,12 +351,144 @@ jobs:
               --repo "$REPO" \
               --body "🔄 Updated by scheduled audit on $AUDIT_DATE — coverage is still at $LINE_PCT%."
             echo "Updated existing issue #$EXISTING"
+          elif [ "$ISSUE_ACTION" = "reopen" ]; then
+            gh issue reopen "$EXISTING" --repo "$REPO"
+            gh issue edit "$EXISTING" \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY"
+            gh issue comment "$EXISTING" \
+              --repo "$REPO" \
+              --body "🔄 Regression recurred on $AUDIT_DATE — issue re-opened. Coverage dropped to $LINE_PCT%."
+            echo "Re-opened closed issue #$EXISTING"
           else
             ISSUE_URL=$(gh issue create \
               --repo "$REPO" \
               --title "$TITLE ($AUDIT_DATE)" \
               --body "$BODY" \
               --label "copilot-fix,audit,coverage" \
+              --assignee "copilot")
+            echo "Created issue: $ISSUE_URL"
+          fi
+
+      # ── Test-failure issue (Phase 1) ─────────────────────────────────────
+      - name: Create or update test-failures issue
+        if: steps.tests.outputs.failed_count != '' && steps.tests.outputs.failed_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          FAILED_COUNT: ${{ steps.tests.outputs.failed_count }}
+        run: |
+          TITLE="[Audit] Unit test failures"
+          AUDIT_DATE=$(date -u '+%Y-%m-%d')
+
+          # Extract the names of failing tests from the JSON report
+          FAILED_TESTS=""
+          if [ -f /tmp/test-results.json ]; then
+            FAILED_TESTS=$(node - <<'NODE_EOF'
+          const fs = require('fs');
+          const r = JSON.parse(fs.readFileSync('/tmp/test-results.json', 'utf8'));
+          const lines = [];
+          (r.testResults || []).forEach(suite => {
+            const file = (suite.testFilePath || suite.name || 'unknown').replace(/^.*\/(src\/.*)$/, '$1');
+            // Vitest JSON reporter uses assertionResults at suite level;
+            // fall back to testResults for forward compatibility.
+            (suite.assertionResults || suite.testResults || []).forEach(t => {
+              if (t.status === 'failed') {
+                const name = [...(t.ancestorTitles || []), t.title || t.fullName || ''].join(' > ');
+                lines.push(`${file}: ${name}`);
+              }
+            });
+          });
+          console.log(lines.slice(0, 30).join('\n'));
+          NODE_EOF
+            )
+          fi
+
+          BODY="## Auto-generated by Scheduled Repo Audit
+
+          | Field | Value |
+          |---|---|
+          | **Bug type** | \`test-failure\` |
+          | **Severity** | \`high\` |
+          | **Date** | $AUDIT_DATE |
+          | **Failed tests** | $FAILED_COUNT |
+          | **Run** | https://github.com/$REPO/actions/runs/${{ github.run_id }} |
+
+          ### Failing tests (first 30)
+
+          \`\`\`
+          $FAILED_TESTS
+          \`\`\`
+
+          ### Constraints the fix MUST satisfy
+
+          - [ ] All existing unit tests still pass (\`npm test\`)
+          - [ ] \`npm run lint\` exits 0 (no new errors)
+          - [ ] \`npm run build:dev\` succeeds
+          - [ ] CodeQL must not introduce new alerts
+          - [ ] \`package.json\` overrides pins must not be weakened
+          - [ ] No telemetry, analytics, or third-party network calls added
+
+          ### Instructions for Copilot agent
+
+          1. Run \`npm test\` locally to reproduce the failing tests listed above.
+          2. Fix only the identified failures — do not refactor unrelated code.
+          3. Run \`npm run lint\` and \`npm run build:dev\` to confirm nothing else is broken.
+          4. Use branch name: \`copilot/fix-audit-tests-$AUDIT_DATE\`
+          5. Fill in the \`## Lessons learned\` section of the PR description."
+
+          # Phase 7: three-way check — open → update, closed → reopen, neither → create
+          OPEN_ISSUE=$(gh issue list \
+            --repo "$REPO" \
+            --label "audit,test-failure" \
+            --state open \
+            --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+
+          ISSUE_ACTION="create"
+          EXISTING=""
+          if [ -n "$OPEN_ISSUE" ]; then
+            ISSUE_ACTION="update"
+            EXISTING="$OPEN_ISSUE"
+          else
+            CLOSED_ISSUE=$(gh issue list \
+              --repo "$REPO" \
+              --label "audit,test-failure" \
+              --state closed \
+              --json number \
+              --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$CLOSED_ISSUE" ]; then
+              ISSUE_ACTION="reopen"
+              EXISTING="$CLOSED_ISSUE"
+            fi
+          fi
+
+          if [ "$ISSUE_ACTION" = "update" ]; then
+            gh issue edit "$EXISTING" \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY"
+            gh issue comment "$EXISTING" \
+              --repo "$REPO" \
+              --body "🔄 Updated by scheduled audit on $AUDIT_DATE — $FAILED_COUNT test(s) still failing."
+            echo "Updated existing issue #$EXISTING"
+          elif [ "$ISSUE_ACTION" = "reopen" ]; then
+            gh issue reopen "$EXISTING" --repo "$REPO"
+            gh issue edit "$EXISTING" \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY"
+            gh issue comment "$EXISTING" \
+              --repo "$REPO" \
+              --body "🔄 Regression recurred on $AUDIT_DATE — issue re-opened. $FAILED_COUNT test(s) now failing."
+            echo "Re-opened closed issue #$EXISTING"
+          else
+            ISSUE_URL=$(gh issue create \
+              --repo "$REPO" \
+              --title "$TITLE ($AUDIT_DATE)" \
+              --body "$BODY" \
+              --label "copilot-fix,audit,test-failure" \
               --assignee "copilot")
             echo "Created issue: $ISSUE_URL"
           fi
@@ -320,3 +508,14 @@ jobs:
           echo "| ESLint errors | $LINT_ERRORS |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Failed tests | $TEST_FAILED |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Line coverage | $LINE_PCT% (threshold: $MIN_COVERAGE_PCT%) |" >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Phase 8: All-green notification ──────────────────────────────────
+      - name: All-green audit summary
+        if: >
+          steps.lint.outputs.has_errors == 'false' &&
+          (steps.tests.outputs.failed_count == '' || steps.tests.outputs.failed_count == '0') &&
+          steps.coverage.outputs.below_threshold == 'false'
+        run: |
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "---" >> "$GITHUB_STEP_SUMMARY"
+          echo "## ✅ Scheduled audit passed — no lint errors, no test failures, coverage ≥ threshold" >> "$GITHUB_STEP_SUMMARY"
