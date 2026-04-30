@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { smoothScrollTo, ScrollManager } from './scroll-optimization'
+import { renderHook } from '@testing-library/react'
+import { useRef } from 'react'
+import { smoothScrollTo, ScrollManager, useScrollOptimization } from './scroll-optimization'
 
 function makeElement(scrollTop = 0): HTMLElement {
   const el = document.createElement('div')
@@ -143,6 +145,117 @@ describe('scroll-optimization', () => {
       smoothScrollTo(el, 100)
       flushAt(300)
       expect(el.scrollTop).toBe(100)
+    })
+  })
+
+  describe('useScrollOptimization', () => {
+    let rafCallbacks: Array<{ id: number; cb: (t: number) => void }>
+    let nextRafId: number
+    let cancelled: number[]
+
+    beforeEach(() => {
+      rafCallbacks = []
+      nextRafId = 0
+      cancelled = []
+      vi.stubGlobal(
+        'requestAnimationFrame',
+        ((cb: (t: number) => void): number => {
+          const id = ++nextRafId
+          rafCallbacks.push({ id, cb })
+          return id
+        }) as unknown as typeof requestAnimationFrame,
+      )
+      vi.stubGlobal('cancelAnimationFrame', ((id: number) => {
+        cancelled.push(id)
+      }) as unknown as typeof cancelAnimationFrame)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    function flushOne() {
+      const next = rafCallbacks.shift()
+      if (next) next.cb(0)
+    }
+
+    it('is a no-op when the ref is null (early return)', () => {
+      const ref = { current: null }
+      const { unmount } = renderHook(() => useScrollOptimization(ref))
+      // No raf scheduled, no listener registered → unmount must not throw.
+      expect(rafCallbacks.length).toBe(0)
+      unmount()
+    })
+
+    it('attaches a passive scroll listener and removes it on unmount', () => {
+      const el = document.createElement('div')
+      const addSpy = vi.spyOn(el, 'addEventListener')
+      const removeSpy = vi.spyOn(el, 'removeEventListener')
+      const ref = { current: el }
+
+      const { unmount } = renderHook(() => useScrollOptimization(ref))
+
+      expect(addSpy).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
+      const handler = addSpy.mock.calls[0][1] as EventListener
+
+      unmount()
+      // Same handler reference must be passed to removeEventListener.
+      expect(removeSpy).toHaveBeenCalledWith('scroll', handler)
+    })
+
+    it('schedules at most one rAF per scroll burst (ticking guard)', () => {
+      const el = document.createElement('div')
+      const ref = { current: el }
+      renderHook(() => useScrollOptimization(ref))
+
+      // Fire several scroll events back-to-back; only the first should
+      // schedule a rAF because `ticking` flips true.
+      el.dispatchEvent(new Event('scroll'))
+      el.dispatchEvent(new Event('scroll'))
+      el.dispatchEvent(new Event('scroll'))
+      expect(rafCallbacks.length).toBe(1)
+
+      // After the rAF fires, ticking resets to false and a new scroll
+      // can schedule again.
+      flushOne()
+      el.dispatchEvent(new Event('scroll'))
+      expect(rafCallbacks.length).toBe(1)
+    })
+
+    it('cancels the pending rAF on unmount', () => {
+      const el = document.createElement('div')
+      const ref = { current: el }
+      const { unmount } = renderHook(() => useScrollOptimization(ref))
+
+      el.dispatchEvent(new Event('scroll'))
+      const scheduledId = rafCallbacks[0].id
+
+      unmount()
+      expect(cancelled).toContain(scheduledId)
+    })
+
+    it('does not call cancelAnimationFrame when no rAF was scheduled', () => {
+      const el = document.createElement('div')
+      const ref = { current: el }
+      const { unmount } = renderHook(() => useScrollOptimization(ref))
+
+      // No scroll → no rAF → cleanup must skip cancelAnimationFrame.
+      unmount()
+      expect(cancelled.length).toBe(0)
+    })
+
+    it('still works with a real ref-like wrapper', () => {
+      // Exercises the same code path via a useRef-driven hook.
+      const el = document.createElement('div')
+      const { result, unmount } = renderHook(() => {
+        const ref = useRef<HTMLElement>(el)
+        useScrollOptimization(ref)
+        return ref
+      })
+      expect(result.current.current).toBe(el)
+      el.dispatchEvent(new Event('scroll'))
+      expect(rafCallbacks.length).toBe(1)
+      unmount()
     })
   })
 })
