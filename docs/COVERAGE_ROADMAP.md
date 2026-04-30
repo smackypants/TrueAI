@@ -101,7 +101,7 @@ operational definition of "100%" used by this roadmap:
 - [x] 1.4 Lock vitest thresholds at the baseline (Phase 0 + 1.4 PR)
 
 ### Phase 2 — Coverage uplift, ranked by risk (one PR per group, ≤ ~300 LOC of test code)
-- [ ] 2.1 Security/credential surface (kv-store, secure-storage, API-key path)
+- [x] 2.1 Security/credential surface (kv-store, secure-storage, API-key path) — kv-store 80.95→**97.88%** statements, 73.91→**97.82%** functions; secure-storage already 100%
 - [ ] 2.2 LLM runtime (providers, config layering, error/abort paths)
 - [ ] 2.3 Native abstractions (`src/lib/native/*` web + native branches)
 - [ ] 2.4 Offline queue / service worker / background sync gap-fill
