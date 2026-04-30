@@ -1,13 +1,13 @@
 TrueAI LocalAI
 ==============
 
-Copyright (c) 2024-2026 smackypants / Advanced Technology Research
+Copyright (c) 2024-2026 Skyler Jones ("smackypants") / Advanced Technology Research
 https://advancedtechnologyresearch.com/
 https://github.com/smackypants/trueai-localai
 
-This product is the original work of smackypants / Advanced Technology
-Research. Portions of this project were originally derived from a GitHub
-Spark template, Copyright (c) GitHub, Inc., also licensed under the MIT
+This product is the original work of Skyler Jones ("smackypants") / Advanced
+Technology Research. Portions of this project were originally derived from a
+GitHub Spark template, Copyright (c) GitHub, Inc., also licensed under the MIT
 License.
 
 ------------------------------------------------------------------------
@@ -25,15 +25,16 @@ MUST:
 
   1. Retain the LICENSE file unmodified, in the root of the distribution.
   2. Retain this NOTICE file unmodified, in the root of the distribution.
-  3. Preserve the in-source "Copyright (c) 2024-2026 smackypants /
-     Advanced Technology Research" headers in every file they appear in.
+  3. Preserve the in-source "Copyright (c) 2024-2026 Skyler Jones
+     ("smackypants") / Advanced Technology Research" headers in every file
+     they appear in.
   4. Provide clear attribution to the original author in the primary
      README of the derivative work, including a link back to the
      upstream project at https://github.com/smackypants/trueai-localai
      and the wording:
 
-         Based on TrueAI LocalAI by smackypants / Advanced Technology
-         Research, used under the MIT License.
+         Based on TrueAI LocalAI by Skyler Jones ("smackypants") /
+         Advanced Technology Research, used under the MIT License.
 
 Removing or altering the LICENSE, this NOTICE, or the in-source copyright
 headers is a violation of the MIT License and will be enforced, including

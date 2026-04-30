@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2026 smackypants / Advanced Technology Research
+ * Copyright (c) 2024-2026 Skyler Jones ("smackypants") / Advanced Technology Research
  *
  * Tests for the ThemeSwitcher settings component. Covers the exported
  * `ThemeSwitcher` flow end-to-end (activate / preview / create / delete /

@@ -450,8 +450,8 @@ callbacks/flags instead).
 
 ### Governance — paths a PR must not touch unless asked
 - `LICENSE`, `NOTICE`
-- in-source `Copyright (c) 2024-2026 smackypants / Advanced
-  Technology Research` headers
+- in-source `Copyright (c) 2024-2026 Skyler Jones ("smackypants") /
+  Advanced Technology Research` headers
 - anything under `.github/**` (unless the task explicitly asks)
 - `package.json` `overrides` block
 

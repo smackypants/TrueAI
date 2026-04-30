@@ -1,3 +1,36 @@
+<!--
+  Support TrueAI LocalAI — PayPal donation
+  Note: GitHub-flavored Markdown does not execute <script> or <form>, so we
+  embed PayPal's official "Donate" button as an image link (the supported
+  embed pattern for README files) using the same hosted_button_id you would
+  paste into PayPal's HTML embed.
+-->
+<p align="center">
+  <a href="https://www.paypal.com/donate/?hosted_button_id=YASFVWFCH3YKS" target="_blank" rel="noopener noreferrer">
+    <img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="Donate with PayPal" />
+  </a>
+</p>
+
+<p align="center">
+  <strong>💛 Support local-first AI.</strong>
+  <a href="https://www.paypal.com/donate/?hosted_button_id=YASFVWFCH3YKS"><strong>Donate via PayPal →</strong></a>
+  &nbsp;·&nbsp;
+  <a href="#-project-manifesto-local-ai-belongs-to-everyone"><strong>Read the Manifesto ↓</strong></a>
+</p>
+
+<p align="center">
+  <em>
+    TrueAI LocalAI is independent, local-first, and free of telemetry. If this
+    project helps you, please consider chipping in — every donation goes
+    directly toward keeping local AI affordable, private, and owned by the
+    people who use it. Read
+    <a href="#-project-manifesto-local-ai-belongs-to-everyone">our manifesto</a>
+    to see what your support stands for.
+  </em>
+</p>
+
+---
+
 # TrueAI LocalAI - Enterprise AI Assistant Platform
 
 A comprehensive, production-ready AI assistant platform with visual workflow builder, cost tracking, offline support, and mobile optimization. **Now with ToolNeuron-competitive features!**
@@ -370,8 +403,8 @@ For private security reports, see [`SECURITY.md`](SECURITY.md).
 MIT License - see [LICENSE](LICENSE) for details. Mandatory attribution
 terms for forks and derivative works are described in [NOTICE](NOTICE).
 
-Copyright (c) 2024-2026 smackypants / **Advanced Technology Research** — [https://advancedtechnologyresearch.com/](https://advancedtechnologyresearch.com/)
+Copyright (c) 2024-2026 Skyler Jones ("smackypants") / **Advanced Technology Research** — [https://advancedtechnologyresearch.com/](https://advancedtechnologyresearch.com/)
 
-This entire project, including all source code, design, documentation, and assets, is the work of and is fully credited and copyrighted to smackypants / Advanced Technology Research, except where otherwise noted below.
+This entire project, including all source code, design, documentation, and assets, is the work of and is fully credited and copyrighted to Skyler Jones ("smackypants") / Advanced Technology Research, except where otherwise noted below.
 
 Portions of this project were originally derived from a GitHub Spark template, Copyright (c) GitHub, Inc., also licensed under the MIT License.

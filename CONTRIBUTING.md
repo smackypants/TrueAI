@@ -10,7 +10,7 @@ attribution requirements that apply to every fork and derivative work.
 
 Direct push, merge, and tag access to this repository is restricted to:
 
-- **The project owner** — [@smackypants](https://github.com/smackypants) /
+- **The project owner** — Skyler Jones, [@smackypants](https://github.com/smackypants) /
   Advanced Technology Research.
 - **Authorized automation / agent identities** explicitly listed in the
   ruleset bypass list under
@@ -36,13 +36,13 @@ propose a change is:
    the root of every fork and every derivative work. The MIT License legally
    requires this; removing or altering them violates the license.
 4. **Preserve all copyright headers** in source files. Do not strip the
-   `Copyright (c) 2024-2026 smackypants / Advanced Technology Research`
+   `Copyright (c) 2024-2026 Skyler Jones ("smackypants") / Advanced Technology Research`
    notices from any file you copy.
 5. **Give clear attribution** in your fork's `README.md` — at minimum:
 
-   > Based on **TrueAI LocalAI** by smackypants / Advanced Technology
-   > Research — <https://github.com/smackypants/trueai-localai> — used
-   > under the MIT License.
+   > Based on **TrueAI LocalAI** by Skyler Jones ("smackypants") / Advanced
+   > Technology Research — <https://github.com/smackypants/trueai-localai> —
+   > used under the MIT License.
 
 6. Open a **pull request** against `main` of this repository. CODEOWNERS
    will route the review to the owner; status checks (`Analyze

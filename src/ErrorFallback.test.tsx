@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024-2026 smackypants / Advanced Technology Research
+ * Copyright (c) 2024-2026 Skyler Jones ("smackypants") / Advanced Technology Research
  *
  * Tests for the root <ErrorFallback /> shown by the top-level
  * react-error-boundary in src/main.tsx. Covers:
