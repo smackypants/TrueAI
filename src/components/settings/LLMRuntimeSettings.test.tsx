@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const { mockEnsureLoaded, mockSubscribe, mockUpdate, mockTestConnection } = vi.hoisted(() => ({
@@ -201,5 +201,129 @@ describe('LLMRuntimeSettings', () => {
 
     unmount()
     expect(unsubscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('edits the API key field and saves the new value', async () => {
+    const user = userEvent.setup()
+    render(<LLMRuntimeSettings />)
+    await act(async () => {})
+
+    const keyInput = screen.getByLabelText('API key (optional)')
+    await user.type(keyInput, 'sk-secret')
+    await user.click(screen.getByRole('button', { name: /^Save$/i }))
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'sk-secret' })
+    )
+  })
+
+  it('edits the default model input and saves the new value', async () => {
+    const user = userEvent.setup()
+    render(<LLMRuntimeSettings />)
+    await act(async () => {})
+
+    const input = screen.getByLabelText('Default model')
+    await user.clear(input)
+    await user.type(input, 'mistral')
+    await user.click(screen.getByRole('button', { name: /^Save$/i }))
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultModel: 'mistral' })
+    )
+  })
+
+  it('edits temperature, top P, and max tokens numeric inputs', async () => {
+    const user = userEvent.setup()
+    render(<LLMRuntimeSettings />)
+    await act(async () => {})
+
+    fireEvent.change(screen.getByLabelText('Temperature'), { target: { value: '0.5' } })
+    fireEvent.change(screen.getByLabelText('Top P'), { target: { value: '0.9' } })
+    fireEvent.change(screen.getByLabelText('Max tokens'), { target: { value: '512' } })
+
+    await user.click(screen.getByRole('button', { name: /^Save$/i }))
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ temperature: 0.5, topP: 0.9, maxTokens: 512 })
+    )
+  })
+
+  it('clamps maxTokens to 1 when input is cleared (NaN fallback)', async () => {
+    const user = userEvent.setup()
+    render(<LLMRuntimeSettings />)
+    await act(async () => {})
+
+    fireEvent.change(screen.getByLabelText('Max tokens'), { target: { value: '' } })
+    await user.click(screen.getByRole('button', { name: /^Save$/i }))
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ maxTokens: 1 })
+    )
+  })
+
+  it('clamps requestTimeoutMs to a 1000ms minimum floor', async () => {
+    const user = userEvent.setup()
+    render(<LLMRuntimeSettings />)
+    await act(async () => {})
+
+    fireEvent.change(screen.getByLabelText('Request timeout (ms)'), { target: { value: '500' } })
+    await user.click(screen.getByRole('button', { name: /^Save$/i }))
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ requestTimeoutMs: 1000 })
+    )
+  })
+
+  it('shows error toast when updateLLMRuntimeConfig rejects', async () => {
+    const user = userEvent.setup()
+    const { toast } = await import('sonner')
+    const errorSpy = vi.spyOn(toast, 'error').mockImplementation(() => 't' as never)
+    mockUpdate.mockRejectedValueOnce(new Error('disk full'))
+
+    render(<LLMRuntimeSettings />)
+    await act(async () => {})
+
+    const urlInput = screen.getByLabelText('Base URL')
+    await user.clear(urlInput)
+    await user.type(urlInput, 'http://localhost:9999/v1')
+    await user.click(screen.getByRole('button', { name: /^Save$/i }))
+    await act(async () => {})
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('disk full'))
+    errorSpy.mockRestore()
+  })
+
+  it('renders datalist suggestions after a successful test connection', async () => {
+    const user = userEvent.setup()
+    mockTestConnection.mockResolvedValue({
+      ok: true,
+      status: 200,
+      models: ['llama3.2', 'mistral', 'codellama'],
+    })
+
+    const { container } = render(<LLMRuntimeSettings />)
+    await act(async () => {})
+
+    await user.click(screen.getByRole('button', { name: /Test connection/i }))
+    await act(async () => {})
+
+    const datalist = container.querySelector('#llm-model-suggestions')
+    expect(datalist).not.toBeNull()
+    expect(datalist?.querySelectorAll('option').length).toBe(3)
+  })
+
+  it('truncates available models display to 12 with an ellipsis', async () => {
+    const user = userEvent.setup()
+    const many = Array.from({ length: 15 }, (_, i) => `model-${i}`)
+    mockTestConnection.mockResolvedValue({ ok: true, status: 200, models: many })
+
+    render(<LLMRuntimeSettings />)
+    await act(async () => {})
+
+    await user.click(screen.getByRole('button', { name: /Test connection/i }))
+    await act(async () => {})
+
+    expect(screen.getByText(/Available models \(15\)/)).toBeInTheDocument()
+    expect(screen.getByText(/model-0,.*model-11, …/)).toBeInTheDocument()
   })
 })

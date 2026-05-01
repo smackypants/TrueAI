@@ -383,4 +383,43 @@ describe('DataSettings', () => {
     expect(toast.error).not.toHaveBeenCalled()
     createSpy.mockRestore()
   })
+
+  it('Import Data: valid JSON writes each KV entry, shows success toast, and reloads', async () => {
+    const { toast } = await import('sonner')
+    const reload = vi.fn()
+    vi.stubGlobal('location', { reload, href: '/' })
+
+    const realCreate = document.createElement.bind(document)
+    let capturedInput: HTMLInputElement | null = null
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag)
+      if (tag === 'input') {
+        capturedInput = el as HTMLInputElement
+        ;(el as HTMLInputElement).click = vi.fn()
+      }
+      return el
+    })
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /import data/i }))
+
+    const payload = { conversations: [{ id: 'c1' }], agents: [{ id: 'a1' }] }
+    const file = new File([JSON.stringify(payload)], 'backup.json', {
+      type: 'application/json',
+    })
+    Object.defineProperty(capturedInput!, 'files', { value: [file], configurable: true })
+
+    await act(async () => {
+      capturedInput!.onchange?.({ target: capturedInput } as unknown as Event)
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith('Data imported successfully'))
+    expect(spark.kv.set).toHaveBeenCalledWith('conversations', [{ id: 'c1' }])
+    expect(spark.kv.set).toHaveBeenCalledWith('agents', [{ id: 'a1' }])
+    expect(reload).toHaveBeenCalled()
+
+    createSpy.mockRestore()
+    vi.unstubAllGlobals()
+  })
 })

@@ -58,10 +58,23 @@ export default defineConfig({
         // input incl. NaN fallback, Cancel button), and OfflineQueuePanel
         // (retryFailed failure toast, failed/syncing status badges with
         // retryCount + error rendering, unknown-status fallback).
+        // Phase 7: ratcheted up from 80/69/69/77 to rounded-down Phase 7
+        // baseline (lines 80.71% · functions 70.58% · branches 70.04% ·
+        // statements 78.41%) — +24 new tests across LLMRuntimeSettings
+        // (apiKey/defaultModel inputs, temperature/topP/maxTokens with NaN
+        // and timeout floor clamps, save error toast, datalist suggestions,
+        // truncated >12-models display), DataSettings (import-success branch
+        // including spark.kv writes + reload), ServiceWorkerUpdate
+        // (updatefound + statechange installed-while-controller branch and
+        // null-installing branch), and shadcn primitive smoke tests
+        // (Accordion, AspectRatio, Breadcrumb incl. asChild + custom
+        // separator, Collapsible, Drawer open with header/footer/close,
+        // Pagination with active link + ellipsis, Table full layout,
+        // Toggle variants, ToggleGroup with items).
         lines: 80,
-        functions: 69,
-        branches: 69,
-        statements: 77,
+        functions: 70,
+        branches: 70,
+        statements: 78,
       },
     },
   },
