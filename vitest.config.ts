@@ -41,6 +41,12 @@ export default defineConfig({
         // · statements 77.27%) — +41 new tests across use-indexeddb-cache,
         // AnalyticsDashboard, ConversationSettings, ModelConfigPanel,
         // AppearanceSettings.
+        //
+        // Phase 5: ratcheted up from 79/68/69/77 to rounded-down Phase 5
+        // baseline (lines 79.76% · functions 68.91% · branches 69.41% ·
+        // statements 77.53%) — +57 new tests across NotificationSettings,
+        // SettingsMenu, QuickActionsMenu, GGUFLibrary, AdvancedSettings,
+        // GeneralSettings, AISettings.
         lines: 79,
         functions: 68,
         branches: 69,

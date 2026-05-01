@@ -123,4 +123,65 @@ describe('QuickActionsMenu', () => {
     // Still one Active badge (for Balanced now)
     expect(screen.getAllByText('Active')).toHaveLength(1)
   })
+
+  it('increments topP on + button click', () => {
+    render(<QuickActionsMenu model={mockModel} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const plusButtons = screen.getAllByText('+')
+    // plusButtons[2] is the topP + button (order: temp+, maxTokens+, topP+)
+    fireEvent.click(plusButtons[2])
+    expect(screen.getByText('0.95')).toBeInTheDocument()
+  })
+
+  it('decrements topP on - button click', () => {
+    render(<QuickActionsMenu model={mockModel} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const minusButtons = screen.getAllByText('-')
+    fireEvent.click(minusButtons[2])
+    expect(screen.getByText('0.85')).toBeInTheDocument()
+  })
+
+  it('clamps topP at 0 when decrementing past minimum', () => {
+    const model = { ...mockModel, topP: 0.02 }
+    render(<QuickActionsMenu model={model} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const minusButtons = screen.getAllByText('-')
+    fireEvent.click(minusButtons[2])
+    expect(screen.getByText('0.00')).toBeInTheDocument()
+  })
+
+  it('clamps topP at 1 when incrementing past maximum', () => {
+    const model = { ...mockModel, topP: 0.98 }
+    render(<QuickActionsMenu model={model} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const plusButtons = screen.getAllByText('+')
+    fireEvent.click(plusButtons[2])
+    expect(screen.getByText('1.00')).toBeInTheDocument()
+  })
+
+  it('clamps temperature at 2 when incrementing past maximum', () => {
+    const model = { ...mockModel, temperature: 1.99 }
+    render(<QuickActionsMenu model={model} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const plusButtons = screen.getAllByText('+')
+    fireEvent.click(plusButtons[0])
+    expect(screen.getByText('2.00')).toBeInTheDocument()
+  })
+
+  it('clamps maxTokens at 4000 when incrementing past maximum', () => {
+    const model = { ...mockModel, maxTokens: 3950 }
+    render(<QuickActionsMenu model={model} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const plusButtons = screen.getAllByText('+')
+    fireEvent.click(plusButtons[1])
+    expect(screen.getByText('4000')).toBeInTheDocument()
+  })
+
+  it('decrements maxTokens on - button click', () => {
+    render(<QuickActionsMenu model={mockModel} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const minusButtons = screen.getAllByText('-')
+    fireEvent.click(minusButtons[1])
+    expect(screen.getByText('1900')).toBeInTheDocument()
+  })
 })

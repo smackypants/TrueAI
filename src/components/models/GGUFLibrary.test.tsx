@@ -211,4 +211,67 @@ describe('GGUFLibrary', () => {
     await user.click(screen.getByRole('button', { name: /cancel/i }))
     expect(screen.queryByText('Add GGUF Model')).not.toBeInTheDocument()
   })
+
+  it('add model form: path field can be filled', async () => {
+    const user = userEvent.setup()
+    render(<GGUFLibrary models={[]} onAddModel={vi.fn()} onDeleteModel={vi.fn()} />)
+    await user.click(screen.getAllByRole('button', { name: /add model/i })[0])
+    const pathInput = screen.getByLabelText(/file path/i)
+    await user.type(pathInput, '/models/test.gguf')
+    expect((pathInput as HTMLInputElement).value).toBe('/models/test.gguf')
+  })
+
+  it('add model form: architecture field can be filled', async () => {
+    const user = userEvent.setup()
+    render(<GGUFLibrary models={[]} onAddModel={vi.fn()} onDeleteModel={vi.fn()} />)
+    await user.click(screen.getAllByRole('button', { name: /add model/i })[0])
+    const archInput = screen.getByLabelText(/architecture/i)
+    await user.type(archInput, 'mistral')
+    expect((archInput as HTMLInputElement).value).toBe('mistral')
+  })
+
+  it('add model form: context length field can be filled', async () => {
+    const user = userEvent.setup()
+    render(<GGUFLibrary models={[]} onAddModel={vi.fn()} onDeleteModel={vi.fn()} />)
+    await user.click(screen.getAllByRole('button', { name: /add model/i })[0])
+    const ctxInput = screen.getByLabelText(/context length/i)
+    await user.type(ctxInput, '8192')
+    expect((ctxInput as HTMLInputElement).value).toContain('8192')
+  })
+
+  it('add model form: parameters field can be filled', async () => {
+    const user = userEvent.setup()
+    render(<GGUFLibrary models={[]} onAddModel={vi.fn()} onDeleteModel={vi.fn()} />)
+    await user.click(screen.getAllByRole('button', { name: /add model/i })[0])
+    const paramsInput = screen.getByLabelText(/parameters/i)
+    await user.type(paramsInput, '7')
+    expect((paramsInput as HTMLInputElement).value).toContain('7')
+  })
+
+  it('add model form: quantization select can be opened', async () => {
+    const user = userEvent.setup()
+    render(<GGUFLibrary models={[]} onAddModel={vi.fn()} onDeleteModel={vi.fn()} />)
+    await user.click(screen.getAllByRole('button', { name: /add model/i })[0])
+    const quantTrigger = screen.getByRole('combobox', { name: /quantization/i })
+    expect(quantTrigger).toBeInTheDocument()
+    fireEvent.click(quantTrigger)
+    expect(screen.getByRole('option', { name: 'Q8_0' })).toBeInTheDocument()
+  })
+
+  it('add model form: selecting a quantization updates the form', async () => {
+    const user = userEvent.setup()
+    render(<GGUFLibrary models={[]} onAddModel={vi.fn()} onDeleteModel={vi.fn()} />)
+    await user.click(screen.getAllByRole('button', { name: /add model/i })[0])
+    const quantTrigger = screen.getByRole('combobox', { name: /quantization/i })
+    fireEvent.click(quantTrigger)
+    fireEvent.click(screen.getByRole('option', { name: 'Q8_0' }))
+    expect(quantTrigger).toHaveTextContent('Q8_0')
+  })
+
+  it('empty state with search query shows no Add Model button in empty state area', () => {
+    render(<GGUFLibrary models={[]} onAddModel={vi.fn()} onDeleteModel={vi.fn()} />)
+    fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'nothing' } })
+    // With a search query, the EmptyState should not show the Add Model button inline
+    expect(screen.queryByText('No Models Found')).toBeInTheDocument()
+  })
 })

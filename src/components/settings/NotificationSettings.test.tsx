@@ -159,4 +159,23 @@ describe('NotificationSettings', () => {
     fireEvent.click(infoSwitch)
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ toastInfo: false }))
   })
+
+  it('shows notifyModelLoaded switch', () => {
+    render(<NotificationSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    expect(screen.getByRole('switch', { name: /model loaded/i })).toBeInTheDocument()
+  })
+
+  it('calls onSettingsChange with updated notifyModelLoaded when toggled', () => {
+    const onChange = vi.fn()
+    render(<NotificationSettings settings={defaultSettings} onSettingsChange={onChange} />)
+    const modelLoadedSwitch = screen.getByRole('switch', { name: /model loaded/i })
+    fireEvent.click(modelLoadedSwitch)
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ notifyModelLoaded: true }))
+  })
+
+  it('notifyModelLoaded switch shows as unchecked when false', () => {
+    render(<NotificationSettings settings={{ ...defaultSettings, notifyModelLoaded: false }} onSettingsChange={vi.fn()} />)
+    const modelLoadedSwitch = screen.getByRole('switch', { name: /model loaded/i })
+    expect(modelLoadedSwitch).toHaveAttribute('data-state', 'unchecked')
+  })
 })
