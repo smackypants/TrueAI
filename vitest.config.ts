@@ -82,10 +82,21 @@ export default defineConfig({
         // FormLabel/FormControl/FormDescription/FormMessage with both
         // children-fallback and error-message branches), and Sonner Toaster
         // (renders with next-themes default theme).
-        lines: 81,
-        functions: 71,
-        branches: 70,
-        statements: 78,
+        //
+        // Phase 9: ratcheted up from 81/71/70/78 to rounded-down Phase 9
+        // baseline (lines 82.25% · functions 72.08% · branches 71.83% ·
+        // statements 79.83%) — +11 new tests for two previously 0%-covered
+        // shadcn primitives: Carousel (horizontal/vertical orientation,
+        // setApi callback, ArrowLeft/ArrowRight key handlers exercising
+        // scrollPrev/scrollNext) and Chart (ChartContainer + ChartStyle CSS
+        // variable generation incl. theme/color/sanitizeColor reject branches,
+        // ChartTooltipContent active/inactive/labelFormatter/formatter/
+        // hideIndicator/dashed branches, ChartLegendContent label rendering
+        // and empty-payload null branch).
+        lines: 82,
+        functions: 72,
+        branches: 71,
+        statements: 79,
       },
     },
   },

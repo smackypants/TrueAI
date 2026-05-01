@@ -3,9 +3,9 @@
 // and asserts on its data-slot or DOM tag so the wrapper code (className
 // assembly via cn(), variant defaults, asChild forwarding) is exercised.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import * as React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from './accordion'
 import { AspectRatio } from './aspect-ratio'
 import {
@@ -68,6 +68,21 @@ import {
 } from './form'
 import { Toaster } from './sonner'
 import { Input } from './input'
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from './carousel'
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartStyle,
+  ChartTooltip,
+  ChartTooltipContent,
+} from './chart'
 
 describe('Accordion primitive', () => {
   it('renders accordion items with trigger and content', () => {
@@ -436,5 +451,186 @@ describe('Sonner Toaster primitive', () => {
     // Sonner renders a section with class containing 'toaster'
     const section = container.querySelector('section')
     expect(section).toBeTruthy()
+  })
+})
+
+describe('Carousel primitive', () => {
+  it('renders horizontal carousel with content, items, prev/next buttons', () => {
+    const { container } = render(
+      <Carousel orientation="horizontal" className="my-carousel">
+        <CarouselContent>
+          <CarouselItem data-testid="slide-1">Slide 1</CarouselItem>
+          <CarouselItem data-testid="slide-2">Slide 2</CarouselItem>
+        </CarouselContent>
+        <CarouselPrevious />
+        <CarouselNext />
+      </Carousel>
+    )
+    const region = container.querySelector('[data-slot="carousel"]')
+    expect(region).toHaveAttribute('role', 'region')
+    expect(region).toHaveAttribute('aria-roledescription', 'carousel')
+    expect(container.querySelector('[data-slot="carousel-content"]')).toBeTruthy()
+    expect(screen.getByTestId('slide-1')).toHaveAttribute('aria-roledescription', 'slide')
+    const prev = container.querySelector('[data-slot="carousel-previous"]') as HTMLButtonElement
+    const next = container.querySelector('[data-slot="carousel-next"]') as HTMLButtonElement
+    expect(prev).toBeTruthy()
+    expect(next).toBeTruthy()
+    expect(screen.getByText('Previous slide')).toBeInTheDocument()
+    expect(screen.getByText('Next slide')).toBeInTheDocument()
+  })
+
+  it('invokes setApi callback on mount and supports vertical orientation', () => {
+    const setApi = vi.fn()
+    const { container } = render(
+      <Carousel orientation="vertical" setApi={setApi}>
+        <CarouselContent>
+          <CarouselItem>v1</CarouselItem>
+        </CarouselContent>
+        <CarouselPrevious />
+        <CarouselNext />
+      </Carousel>
+    )
+    expect(setApi).toHaveBeenCalled()
+    expect(container.querySelector('[data-slot="carousel"]')).toBeTruthy()
+  })
+
+  it('handles ArrowLeft / ArrowRight key presses on the carousel region', () => {
+    const { container } = render(
+      <Carousel>
+        <CarouselContent>
+          <CarouselItem>a</CarouselItem>
+          <CarouselItem>b</CarouselItem>
+        </CarouselContent>
+      </Carousel>
+    )
+    const region = container.querySelector('[data-slot="carousel"]') as HTMLElement
+    // Trigger keydown handlers (preventDefault + scrollPrev/Next branches)
+    fireEvent.keyDown(region, { key: 'ArrowLeft' })
+    fireEvent.keyDown(region, { key: 'ArrowRight' })
+    fireEvent.keyDown(region, { key: 'Enter' }) // unhandled key
+    expect(region).toBeInTheDocument()
+  })
+})
+
+describe('Chart primitive', () => {
+  const config = {
+    visitors: { label: 'Visitors', color: '#ff0000' },
+    revenue: { label: 'Revenue', theme: { light: '#00ff00', dark: '#0000ff' } },
+    bad: { label: 'Bad', color: 'javascript:alert(1)' as string }, // exercises sanitizeColor reject
+  }
+
+  it('renders ChartContainer with ChartStyle CSS variables (theme + color branches)', () => {
+    const { container } = render(
+      <ChartContainer config={config} id="test">
+        <div data-testid="child">child</div>
+      </ChartContainer>
+    )
+    const chart = container.querySelector('[data-slot="chart"]') as HTMLElement
+    expect(chart).toBeTruthy()
+    expect(chart.getAttribute('data-chart')).toBe('chart-test')
+    const style = container.querySelector('style')
+    expect(style).toBeTruthy()
+    expect(style!.innerHTML).toContain('--color-visitors: #ff0000')
+    expect(style!.innerHTML).toContain('--color-revenue: #00ff00')
+    expect(style!.innerHTML).toContain('.dark [data-chart=chart-test]')
+    // Sanitized invalid color should be excluded
+    expect(style!.innerHTML).not.toContain('javascript:')
+  })
+
+  it('ChartStyle returns null when there is no color/theme config', () => {
+    const { container } = render(
+      <ChartStyle id="empty" config={{ x: { label: 'X' } }} />
+    )
+    expect(container.querySelector('style')).toBeNull()
+  })
+
+  it('ChartTooltipContent returns null when inactive or empty payload', () => {
+    const { container } = render(
+      <ChartContainer config={config}>
+        <div>
+          <ChartTooltipContent active={false} payload={[]} />
+        </div>
+      </ChartContainer>
+    )
+    // No tooltip box rendered
+    expect(container.querySelector('.bg-background')).toBeNull()
+  })
+
+  it('ChartTooltipContent renders payload items with label, formatter and value', () => {
+    const formatter = vi.fn((value: number, name: string) => (
+      <span data-testid="custom-fmt">{name}={value}</span>
+    ))
+    render(
+      <ChartContainer config={config}>
+        <div>
+          <ChartTooltipContent
+            active
+            label="visitors"
+            indicator="line"
+            payload={[
+              { name: 'visitors', value: 1234, dataKey: 'visitors', color: '#ff0000', payload: { fill: '#ff0000' } },
+            ]}
+            formatter={formatter}
+          />
+        </div>
+      </ChartContainer>
+    )
+    expect(screen.getByTestId('custom-fmt')).toHaveTextContent('visitors=1234')
+    expect(formatter).toHaveBeenCalled()
+  })
+
+  it('ChartTooltipContent supports labelFormatter, hideLabel, hideIndicator, dashed indicator', () => {
+    const labelFormatter = vi.fn(() => <span data-testid="lf">label!</span>)
+    render(
+      <ChartContainer config={config}>
+        <div>
+          <ChartTooltipContent
+            active
+            label="visitors"
+            labelFormatter={labelFormatter}
+            indicator="dashed"
+            hideIndicator
+            payload={[
+              { name: 'visitors', value: 50, dataKey: 'visitors', color: '#ff0000', payload: {} },
+            ]}
+          />
+        </div>
+      </ChartContainer>
+    )
+    expect(screen.getByTestId('lf')).toBeInTheDocument()
+    expect(screen.getByText('50')).toBeInTheDocument()
+  })
+
+  it('ChartLegendContent renders payload items with label and color swatch', () => {
+    render(
+      <ChartContainer config={config}>
+        <div>
+          <ChartLegendContent
+            payload={[
+              { value: 'visitors', dataKey: 'visitors', color: '#ff0000' },
+              { value: 'revenue', dataKey: 'revenue', color: '#00ff00' },
+            ]}
+          />
+        </div>
+      </ChartContainer>
+    )
+    expect(screen.getByText('Visitors')).toBeInTheDocument()
+    expect(screen.getByText('Revenue')).toBeInTheDocument()
+  })
+
+  it('ChartLegendContent returns null when payload is empty', () => {
+    render(
+      <ChartContainer config={config}>
+        <div data-testid="legend-host">
+          <ChartLegendContent payload={[]} />
+        </div>
+      </ChartContainer>
+    )
+    expect(screen.getByTestId('legend-host').children.length).toBe(0)
+  })
+
+  it('exports re-exported ChartTooltip and ChartLegend', () => {
+    expect(ChartTooltip).toBeDefined()
+    expect(ChartLegend).toBeDefined()
   })
 })
