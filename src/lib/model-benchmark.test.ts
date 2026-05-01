@@ -1,4 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Mock the AI-SDK module so the evaluator path is deterministic without
+// hitting a real provider. The first arg returned by `generateObject`
+// is the parsed schema-validated object.
+const generateObjectMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/llm-runtime/ai-sdk', () => ({
+  generateObject: generateObjectMock,
+  getLanguageModel: vi.fn(async () => ({ modelId: 'mock', provider: 'mock' })),
+}))
+
 import {
   benchmarkTests,
   compareBenchmarkSuites,
@@ -149,29 +159,25 @@ describe('generateBenchmarkReport', () => {
   })
 })
 
-describe('runModelBenchmark (spark.llm mocked, no live calls)', () => {
+describe('runModelBenchmark (AI-SDK + spark.llm mocked, no live calls)', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2024-01-01T00:00:00Z'))
-    // Mock spark.llm and llmPrompt to return deterministic strings; the
-    // first call (response) returns plain text, the second (eval) returns
-    // a JSON string for evaluateResponse.
-    let callIndex = 0
+    // spark.llm still drives `runSingleTest` (the test response itself).
+    // The evaluator path is now `generateObject` from the AI SDK.
     // @ts-expect-error - spark is a test mock
     globalThis.spark.llmPrompt = (strings: TemplateStringsArray, ...vals: unknown[]) =>
       strings.reduce((acc, s, i) => acc + s + (vals[i] ?? ''), '')
     // @ts-expect-error - spark.llm test mock
-    globalThis.spark.llm = vi.fn(async () => {
-      callIndex++
-      if (callIndex % 2 === 1) {
-        return 'A response that is exactly forty characters.'
-      }
-      return JSON.stringify({
+    globalThis.spark.llm = vi.fn(async () => 'A response that is exactly forty characters.')
+    generateObjectMock.mockReset()
+    generateObjectMock.mockResolvedValue({
+      object: {
         relevance: 80,
         coherence: 75,
         creativity: 70,
         accuracy: 85,
-      })
+      },
     })
   })
 
@@ -196,14 +202,10 @@ describe('runModelBenchmark (spark.llm mocked, no live calls)', () => {
     expect(onProgress).toHaveBeenCalledWith(100, 'complete')
   })
 
-  it('falls back to neutral scores when the evaluator returns invalid JSON', async () => {
-    let i = 0
-    // @ts-expect-error spark mock
-    globalThis.spark.llm = vi.fn(async () => {
-      i++
-      // Even-numbered calls are the eval; return invalid JSON.
-      return i % 2 === 0 ? 'not json' : 'response text'
-    })
+  it('falls back to neutral scores when the evaluator schema rejects the output', async () => {
+    // Simulate generateObject throwing — happens for malformed model
+    // output that fails Zod validation.
+    generateObjectMock.mockRejectedValue(new Error('schema validation failed'))
 
     const promise = runModelBenchmark(model, params, benchmarkTests.slice(0, 1))
     await vi.advanceTimersByTimeAsync(2000)
@@ -211,13 +213,10 @@ describe('runModelBenchmark (spark.llm mocked, no live calls)', () => {
     expect(result.tests[0].qualityScore).toBe(50)
   })
 
-  it('marks the suite as failed when a test rejects', async () => {
-    let i = 0
+  it('marks the suite as failed when the model call rejects', async () => {
     // @ts-expect-error spark mock
     globalThis.spark.llm = vi.fn(async () => {
-      i++
-      if (i === 1) throw new Error('network failure')
-      return 'response'
+      throw new Error('network failure')
     })
     const promise = runModelBenchmark(model, params, benchmarkTests.slice(0, 1))
     await vi.advanceTimersByTimeAsync(2000)
