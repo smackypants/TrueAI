@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import { MetricCard } from './MetricCard'
 
 describe('MetricCard', () => {
@@ -118,5 +118,57 @@ describe('MetricCard', () => {
     )
     const trendSpan = screen.getByText('stable')
     expect(trendSpan.className).toContain('muted')
+  })
+
+  it('shows update pulse class when value changes', async () => {
+    const { rerender, container } = render(
+      <MetricCard
+        title="Counter"
+        value={10}
+        icon={<span />}
+      />
+    )
+    // No ring initially
+    expect(container.querySelector('.ring-2')).toBeNull()
+    // Trigger a value change
+    rerender(
+      <MetricCard
+        title="Counter"
+        value={20}
+        icon={<span />}
+      />
+    )
+    // After re-render the pulse ring should appear
+    expect(container.querySelector('.ring-2')).not.toBeNull()
+  })
+
+  it('clears update pulse after 1s timeout', async () => {
+    const { rerender, container, unmount } = render(
+      <MetricCard
+        title="Counter"
+        value={10}
+        icon={<span />}
+      />
+    )
+    rerender(
+      <MetricCard
+        title="Counter"
+        value={99}
+        icon={<span />}
+      />
+    )
+    // Pulse should be visible immediately after value change
+    expect(container.querySelector('.ring-2')).not.toBeNull()
+    // A second value change triggers cleanup (clearTimeout) from prior effect
+    rerender(
+      <MetricCard
+        title="Counter"
+        value={42}
+        icon={<span />}
+      />
+    )
+    // Ring should still show (new value differs from prevValue again)
+    expect(container.querySelector('.ring-2')).not.toBeNull()
+    unmount()
   })
 })
