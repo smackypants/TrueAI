@@ -53,4 +53,74 @@ describe('QuickActionsMenu', () => {
     fireEvent.click(plusButtons[0])
     expect(screen.getByText('0.80')).toBeInTheDocument()
   })
+
+  it('decrements temperature on - button click', () => {
+    render(<QuickActionsMenu model={mockModel} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const minusButtons = screen.getAllByText('-')
+    fireEvent.click(minusButtons[0])
+    expect(screen.getByText('0.60')).toBeInTheDocument()
+  })
+
+  it('clamps temperature at 0 when decrementing past minimum', () => {
+    const cold = { ...mockModel, temperature: 0.05 }
+    render(<QuickActionsMenu model={cold} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const minusButtons = screen.getAllByText('-')
+    fireEvent.click(minusButtons[0])
+    expect(screen.getByText('0.00')).toBeInTheDocument()
+  })
+
+  it('increments maxTokens on + button click', () => {
+    render(<QuickActionsMenu model={mockModel} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const plusButtons = screen.getAllByText('+')
+    // plusButtons[1] is the maxTokens + button (order: temp+, maxTokens+, topP+)
+    fireEvent.click(plusButtons[1])
+    expect(screen.getByText('2100')).toBeInTheDocument()
+  })
+
+  it('applies Creative preset and shows Active badge', () => {
+    render(<QuickActionsMenu model={mockModel} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const creativeCard = screen.getByText('Creative').closest('[data-slot="card"]') as HTMLElement
+    fireEvent.click(creativeCard)
+    expect(screen.getByText('Active')).toBeInTheDocument()
+  })
+
+  it('resets to original model state on Reset click', () => {
+    render(<QuickActionsMenu model={mockModel} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    // Bump temperature first
+    const plusButtons = screen.getAllByText('+')
+    fireEvent.click(plusButtons[0])
+    // Now reset
+    fireEvent.click(screen.getByText('Reset'))
+    expect(screen.getByText('0.70')).toBeInTheDocument()
+  })
+
+  it('saves updated settings via Apply Settings after preset', () => {
+    const onUpdate = vi.fn()
+    render(<QuickActionsMenu model={mockModel} onUpdate={onUpdate} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const preciseCard = screen.getByText('Precise').closest('[data-slot="card"]') as HTMLElement
+    fireEvent.click(preciseCard)
+    fireEvent.click(screen.getByText('Apply Settings'))
+    expect(onUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ temperature: 0.3 })
+    )
+  })
+
+  it('applying preset clears previous Active badge when another preset is clicked', () => {
+    render(<QuickActionsMenu model={mockModel} onUpdate={vi.fn()} />)
+    fireEvent.click(screen.getByText('Quick Settings'))
+    const creativeCard = screen.getByText('Creative').closest('[data-slot="card"]') as HTMLElement
+    fireEvent.click(creativeCard)
+    // Active badge should appear
+    expect(screen.getByText('Active')).toBeInTheDocument()
+    const balancedCard = screen.getByText('Balanced').closest('[data-slot="card"]') as HTMLElement
+    fireEvent.click(balancedCard)
+    // Still one Active badge (for Balanced now)
+    expect(screen.getAllByText('Active')).toHaveLength(1)
+  })
 })
