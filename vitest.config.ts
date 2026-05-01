@@ -47,8 +47,19 @@ export default defineConfig({
         // statements 77.53%) — +57 new tests across NotificationSettings,
         // SettingsMenu, QuickActionsMenu, GGUFLibrary, AdvancedSettings,
         // GeneralSettings, AISettings.
-        lines: 79,
-        functions: 68,
+        //
+        // Phase 6: ratcheted up from 79/68/69/77 to rounded-down Phase 6
+        // baseline (lines 80.08% · functions 69.14% · branches 69.6% ·
+        // statements 77.84%) — +17 new branch-coverage tests across
+        // IndexedDBCacheManager (formatDate display, cleanup/clear/export
+        // error toasts, file-import flow + error + no-file path, mount
+        // getCacheStats rejection), CostTracking (exportData blob/anchor
+        // flow, createBudget invalid-form early-returns, alertThreshold
+        // input incl. NaN fallback, Cancel button), and OfflineQueuePanel
+        // (retryFailed failure toast, failed/syncing status badges with
+        // retryCount + error rendering, unknown-status fallback).
+        lines: 80,
+        functions: 69,
         branches: 69,
         statements: 77,
       },

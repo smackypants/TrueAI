@@ -198,4 +198,163 @@ describe('IndexedDBCacheManager', () => {
     // After sync the "Synced" badge should appear briefly
     await waitFor(() => expect(screen.getByText('Synced')).toBeInTheDocument(), { timeout: 3000 })
   })
+
+  // Phase 6 — branch coverage additions
+
+  it('renders "Last cleanup:" line when lastCleanup timestamp is provided', async () => {
+    const lastCleanup = new Date('2024-06-15T12:00:00Z').getTime()
+    const getCacheStats = vi.fn().mockResolvedValue({
+      conversations: 1,
+      messages: 1,
+      totalSize: 100,
+      lastCleanup,
+    })
+    mockUseIndexedDBCache.mockReturnValue(makeHook({ getCacheStats }))
+    render(<IndexedDBCacheManager />)
+    await waitFor(() => expect(screen.getByText(/Last cleanup:/i)).toBeInTheDocument())
+  })
+
+  it('shows error toast when cleanup fails', async () => {
+    const cleanupCache = vi.fn().mockRejectedValue(new Error('boom'))
+    mockUseIndexedDBCache.mockReturnValue(makeHook({ cleanupCache }))
+    render(<IndexedDBCacheManager />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /cleanup/i })).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: /cleanup/i }))
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to cleanup cache')
+    )
+  })
+
+  it('shows error toast when clearCache fails', async () => {
+    const clearCache = vi.fn().mockRejectedValue(new Error('boom'))
+    mockUseIndexedDBCache.mockReturnValue(makeHook({ clearCache }))
+    render(<IndexedDBCacheManager />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /clear all/i })).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: /clear all/i }))
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to clear cache')
+    )
+  })
+
+  it('shows error toast when exportCache fails', async () => {
+    const exportCache = vi.fn().mockRejectedValue(new Error('boom'))
+    mockUseIndexedDBCache.mockReturnValue(makeHook({ exportCache }))
+    render(<IndexedDBCacheManager />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /export/i })).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: /export/i }))
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to export cache')
+    )
+  })
+
+  it('logs error and clears loading flag when getCacheStats rejects on mount', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const getCacheStats = vi.fn().mockRejectedValue(new Error('idb fail'))
+    mockUseIndexedDBCache.mockReturnValue(makeHook({ getCacheStats }))
+    await act(async () => {
+      render(<IndexedDBCacheManager />)
+    })
+    await waitFor(() => expect(getCacheStats).toHaveBeenCalled())
+    expect(errorSpy).toHaveBeenCalledWith('Failed to load cache stats:', expect.any(Error))
+    // After error the buttons should be re-enabled (isLoading=false)
+    expect(screen.getByRole('button', { name: /sync now/i })).not.toBeDisabled()
+    errorSpy.mockRestore()
+  })
+
+  it('imports cache from a selected file and shows success toast', async () => {
+    const importCache = vi.fn().mockResolvedValue(undefined)
+    mockUseIndexedDBCache.mockReturnValue(makeHook({ importCache }))
+
+    // Capture the dynamically created <input type="file">
+    let fileInput: HTMLInputElement | null = null
+    const realCreate = document.createElement.bind(document)
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag) as HTMLElement
+      if (tag === 'input') {
+        fileInput = el as HTMLInputElement
+        ;(el as HTMLInputElement).click = vi.fn()
+      }
+      return el as HTMLElement & HTMLInputElement
+    })
+
+    render(<IndexedDBCacheManager />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /import/i })).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: /import/i }))
+
+    expect(fileInput).not.toBeNull()
+    const file = new File(['{}'], 'cache.json', { type: 'application/json' })
+    // Drive onchange directly — change events on detached inputs don't fire handlers
+    await act(async () => {
+      await (fileInput!.onchange as (e: unknown) => Promise<void>)({
+        target: { files: [file] },
+      })
+    })
+
+    expect(importCache).toHaveBeenCalledWith(file)
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('Cache imported successfully')
+    )
+    createSpy.mockRestore()
+  })
+
+  it('shows error toast when import fails', async () => {
+    const importCache = vi.fn().mockRejectedValue(new Error('boom'))
+    mockUseIndexedDBCache.mockReturnValue(makeHook({ importCache }))
+
+    let fileInput: HTMLInputElement | null = null
+    const realCreate = document.createElement.bind(document)
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag) as HTMLElement
+      if (tag === 'input') {
+        fileInput = el as HTMLInputElement
+        ;(el as HTMLInputElement).click = vi.fn()
+      }
+      return el as HTMLElement & HTMLInputElement
+    })
+
+    render(<IndexedDBCacheManager />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /import/i })).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: /import/i }))
+
+    const file = new File(['{}'], 'cache.json', { type: 'application/json' })
+    await act(async () => {
+      await (fileInput!.onchange as (e: unknown) => Promise<void>)({
+        target: { files: [file] },
+      })
+    })
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to import cache')
+    )
+    createSpy.mockRestore()
+  })
+
+  it('does nothing when import is invoked with no file selected', async () => {
+    const importCache = vi.fn().mockResolvedValue(undefined)
+    mockUseIndexedDBCache.mockReturnValue(makeHook({ importCache }))
+
+    let fileInput: HTMLInputElement | null = null
+    const realCreate = document.createElement.bind(document)
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag) as HTMLElement
+      if (tag === 'input') {
+        fileInput = el as HTMLInputElement
+        ;(el as HTMLInputElement).click = vi.fn()
+      }
+      return el as HTMLElement & HTMLInputElement
+    })
+
+    render(<IndexedDBCacheManager />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /import/i })).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: /import/i }))
+
+    await act(async () => {
+      await (fileInput!.onchange as (e: unknown) => Promise<void>)({
+        target: { files: [] },
+      })
+    })
+
+    expect(importCache).not.toHaveBeenCalled()
+    createSpy.mockRestore()
+  })
 })

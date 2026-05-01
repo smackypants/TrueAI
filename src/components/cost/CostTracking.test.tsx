@@ -146,4 +146,104 @@ describe('CostTracking', () => {
     render(<CostTracking {...defaultProps} costEntries={[costEntry]} />)
     expect(screen.getByText('gpt-4o')).toBeInTheDocument()
   })
+
+  // Phase 6 — branch coverage additions
+
+  it('does not call onCreateBudget when budget name is empty', () => {
+    const onCreateBudget = vi.fn()
+    render(<CostTracking {...defaultProps} onCreateBudget={onCreateBudget} />)
+    fireEvent.click(screen.getByText('New Budget'))
+    // Leave name empty, set amount > 0
+    fireEvent.change(screen.getByPlaceholderText('100.00'), {
+      target: { value: '50' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Budget' }))
+    expect(onCreateBudget).not.toHaveBeenCalled()
+  })
+
+  it('does not call onCreateBudget when amount is zero or invalid', () => {
+    const onCreateBudget = vi.fn()
+    render(<CostTracking {...defaultProps} onCreateBudget={onCreateBudget} />)
+    fireEvent.click(screen.getByText('New Budget'))
+    fireEvent.change(screen.getByPlaceholderText('e.g., Monthly AI Spending'), {
+      target: { value: 'My Budget' },
+    })
+    // Leave amount as default 0
+    fireEvent.click(screen.getByRole('button', { name: 'Create Budget' }))
+    expect(onCreateBudget).not.toHaveBeenCalled()
+  })
+
+  it('updates alertThreshold when threshold input changes', () => {
+    const onCreateBudget = vi.fn()
+    render(<CostTracking {...defaultProps} onCreateBudget={onCreateBudget} />)
+    fireEvent.click(screen.getByText('New Budget'))
+    fireEvent.change(screen.getByPlaceholderText('e.g., Monthly AI Spending'), {
+      target: { value: 'Threshold Budget' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('100.00'), {
+      target: { value: '200' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('80'), {
+      target: { value: '90' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Budget' }))
+    expect(onCreateBudget).toHaveBeenCalledWith(
+      expect.objectContaining({ alertThreshold: 90, name: 'Threshold Budget', amount: 200 })
+    )
+  })
+
+  it('falls back alertThreshold to 80 when input parses as NaN', () => {
+    const onCreateBudget = vi.fn()
+    render(<CostTracking {...defaultProps} onCreateBudget={onCreateBudget} />)
+    fireEvent.click(screen.getByText('New Budget'))
+    fireEvent.change(screen.getByPlaceholderText('e.g., Monthly AI Spending'), {
+      target: { value: 'NaN Budget' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('100.00'), {
+      target: { value: '200' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('80'), {
+      target: { value: 'abc' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Budget' }))
+    expect(onCreateBudget).toHaveBeenCalledWith(
+      expect.objectContaining({ alertThreshold: 80 })
+    )
+  })
+
+  it('closes the dialog when Cancel is clicked in the new-budget dialog', () => {
+    render(<CostTracking {...defaultProps} />)
+    fireEvent.click(screen.getByText('New Budget'))
+    expect(
+      screen.getByText('Set spending limits and get alerts when approaching your budget')
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(
+      screen.queryByText('Set spending limits and get alerts when approaching your budget')
+    ).not.toBeInTheDocument()
+  })
+
+  it('exportData triggers a JSON blob download via an anchor click', () => {
+    const createObjectURL = vi.fn(() => 'blob:mock-url')
+    const revokeObjectURL = vi.fn()
+    const originalCreate = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = createObjectURL as unknown as typeof URL.createObjectURL
+    URL.revokeObjectURL = revokeObjectURL as unknown as typeof URL.revokeObjectURL
+
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    try {
+      render(<CostTracking {...defaultProps} costEntries={[costEntry]} />)
+      // The Export button uses an icon-only label containing "Export"
+      fireEvent.click(screen.getByRole('button', { name: /export/i }))
+      expect(createObjectURL).toHaveBeenCalledOnce()
+      expect(anchorClick).toHaveBeenCalledOnce()
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+    } finally {
+      URL.createObjectURL = originalCreate
+      URL.revokeObjectURL = originalRevoke
+      anchorClick.mockRestore()
+    }
+  })
 })
