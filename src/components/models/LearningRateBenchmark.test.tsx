@@ -19,9 +19,10 @@ vi.mock('framer-motion', () => ({
 
 // Provide stable useKV mock
 const mockSetExperiments = vi.fn()
+let mockExperimentsValue: unknown[] = []
 vi.mock('@github/spark/hooks', () => ({
   useKV: vi.fn((key: string, defaultValue: unknown) => {
-    if (key === 'lr-experiments') return [[], mockSetExperiments]
+    if (key === 'lr-experiments') return [mockExperimentsValue, mockSetExperiments]
     return [defaultValue, vi.fn()]
   }),
 }))
@@ -96,6 +97,7 @@ const mockSchedule = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockExperimentsValue = []
   mockGetOptimalRate.mockReturnValue(0.001)
   mockGetMetrics.mockReturnValue(defaultMetrics)
   mockRecommendRate.mockReturnValue(null)
@@ -229,5 +231,125 @@ describe('LearningRateBenchmark', () => {
         expect.stringContaining('Experiment completed')
       )
     }, { timeout: 5000 })
+  })
+
+  it('Sparkle button sets the optimal learning rate from tuner', async () => {
+    const user = userEvent.setup()
+    const { toast } = await import('sonner')
+    mockGetOptimalRate.mockReturnValueOnce(0.001).mockReturnValueOnce(0.0042)
+    render(<LearningRateBenchmark models={[mockModel]} onModelUpdate={vi.fn()} />)
+
+    const input = screen.getByRole('spinbutton') as HTMLInputElement
+    // The Sparkle button is right next to the LR input — find by closest sibling button
+    const sparkleButton = input.parentElement!.querySelector('button') as HTMLButtonElement
+    await user.click(sparkleButton)
+
+    expect(toast.success).toHaveBeenCalledWith('Set to optimal rate')
+    expect(input.value).toBe('0.0042')
+  })
+
+  describe('with existing experiments', () => {
+    const exp1 = {
+      id: 'exp-1',
+      modelId: 'model-1',
+      learningRate: 0.001,
+      taskType: 'creative_writing' as const,
+      benchmarkScore: 65,
+      responseTime: 420,
+      qualityScore: 65,
+      timestamp: Date.now() - 1000,
+      trainingLoss: [1.5, 1.0, 0.6],
+      validationLoss: [1.6, 1.1, 0.7],
+      epochs: 20,
+      successRate: 0.9,
+    }
+    const exp2 = {
+      ...exp1,
+      id: 'exp-2',
+      learningRate: 0.0005,
+      benchmarkScore: 80,
+      responseTime: 350,
+      successRate: 0.95,
+      timestamp: Date.now(),
+    }
+
+    beforeEach(() => {
+      mockExperimentsValue = [exp1, exp2]
+    })
+
+    it('Export button is enabled and triggers download', async () => {
+      const user = userEvent.setup()
+      const { toast } = await import('sonner')
+      const clickSpy = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => {})
+      try {
+        render(<LearningRateBenchmark models={[mockModel]} onModelUpdate={vi.fn()} />)
+        const exportButton = screen.getByRole('button', { name: /export/i })
+        expect(exportButton).not.toBeDisabled()
+        await user.click(exportButton)
+        expect(clickSpy).toHaveBeenCalled()
+        expect(toast.success).toHaveBeenCalledWith('Experiments exported')
+      } finally {
+        clickSpy.mockRestore()
+      }
+    })
+
+    it('renders results tab with experiment cards', () => {
+      render(<LearningRateBenchmark models={[mockModel]} onModelUpdate={vi.fn()} />)
+      expect(screen.getByRole('tab', { name: /results/i })).toBeInTheDocument()
+      expect(screen.getByText(/lr: 0.001000/i)).toBeInTheDocument()
+      expect(screen.getByText(/lr: 0.000500/i)).toBeInTheDocument()
+      // Score badges (65.0 and 80.0)
+      expect(screen.getByText('65.0')).toBeInTheDocument()
+      expect(screen.getByText('80.0')).toBeInTheDocument()
+    })
+
+    it('marks an experiment as baseline when "Use as Baseline" clicked', async () => {
+      const user = userEvent.setup()
+      render(<LearningRateBenchmark models={[mockModel]} onModelUpdate={vi.fn()} />)
+      const baselineButtons = screen.getAllByRole('button', { name: /use as baseline/i })
+      await user.click(baselineButtons[0])
+      // Switch to compare tab to confirm comparison rendering
+      await user.click(screen.getByRole('tab', { name: /compare/i }))
+      // Some "% delta" indicator should appear
+      const matches = screen.getAllByText(/%/i)
+      expect(matches.length).toBeGreaterThan(0)
+    })
+
+    it('renders adjustments tab (empty state with no history)', async () => {
+      const user = userEvent.setup()
+      render(<LearningRateBenchmark models={[mockModel]} onModelUpdate={vi.fn()} />)
+      await user.click(screen.getByRole('tab', { name: /adjustments/i }))
+      // Either an empty-state message renders, or an empty list — assert the tab body exists
+      expect(screen.getByRole('tab', { name: /adjustments/i })).toHaveAttribute('data-state', 'active')
+    })
+  })
+
+  it('applies optimal learning rate to the model and calls onModelUpdate', async () => {
+    const user = userEvent.setup()
+    const onModelUpdate = vi.fn()
+    const { toast } = await import('sonner')
+    mockRunBenchmark.mockResolvedValue({
+      overallScore: 90,
+      averageResponseTime: 200,
+      tests: [{ error: null }],
+    })
+
+    render(<LearningRateBenchmark models={[mockModel]} onModelUpdate={onModelUpdate} />)
+    await user.click(screen.getByRole('button', { name: /run experiment/i }))
+
+    // Wait for completed state — "Apply to Model" button appears when not running
+    const applyButton = await screen.findByRole(
+      'button',
+      { name: /apply to model/i },
+      { timeout: 5000 }
+    )
+    await user.click(applyButton)
+
+    expect(onModelUpdate).toHaveBeenCalledTimes(1)
+    expect(toast.success).toHaveBeenCalledWith(
+      expect.stringContaining('Applied optimal learning rate')
+    )
   })
 })
