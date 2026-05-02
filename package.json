@@ -106,7 +106,7 @@
         "react-dom": "19.2.5",
         "react-error-boundary": "^6.0.0",
         "react-hook-form": "^7.75.0",
-        "react-resizable-panels": "^2.1.7",
+        "react-resizable-panels": "^4.10.0",
         "reactflow": "^11.11.4",
         "recharts": "^2.15.1",
         "sonner": "^2.0.1",
