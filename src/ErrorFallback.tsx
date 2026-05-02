@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, AlertTitle, AlertDescription } from "./components/ui/alert";
 import { Button } from "./components/ui/button";
 
-import { AlertTriangleIcon, RefreshCwIcon, ClipboardCopyIcon, Share2Icon, RotateCcwIcon, FileDownIcon, GithubIcon } from "lucide-react";
+import { AlertTriangleIcon, RefreshCwIcon, ClipboardCopyIcon, Share2Icon, RotateCcwIcon, FileDownIcon, BugIcon } from "lucide-react";
 
 import {
   appendErrorLogEntry,
@@ -157,7 +157,7 @@ export const ErrorFallback = ({ error, resetErrorBoundary }: ErrorFallbackProps)
           )}
           {githubAvailable && (
             <Button onClick={handleReportOnGitHub} variant="outline" disabled={!report}>
-              <GithubIcon />
+              <BugIcon />
               Report on GitHub
             </Button>
           )}
