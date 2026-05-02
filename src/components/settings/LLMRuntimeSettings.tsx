@@ -97,8 +97,9 @@ const PROVIDER_PRESETS: Record<LLMProvider, ProviderPreset> = {
     description:
       'True on-device inference via @wllama/wllama (WASM build of llama.cpp). ' +
       "Set 'Base URL' to a .gguf URL or 'hf:<owner>/<repo>:<path>' shortcut. " +
-      'API key is ignored. The model is downloaded once into the browser cache, ' +
-      'then all inference runs locally with no further network calls.',
+      'API key is ignored. On first use the wllama WASM runtime assets ' +
+      'and the GGUF model are downloaded once into the browser cache; ' +
+      'after that all inference runs locally with no further network calls.',
   },
 }
 

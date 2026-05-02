@@ -140,6 +140,81 @@ describe('local-wllama-provider', () => {
     expect(createChatCompletion).toHaveBeenCalledTimes(2)
   })
 
+  it('treats whitespace-only differences in modelSource as the same source', async () => {
+    const a = createLocalWllamaModel({
+      modelSource: 'https://example.test/m.gguf',
+      modelId: 'm',
+    })
+    const b = createLocalWllamaModel({
+      modelSource: '  https://example.test/m.gguf  ',
+      modelId: 'm',
+    })
+    await a.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'a' }] }],
+    })
+    await b.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'b' }] }],
+    })
+    // Cache hit despite whitespace.
+    expect(loadModelFromUrl).toHaveBeenCalledTimes(1)
+  })
+
+  it('rebuilds the cached instance when the model source changes', async () => {
+    const a = createLocalWllamaModel({
+      modelSource: 'https://example.test/a.gguf',
+      modelId: 'a',
+    })
+    const b = createLocalWllamaModel({
+      modelSource: 'https://example.test/b.gguf',
+      modelId: 'b',
+    })
+    await a.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'x' }] }],
+    })
+    await b.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'y' }] }],
+    })
+    // Each distinct source must trigger its own load — the in-flight
+    // promise from `a` must NOT be returned for `b` (which would
+    // otherwise hand `b` an instance loaded with the wrong model).
+    expect(loadModelFromUrl).toHaveBeenCalledTimes(2)
+    expect(loadModelFromUrl.mock.calls.map((c) => c[0])).toEqual([
+      'https://example.test/a.gguf',
+      'https://example.test/b.gguf',
+    ])
+  })
+
+  it('drops reasoning parts and surfaces a warning instead of forwarding them as text', async () => {
+    const model = createLocalWllamaModel({
+      modelSource: 'https://example.test/m.gguf',
+      modelId: 'm',
+    })
+    const { stream } = await model.doStream({
+      prompt: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'reasoning', text: 'internal scratchpad' },
+            { type: 'text', text: 'final answer' },
+          ],
+        },
+      ],
+    })
+    const reader = stream.getReader()
+    const first = await reader.read()
+    const warnings = (
+      first.value as { warnings: Array<{ message?: string }> }
+    ).warnings
+    expect(warnings.some((w) => /non-text parts/i.test(w.message ?? ''))).toBe(true)
+    while (true) {
+      const { done } = await reader.read()
+      if (done) break
+    }
+    const [messages] = createChatCompletion.mock.calls[0]
+    // The reasoning text must NOT have been forwarded to wllama.
+    expect(messages).toEqual([{ role: 'assistant', content: 'final answer' }])
+  })
+
   it('streams text-delta parts that concatenate to the full response', async () => {
     const model = createLocalWllamaModel({
       modelSource: 'https://example.test/m.gguf',
@@ -171,11 +246,15 @@ describe('local-wllama-provider', () => {
     createChatCompletion.mockImplementationOnce(
       async (_m: unknown, opts: { stream?: boolean }) => {
         if (opts?.stream) {
-          // Async iterable that throws on first iteration.
+          // Async iterable that throws on first iteration. The generator
+          // body has no `yield` because the throw makes any subsequent
+          // statement unreachable; the empty function still satisfies
+          // the AsyncIterable contract via the `throw` thrown from
+          // `next()`.
           return {
+            // eslint-disable-next-line require-yield
             async *[Symbol.asyncIterator]() {
               throw new Error('boom')
-              yield { token: 0, piece: new Uint8Array(), currentText: '' }
             },
           }
         }

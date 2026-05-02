@@ -116,19 +116,29 @@ export interface LocalWllamaOptions {
  * These are only fetched when a user explicitly switches the runtime
  * to `local-wasm` and only the first time (browsers cache them).
  *
+ * The version is pinned to match the exact `@wllama/wllama` version
+ * declared in `package.json` (also pinned, not range-prefixed) so the
+ * JS bindings and the WASM blobs cannot drift even across patch
+ * upgrades. If you bump the npm dependency, update both numbers.
+ *
  * PR 13 of the OfflineLLM-comparison plan (offline product flavor)
  * will swap this for a self-hosted asset path baked into the APK so
  * the offline flavor never touches the network.
  */
+const WLLAMA_PINNED_VERSION = '2.4.0'
 const DEFAULT_WLLAMA_ASSETS = {
-  'single-thread/wllama.wasm':
-    'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.4.0/esm/single-thread/wllama.wasm',
-  'multi-thread/wllama.wasm':
-    'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.4.0/esm/multi-thread/wllama.wasm',
+  'single-thread/wllama.wasm': `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_PINNED_VERSION}/esm/single-thread/wllama.wasm`,
+  'multi-thread/wllama.wasm': `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_PINNED_VERSION}/esm/multi-thread/wllama.wasm`,
 }
 
 let cachedInstance: WllamaInstance | null = null
 let cachedModelSource: string | null = null
+/**
+ * In-flight load for a *specific* normalized model source. Keyed so that
+ * a concurrent call for a different source cannot piggy-back on the
+ * wrong promise (which would resolve to the wrong loaded model).
+ */
+let loadInFlightSource: string | null = null
 let loadInFlight: Promise<WllamaInstance> | null = null
 
 /**
@@ -138,6 +148,7 @@ let loadInFlight: Promise<WllamaInstance> | null = null
 export function __resetLocalWllamaForTests(): void {
   cachedInstance = null
   cachedModelSource = null
+  loadInFlightSource = null
   loadInFlight = null
 }
 
@@ -151,19 +162,25 @@ async function importWllama(): Promise<WllamaModule> {
 }
 
 async function getOrCreateInstance(opts: LocalWllamaOptions): Promise<WllamaInstance> {
-  if (!opts.modelSource || opts.modelSource.trim().length === 0) {
+  const src = opts.modelSource?.trim() ?? ''
+  if (src.length === 0) {
     throw new Error(
       "Local on-device runtime is selected but no model source is configured. " +
         "Open Settings → LLM Runtime and set 'Base URL' to a .gguf URL " +
         "(or a 'hf:owner/repo:path/to/file.gguf' shortcut).",
     )
   }
-  if (cachedInstance && cachedModelSource === opts.modelSource) {
+  if (cachedInstance && cachedModelSource === src) {
     return cachedInstance
   }
-  if (loadInFlight) return loadInFlight
+  // Only piggy-back on an in-flight load when it is for the *same*
+  // normalized source. Otherwise we'd hand callers an instance loaded
+  // with the wrong model.
+  if (loadInFlight && loadInFlightSource === src) {
+    return loadInFlight
+  }
 
-  loadInFlight = (async (): Promise<WllamaInstance> => {
+  const inFlight = (async (): Promise<WllamaInstance> => {
     const mod = await importWllama()
     const Ctor = mod.Wllama ?? mod.default?.Wllama
     if (!Ctor) {
@@ -171,7 +188,6 @@ async function getOrCreateInstance(opts: LocalWllamaOptions): Promise<WllamaInst
     }
     const assets = opts.assetsPath ?? DEFAULT_WLLAMA_ASSETS
     const instance = new Ctor(assets)
-    const src = opts.modelSource.trim()
     if (src.startsWith('hf:')) {
       // Format: hf:<owner>/<repo>:<path>
       const rest = src.slice(3)
@@ -189,13 +205,17 @@ async function getOrCreateInstance(opts: LocalWllamaOptions): Promise<WllamaInst
     }
     cachedInstance = instance
     cachedModelSource = src
-    loadInFlight = null
     return instance
-  })().catch((err) => {
-    loadInFlight = null
-    throw err
-  })
+  })()
 
+  loadInFlightSource = src
+  loadInFlight = inFlight.finally(() => {
+    // Clear only if no newer load has replaced us in the meantime.
+    if (loadInFlight === inFlight) {
+      loadInFlight = null
+      loadInFlightSource = null
+    }
+  })
   return loadInFlight
 }
 
@@ -228,9 +248,12 @@ function toWllamaMessages(
     for (const part of m.content) {
       if (part.type === 'text') {
         text += part.text
-      } else if (part.type === 'reasoning') {
-        text += part.text
       } else {
+        // Reasoning, file, tool-call, tool-result, tool-approval — none
+        // are supported by the local-wasm provider yet. Drop them and
+        // emit a single warning per message so the caller can decide
+        // how to surface the omission. PR 17 (vision) will lift the
+        // restriction for image parts.
         droppedNonText = true
       }
     }

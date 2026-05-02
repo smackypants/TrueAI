@@ -368,11 +368,12 @@ edit the base URL directly. Suggested setups:
 
 The **Local (on-device, WASM)** option runs GGUF models entirely in the
 browser via [`@wllama/wllama`](https://github.com/ngxson/wllama) (a WASM
-build of llama.cpp, MIT). The model is downloaded once into the
-browser's cache and then all inference happens on-device with no
-further network calls — and no API key. The `@wllama/wllama` module is
-dynamically imported so users on the HTTP-server providers don't pay
-for it in the initial bundle.
+build of llama.cpp, MIT). On first use the wllama WASM runtime assets
+(currently fetched from jsDelivr) and the GGUF model are downloaded
+once into the browser's cache; after that all inference happens
+on-device with no further network calls — and no API key. The
+`@wllama/wllama` module is dynamically imported so users on the
+HTTP-server providers don't pay for it in the initial bundle.
 
 The "Test connection" button probes `{baseUrl}/models` and lists the models
 your server reports — handy on Android, where `localhost` is the device

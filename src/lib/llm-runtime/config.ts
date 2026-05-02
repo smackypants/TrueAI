@@ -41,9 +41,10 @@ export type LLMProvider =
    *     shortcut handed straight to wllama's `loadModelFromHF`.
    *   - `defaultModel`: the logical model id reported back as
    *     `LanguageModel.modelId`. Used only for display / cost-tracking.
-   *   - `apiKey`: ignored. No network calls are made beyond the initial
-   *     model download (which the user explicitly authorises by saving
-   *     the URL).
+   *   - `apiKey`: ignored. On first use, the wllama WASM runtime
+   *     assets and the GGUF model are downloaded once (the user
+   *     explicitly authorises this by saving the URL). After that,
+   *     all inference runs on-device with no further network calls.
    *
    * The `@wllama/wllama` module is dynamically imported so that the
    * initial JS bundle for users who stay on the HTTP-server providers
