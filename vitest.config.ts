@@ -93,9 +93,24 @@ export default defineConfig({
         // ChartTooltipContent active/inactive/labelFormatter/formatter/
         // hideIndicator/dashed branches, ChartLegendContent label rendering
         // and empty-payload null branch).
+        //
+        // Phase 10: ratcheted branches from 71 → 72; other floors unchanged.
+        // Baseline (lines 82.39% · functions 72.33% · branches 72.00% ·
+        // statements 79.96%) — +14 tests across shadcn-primitives.test.tsx
+        // (Select sub-components Group/Label/Item/Separator inside an open
+        // Select; Avatar root + AvatarImage + AvatarFallback; Dialog Trigger
+        // + Close inside an open Dialog; PopoverAnchor alongside open
+        // Popover; Sheet Close + Footer inside an open Sheet plus
+        // SheetContent side=left/top/bottom variant branches via it.each)
+        // and swipeable-card.test.tsx (handleDragEnd via framer-motion
+        // motion.div mock that captures onDragEnd: offset.x < -threshold
+        // calls onSwipeLeft, > threshold calls onSwipeRight, within
+        // threshold calls neither, and past-threshold drags without
+        // callbacks are no-ops). Took select.tsx, avatar.tsx, dialog.tsx,
+        // popover.tsx, sheet.tsx all to 100% lines.
         lines: 82,
         functions: 72,
-        branches: 71,
+        branches: 72,
         statements: 79,
       },
     },

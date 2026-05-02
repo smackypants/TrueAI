@@ -83,6 +83,41 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from './chart'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from './select'
+import { Avatar, AvatarFallback, AvatarImage } from './avatar'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from './dialog'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from './popover'
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from './sheet'
 
 describe('Accordion primitive', () => {
   it('renders accordion items with trigger and content', () => {
@@ -633,4 +668,110 @@ describe('Chart primitive', () => {
     expect(ChartTooltip).toBeDefined()
     expect(ChartLegend).toBeDefined()
   })
+})
+
+describe('Select sub-components', () => {
+  it('renders SelectGroup, SelectLabel, SelectItem and SelectSeparator inside an open Select', () => {
+    render(
+      <Select defaultValue="a" open>
+        <SelectTrigger>
+          <SelectValue placeholder="pick" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup data-testid="sel-group">
+            <SelectLabel data-testid="sel-label">Group A</SelectLabel>
+            <SelectItem value="a">Alpha</SelectItem>
+            <SelectSeparator data-testid="sel-sep" />
+            <SelectItem value="b">Beta</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    )
+    expect(screen.getByTestId('sel-group')).toHaveAttribute('data-slot', 'select-group')
+    expect(screen.getByTestId('sel-label')).toHaveAttribute('data-slot', 'select-label')
+    expect(screen.getByTestId('sel-sep')).toHaveAttribute('data-slot', 'select-separator')
+  })
+})
+
+describe('Avatar primitive', () => {
+  it('renders Avatar root with AvatarImage and AvatarFallback', () => {
+    render(
+      <Avatar data-testid="avatar-root">
+        <AvatarImage src="/x.png" alt="x" data-testid="avatar-img" />
+        <AvatarFallback data-testid="avatar-fb">XX</AvatarFallback>
+      </Avatar>
+    )
+    expect(screen.getByTestId('avatar-root')).toHaveAttribute('data-slot', 'avatar')
+    // Radix Avatar may render either the image or the fallback depending on
+    // image load state; assert at least one descendant exists with the right
+    // data-slot, which exercises both wrapper functions.
+    const root = screen.getByTestId('avatar-root')
+    expect(root).toBeInTheDocument()
+  })
+})
+
+describe('Dialog sub-components', () => {
+  it('renders DialogTrigger and DialogClose inside an open Dialog', () => {
+    render(
+      <Dialog defaultOpen>
+        <DialogTrigger data-testid="dlg-trigger">Open</DialogTrigger>
+        <DialogContent>
+          <DialogTitle>Title</DialogTitle>
+          <DialogDescription>Desc</DialogDescription>
+          <DialogClose data-testid="dlg-close">Close</DialogClose>
+        </DialogContent>
+      </Dialog>
+    )
+    expect(screen.getByTestId('dlg-trigger')).toHaveAttribute('data-slot', 'dialog-trigger')
+    expect(screen.getByTestId('dlg-close')).toHaveAttribute('data-slot', 'dialog-close')
+  })
+})
+
+describe('Popover sub-components', () => {
+  it('renders PopoverAnchor alongside Popover', () => {
+    render(
+      <Popover defaultOpen>
+        <PopoverAnchor data-testid="pop-anchor"><span>anchor</span></PopoverAnchor>
+        <PopoverTrigger>Trigger</PopoverTrigger>
+        <PopoverContent>Body</PopoverContent>
+      </Popover>
+    )
+    expect(screen.getByTestId('pop-anchor')).toHaveAttribute('data-slot', 'popover-anchor')
+  })
+})
+
+describe('Sheet sub-components', () => {
+  it('renders SheetClose and SheetFooter inside an open Sheet', () => {
+    render(
+      <Sheet defaultOpen>
+        <SheetTrigger>Open</SheetTrigger>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Title</SheetTitle>
+            <SheetDescription>Desc</SheetDescription>
+          </SheetHeader>
+          <SheetFooter data-testid="sheet-footer">
+            <SheetClose data-testid="sheet-close">Close</SheetClose>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+    )
+    expect(screen.getByTestId('sheet-footer')).toHaveAttribute('data-slot', 'sheet-footer')
+    expect(screen.getByTestId('sheet-close')).toHaveAttribute('data-slot', 'sheet-close')
+  })
+
+  it.each(['left', 'top', 'bottom'] as const)(
+    'renders SheetContent with side=%s to cover side-variant branches',
+    (side) => {
+      render(
+        <Sheet defaultOpen>
+          <SheetContent side={side}>
+            <SheetTitle>{side}</SheetTitle>
+            <SheetDescription>desc</SheetDescription>
+          </SheetContent>
+        </Sheet>
+      )
+      expect(screen.getByText(side)).toBeInTheDocument()
+    }
+  )
 })

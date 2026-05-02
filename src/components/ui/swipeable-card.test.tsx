@@ -1,12 +1,55 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import * as React from 'react'
+import { render, screen, act } from '@testing-library/react'
+
+// Capture the onDragEnd handler passed to motion.div so tests can drive
+// handleDragEnd with synthetic PanInfo objects (jsdom can't simulate drag).
+const capturedHandlers: Array<(e: unknown, info: { offset: { x: number; y: number } }) => void> = []
+
+vi.mock('framer-motion', async () => {
+  const actual = await vi.importActual<typeof import('framer-motion')>('framer-motion')
+  return {
+    ...actual,
+    motion: new Proxy(
+      {},
+      {
+        get: () => (props: Record<string, unknown> & { children?: React.ReactNode }) => {
+          const {
+            children,
+            initial: _i,
+            animate: _a,
+            exit: _e,
+            transition: _t,
+            whileHover: _w,
+            drag: _d,
+            dragConstraints: _dc,
+            dragElastic: _de,
+            onDragStart: _ods,
+            onDragEnd,
+            style: _s,
+            ...rest
+          } = props as Record<string, unknown> & {
+            children?: React.ReactNode
+            onDragEnd?: (e: unknown, info: { offset: { x: number; y: number } }) => void
+          }
+          void _i; void _a; void _e; void _t; void _w; void _d; void _dc; void _de; void _ods; void _s
+          if (typeof onDragEnd === 'function') {
+            capturedHandlers.push(onDragEnd)
+          }
+          return <div {...(rest as React.HTMLAttributes<HTMLDivElement>)}>{children}</div>
+        },
+      }
+    ),
+  }
+})
+
 import { SwipeableCard } from './swipeable-card'
 
-// framer-motion useMotionValue / useTransform work fine in jsdom for rendering;
-// drag events are not unit-testable in jsdom but handleDragEnd is testable by
-// calling the prop directly.
-
 describe('SwipeableCard', () => {
+  beforeEach(() => {
+    capturedHandlers.length = 0
+  })
+
   it('renders children', () => {
     render(<SwipeableCard><span>Hello</span></SwipeableCard>)
     expect(screen.getByText('Hello')).toBeInTheDocument()
@@ -17,7 +60,6 @@ describe('SwipeableCard', () => {
       <SwipeableCard disabled><span>Disabled content</span></SwipeableCard>
     )
     expect(screen.getByText('Disabled content')).toBeInTheDocument()
-    // Should not have the drag wrapper — check there's no motion container.
     // The disabled path returns a bare <div>.
     const divs = container.querySelectorAll('div')
     expect(divs.length).toBe(1)
@@ -64,7 +106,7 @@ describe('SwipeableCard', () => {
         <span>X</span>
       </SwipeableCard>
     )
-    // className is applied to the inner motion.div
+    // className is applied to the inner motion.div (passed through by mock)
     expect(container.querySelector('.custom-class')).toBeInTheDocument()
   })
 
@@ -74,32 +116,64 @@ describe('SwipeableCard', () => {
     expect(screen.queryByText('Star')).not.toBeInTheDocument()
   })
 
-  it('calls onSwipeLeft when drag offset < -threshold', () => {
+  it('calls onSwipeLeft when drag offset.x < -threshold', () => {
     const onSwipeLeft = vi.fn()
-    // We test handleDragEnd by rendering and then simulating what framer-motion
-    // would call. Since drag is hard to simulate in jsdom we reach in via the
-    // exposed onDragEnd prop on the motion.div (rendered as data-testid).
-    // The simplest approach: just confirm the callback is wired — render succeeds
-    // and onSwipeLeft is callable when invoked directly.
     render(
       <SwipeableCard onSwipeLeft={onSwipeLeft}>
         <span>Swipeable</span>
       </SwipeableCard>
     )
-    // The component renders without error when callbacks are provided.
-    expect(screen.getByText('Swipeable')).toBeInTheDocument()
-    // onSwipeLeft has not been called yet (no actual drag performed).
-    expect(onSwipeLeft).not.toHaveBeenCalled()
+    const handler = capturedHandlers[capturedHandlers.length - 1]
+    expect(handler).toBeDefined()
+    act(() => {
+      handler({}, { offset: { x: -150, y: 0 } })
+    })
+    expect(onSwipeLeft).toHaveBeenCalledTimes(1)
   })
 
-  it('calls onSwipeRight when drag offset > threshold', () => {
+  it('calls onSwipeRight when drag offset.x > threshold', () => {
     const onSwipeRight = vi.fn()
     render(
       <SwipeableCard onSwipeRight={onSwipeRight}>
         <span>Swipeable</span>
       </SwipeableCard>
     )
-    expect(screen.getByText('Swipeable')).toBeInTheDocument()
+    const handler = capturedHandlers[capturedHandlers.length - 1]
+    expect(handler).toBeDefined()
+    act(() => {
+      handler({}, { offset: { x: 150, y: 0 } })
+    })
+    expect(onSwipeRight).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not invoke either callback when drag offset is within threshold', () => {
+    const onSwipeLeft = vi.fn()
+    const onSwipeRight = vi.fn()
+    render(
+      <SwipeableCard onSwipeLeft={onSwipeLeft} onSwipeRight={onSwipeRight}>
+        <span>X</span>
+      </SwipeableCard>
+    )
+    const handler = capturedHandlers[capturedHandlers.length - 1]
+    act(() => {
+      handler({}, { offset: { x: 50, y: 0 } })
+    })
+    expect(onSwipeLeft).not.toHaveBeenCalled()
     expect(onSwipeRight).not.toHaveBeenCalled()
+  })
+
+  it('handles drag past threshold without callbacks (no throw)', () => {
+    render(<SwipeableCard><span>NoCb</span></SwipeableCard>)
+    const handler = capturedHandlers[capturedHandlers.length - 1]
+    expect(() => {
+      act(() => {
+        handler({}, { offset: { x: 200, y: 0 } })
+      })
+    }).not.toThrow()
+    expect(() => {
+      act(() => {
+        handler({}, { offset: { x: -200, y: 0 } })
+      })
+    }).not.toThrow()
   })
 })
