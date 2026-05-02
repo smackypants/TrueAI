@@ -1,0 +1,20 @@
+# 02 — Primary tab navigation (mobile bottom nav).
+#
+# Walks the bottom-nav rail rendered by `MobileBottomNav` (see
+# src/App.tsx ~L2805): Chat → Agents → Flow → Models. The "Flow" label is
+# the mobile-only short label for the Workflows tab. Each tap is followed
+# by an assertVisible on the same label so the assertion fails fast if
+# the tab handler did not flip `activeTab`.
+appId: com.trueai.localai
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Chat"
+- tapOn: "Agents"
+- assertVisible: "Agents"
+- tapOn: "Flow"
+- assertVisible: "Flow"
+- tapOn: "Models"
+- assertVisible: "Models"
+- tapOn: "Chat"
+- assertVisible: "Chat"

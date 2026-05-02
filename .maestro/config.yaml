@@ -1,0 +1,23 @@
+# Maestro workspace config for TrueAI LocalAI Android E2E flows.
+#
+# These flows target the debug variant produced by `npm run android:build`
+# (Play debug, applicationId `com.trueai.localai`). All flows are pure YAML —
+# no AI-generated content, no network-bound assertions — so they remain
+# deterministic on a stock Android emulator.
+#
+# Run locally with:
+#
+#   npm run e2e:android
+#
+# See docs/MAESTRO_E2E.md for prerequisites (Maestro CLI, JDK 21, Android
+# SDK + emulator) and CI scope (deferred — would require a hosted emulator
+# runner and `.github/**` edit).
+
+# Order is intentional: launch → primary navigation → settings → LLM runtime
+# config. Each flow is independent (re-launches the app) so a single
+# failure does not cascade.
+flows:
+  - 01-app-launch.yaml
+  - 02-tab-navigation.yaml
+  - 03-open-settings.yaml
+  - 04-llm-runtime-config.yaml

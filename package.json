@@ -25,7 +25,8 @@
         "android:build:release": "npm run build && npx cap sync android && cd android && ./gradlew assemblePlayRelease",
         "android:build:fdroid": "npm run build && npx cap sync android && cd android && ./gradlew assembleFdroidRelease",
         "android:bundle:play": "npm run build && npx cap sync android && cd android && ./gradlew bundlePlayRelease",
-        "android:run": "npm run android:sync && npx cap run android"
+        "android:run": "npm run android:sync && npx cap run android",
+        "e2e:android": "maestro test .maestro/"
     },
     "dependencies": {
         "@ai-sdk/anthropic": "^3.0.74",
