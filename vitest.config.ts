@@ -24,14 +24,15 @@ export default defineConfig({
         '**/*.spec.{ts,tsx}',
       ],
       thresholds: {
-        // Pragmatic floors set to lock in the gains from PRs #59–#67 and the
-        // Phase A–E coverage push (TEST_COVERAGE_SUMMARY.md). The aspirational
-        // 80/75 targets are blocked by a handful of large untested screens
-        // (`App.tsx`, `AppBuilder.tsx`, `LocalIDE.tsx`) that need
-        // decomposition first; tightening these numbers is a follow-up.
-        lines: 65,
-        functions: 53,
-        branches: 53,
+        // Phase 2A ratchet (see trueai_upgrade_plan.md): pinned to the
+        // recorded baseline (Stmts 63.92 / Branch 54.81 / Funcs 54.31 /
+        // Lines 66.06), rounded down. The aspirational 80/75 targets are
+        // blocked by a handful of large untested screens (`App.tsx`,
+        // `AppBuilder.tsx`, `LocalIDE.tsx`) that need decomposition first;
+        // future phases may only ratchet these numbers up, never down.
+        lines: 66,
+        functions: 54,
+        branches: 54,
         statements: 63,
       },
     },

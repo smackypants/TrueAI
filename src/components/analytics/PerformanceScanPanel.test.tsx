@@ -13,9 +13,35 @@ const { mockPerformanceScanner } = vi.hoisted(() => ({
       optimizations: [],
       bottlenecks: [],
       modelEfficiency: [],
-      hardwareSpecs: { tier: 'medium' },
+      hardwareSpecs: {
+        tier: 'medium',
+        performanceScore: 250,
+        hardwareConcurrency: 4,
+        screen: { width: 1920, height: 1080, pixelRatio: 1, colorDepth: 24 },
+      },
       summary: { critical: 0, high: 0, medium: 0, low: 0, total: 0 },
       score: 85,
+      // Post-scan render reads scanResult.estimatedImprovements.* and
+      // scanResult.currentMetrics.* across the result tabs. Without these
+      // the re-render throws TypeErrors and Vitest logs an Unhandled Error
+      // (the click assertion still passes because waitFor only checks the
+      // spy). Provide zeroed shapes so the panel renders cleanly.
+      estimatedImprovements: {
+        responseTimeReduction: 0,
+        errorRateReduction: 0,
+        throughputIncrease: 0,
+        tokenEfficiencyGain: 0,
+        overallScore: 0,
+      },
+      currentMetrics: {
+        avgResponseTime: 0,
+        p95ResponseTime: 0,
+        p99ResponseTime: 0,
+        successRate: 100,
+        errorRate: 0,
+        systemLoad: 0,
+        modelEfficiency: {},
+      },
       metadata: {},
     }),
     applyOptimizations: vi.fn().mockResolvedValue({ updated: [], applied: 0 }),
