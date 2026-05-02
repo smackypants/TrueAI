@@ -326,10 +326,10 @@ describe('HoverCard primitive', () => {
 describe('Resizable primitives', () => {
   it('renders a panel group with two panels and a handle (with grip)', () => {
     render(
-      <ResizablePanelGroup direction="horizontal" data-testid="rpg">
-        <ResizablePanel defaultSize={50} data-testid="rp1">Left</ResizablePanel>
-        <ResizableHandle withHandle data-testid="rh" />
-        <ResizablePanel defaultSize={50} data-testid="rp2">Right</ResizablePanel>
+      <ResizablePanelGroup direction="horizontal" id="rpg">
+        <ResizablePanel defaultSize={50} id="rp1">Left</ResizablePanel>
+        <ResizableHandle withHandle id="rh" />
+        <ResizablePanel defaultSize={50} id="rp2">Right</ResizablePanel>
       </ResizablePanelGroup>
     )
     expect(screen.getByTestId('rpg')).toHaveAttribute(
@@ -346,7 +346,7 @@ describe('Resizable primitives', () => {
     render(
       <ResizablePanelGroup direction="vertical">
         <ResizablePanel defaultSize={50}>A</ResizablePanel>
-        <ResizableHandle data-testid="rh-bare" />
+        <ResizableHandle id="rh-bare" />
         <ResizablePanel defaultSize={50}>B</ResizablePanel>
       </ResizablePanelGroup>
     )
