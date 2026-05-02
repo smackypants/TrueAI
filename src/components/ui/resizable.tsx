@@ -25,7 +25,7 @@ function ResizablePanelGroup({
   direction,
   ...props
 }: Omit<ComponentProps<typeof ResizablePrimitive.Group>, "orientation"> & {
-  direction?: PanelGroupDirection
+  direction: PanelGroupDirection
 }) {
   return (
     <ResizablePrimitive.Group
