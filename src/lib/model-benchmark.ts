@@ -1,4 +1,6 @@
 import type { ModelConfig, TaskType, ModelParameters } from './types'
+import { z } from 'zod'
+import { generateObject, getLanguageModel } from './llm-runtime/ai-sdk'
 
 export interface BenchmarkTest {
   id: string
@@ -209,11 +211,25 @@ async function runSingleTest(
   }
 }
 
+/**
+ * Schema for evaluator output. Each dimension is a 0..100 integer score.
+ * Using `generateObject` with this schema replaces the old hand-rolled
+ * `JSON.parse(spark.llm(..., jsonMode=true))` path: invalid output now
+ * fails fast with a typed error instead of silently producing `NaN` /
+ * mis-keyed fields.
+ */
+const evaluationSchema = z.object({
+  relevance: z.number().min(0).max(100),
+  coherence: z.number().min(0).max(100),
+  creativity: z.number().min(0).max(100),
+  accuracy: z.number().min(0).max(100),
+})
+
 async function evaluateResponse(
   response: string,
   test: BenchmarkTest
 ): Promise<BenchmarkRun['qualityBreakdown']> {
-  const evaluationPrompt = spark.llmPrompt`You are an expert AI evaluator. Evaluate the following response based on these criteria:
+  const evaluationPrompt = `You are an expert AI evaluator. Evaluate the following response based on these criteria:
 
 Task Type: ${test.taskType}
 Prompt: ${test.prompt}
@@ -229,21 +245,24 @@ Rate the response on these dimensions from 0-100:
 Return ONLY a JSON object with these four scores. No explanation.`
 
   try {
-    const evaluationResult = await spark.llm(evaluationPrompt, 'gpt-4o-mini')
-    const scores = JSON.parse(evaluationResult)
-    
+    const model = await getLanguageModel('gpt-4o-mini')
+    const { object } = await generateObject({
+      model,
+      schema: evaluationSchema,
+      prompt: evaluationPrompt,
+    })
     return {
-      relevance: Math.min(100, Math.max(0, scores.relevance || scores.Relevance || 50)),
-      coherence: Math.min(100, Math.max(0, scores.coherence || scores.Coherence || 50)),
-      creativity: Math.min(100, Math.max(0, scores.creativity || scores.Creativity || 50)),
-      accuracy: Math.min(100, Math.max(0, scores.accuracy || scores.Accuracy || 50))
+      relevance: Math.min(100, Math.max(0, object.relevance)),
+      coherence: Math.min(100, Math.max(0, object.coherence)),
+      creativity: Math.min(100, Math.max(0, object.creativity)),
+      accuracy: Math.min(100, Math.max(0, object.accuracy)),
     }
   } catch (_error) {
     return {
       relevance: 50,
       coherence: 50,
       creativity: 50,
-      accuracy: 50
+      accuracy: 50,
     }
   }
 }

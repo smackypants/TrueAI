@@ -30,6 +30,8 @@ export type LLMProvider =
   | 'lm-studio'
   | 'openai'
   | 'openai-compatible'
+  | 'anthropic'
+  | 'google'
 
 export interface LLMRuntimeConfig {
   /** Logical provider type (used for sensible default base URLs in the UI). */

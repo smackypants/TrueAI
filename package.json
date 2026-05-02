@@ -27,6 +27,11 @@
         "android:run": "npm run android:sync && npx cap run android"
     },
     "dependencies": {
+        "@ai-sdk/anthropic": "^3.0.74",
+        "@ai-sdk/google": "^3.0.67",
+        "@ai-sdk/openai": "^3.0.58",
+        "@ai-sdk/openai-compatible": "^2.0.45",
+        "@ai-sdk/react": "^3.0.176",
         "@capacitor/android": "^8.3.1",
         "@capacitor/app": "^8.1.0",
         "@capacitor/cli": "^8.3.1",
@@ -77,6 +82,7 @@
         "@tailwindcss/vite": "^4.1.11",
         "@tanstack/react-query": "^5.83.1",
         "@xyflow/react": "^12.10.2",
+        "ai": "^6.0.174",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",

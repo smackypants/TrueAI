@@ -103,8 +103,8 @@ violate these rules will be auto-rejected (see
 [`CONTRIBUTING.md`](../CONTRIBUTING.md) for the full list):
 
 - ❌ Modify `LICENSE` or `NOTICE`.
-- ❌ Strip in-source `Copyright (c) 2024-2026 smackypants / Advanced
-  Technology Research` headers.
+- ❌ Strip in-source `Copyright (c) 2024-2026 Skyler Jones ("smackypants") /
+  Advanced Technology Research` headers.
 - ❌ Edit anything under `.github/**` unless the task explicitly asks for it.
 - ❌ Weaken `package.json` `overrides` pins.
 - ❌ Add telemetry, analytics, or third-party network calls. This project

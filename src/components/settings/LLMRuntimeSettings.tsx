@@ -74,6 +74,22 @@ const PROVIDER_PRESETS: Record<LLMProvider, ProviderPreset> = {
     description:
       'Any OpenAI-compatible endpoint: vLLM, LiteLLM, text-generation-webui, etc.',
   },
+  anthropic: {
+    label: 'Anthropic (hosted)',
+    baseUrl: 'https://api.anthropic.com/v1',
+    defaultModel: 'claude-3-5-sonnet-latest',
+    description:
+      'Hosted Anthropic API via the Vercel AI SDK. Requires an API key. ' +
+      'Direct browser calls may be blocked by CORS depending on your network.',
+  },
+  google: {
+    label: 'Google Generative AI (hosted)',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    defaultModel: 'gemini-1.5-flash',
+    description:
+      'Hosted Google Generative AI via the Vercel AI SDK. Requires an API key. ' +
+      'Direct browser calls may be blocked by CORS depending on your network.',
+  },
 }
 
 interface ConnectionStatus {

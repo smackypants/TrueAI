@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-04-30 — PR #116: Add local-first AI project manifesto to README
+
+_Source: [https://github.com/smackypants/trueai-localai/pull/116](https://github.com/smackypants/trueai-localai/pull/116) · merged bc33a3a55b7f · author @Copilot_
+
+- (No explicit lessons recorded.) PR title: _Add local-first AI project manifesto to README_.
+
+---
+
 ## 2026-04-29 — PR #100: [WIP] Fix TypeScript compile errors on enhance-agent-bug-scanning
 
 _Source: [https://github.com/smackypants/trueai-localai/pull/100](https://github.com/smackypants/trueai-localai/pull/100) · merged c2455c46f794 · author @Codex_
@@ -442,8 +450,8 @@ callbacks/flags instead).
 
 ### Governance — paths a PR must not touch unless asked
 - `LICENSE`, `NOTICE`
-- in-source `Copyright (c) 2024-2026 smackypants / Advanced
-  Technology Research` headers
+- in-source `Copyright (c) 2024-2026 Skyler Jones ("smackypants") /
+  Advanced Technology Research` headers
 - anything under `.github/**` (unless the task explicitly asks)
 - `package.json` `overrides` block
 
