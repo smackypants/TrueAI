@@ -341,4 +341,148 @@ describe('local-wllama-provider', () => {
     const [messages] = createChatCompletion.mock.calls[0]
     expect(messages).toEqual([{ role: 'user', content: 'describe this' }])
   })
+
+  describe('PR 2 — context size + sampling defaults from LLMRuntimeConfig', () => {
+    it('forwards contextSize as n_ctx to loadModelFromUrl', async () => {
+      const model = createLocalWllamaModel({
+        modelSource: 'https://example.test/m.gguf',
+        modelId: 'm',
+        contextSize: 4096,
+      })
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      })
+      expect(loadModelFromUrl).toHaveBeenCalledWith(
+        'https://example.test/m.gguf',
+        { n_ctx: 4096 },
+      )
+    })
+
+    it('forwards contextSize as n_ctx to loadModelFromHF', async () => {
+      const model = createLocalWllamaModel({
+        modelSource: 'hf:owner/repo:file.gguf',
+        modelId: 'm',
+        contextSize: 8192,
+      })
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      })
+      expect(loadModelFromHF).toHaveBeenCalledWith(
+        'owner/repo',
+        'file.gguf',
+        { n_ctx: 8192 },
+      )
+    })
+
+    it('omits the load-config arg entirely when contextSize is unset (back-compat)', async () => {
+      const model = createLocalWllamaModel({
+        modelSource: 'https://example.test/m.gguf',
+        modelId: 'm',
+      })
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      })
+      expect(loadModelFromUrl).toHaveBeenCalledWith('https://example.test/m.gguf')
+    })
+
+    it('reloads when contextSize changes between calls', async () => {
+      const small = createLocalWllamaModel({
+        modelSource: 'https://example.test/m.gguf',
+        modelId: 'm',
+        contextSize: 2048,
+      })
+      await small.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      })
+      const big = createLocalWllamaModel({
+        modelSource: 'https://example.test/m.gguf',
+        modelId: 'm',
+        contextSize: 8192,
+      })
+      await big.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      })
+      expect(loadModelFromUrl).toHaveBeenCalledTimes(2)
+      expect(loadModelFromUrl).toHaveBeenNthCalledWith(
+        1,
+        'https://example.test/m.gguf',
+        { n_ctx: 2048 },
+      )
+      expect(loadModelFromUrl).toHaveBeenNthCalledWith(
+        2,
+        'https://example.test/m.gguf',
+        { n_ctx: 8192 },
+      )
+    })
+
+    it('falls back to defaultSampling.topK / minP / repeatPenalty when call options omit them', async () => {
+      const model = createLocalWllamaModel({
+        modelSource: 'https://example.test/m.gguf',
+        modelId: 'm',
+        defaultSampling: { topK: 40, minP: 0.05, repeatPenalty: 1.1 },
+      })
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      })
+      const [, opts] = createChatCompletion.mock.calls[0]
+      const sampling = (opts as { sampling: WllamaSampling }).sampling
+      expect(sampling.top_k).toBe(40)
+      expect(sampling.min_p).toBeCloseTo(0.05)
+      expect(sampling.penalty_repeat).toBeCloseTo(1.1)
+    })
+
+    it('per-call topK overrides defaultSampling.topK', async () => {
+      const model = createLocalWllamaModel({
+        modelSource: 'https://example.test/m.gguf',
+        modelId: 'm',
+        defaultSampling: { topK: 40, minP: 0.05, repeatPenalty: 1.1 },
+      })
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+        topK: 20,
+      })
+      const [, opts] = createChatCompletion.mock.calls[0]
+      const sampling = (opts as { sampling: WllamaSampling }).sampling
+      expect(sampling.top_k).toBe(20)
+    })
+
+    it('per-call frequencyPenalty overrides defaultSampling.repeatPenalty', async () => {
+      const model = createLocalWllamaModel({
+        modelSource: 'https://example.test/m.gguf',
+        modelId: 'm',
+        defaultSampling: { repeatPenalty: 1.1 },
+      })
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+        frequencyPenalty: 0.3,
+      })
+      const [, opts] = createChatCompletion.mock.calls[0]
+      const sampling = (opts as { sampling: WllamaSampling }).sampling
+      expect(sampling.penalty_repeat).toBeCloseTo(1.3)
+    })
+
+    it('omits neutral defaults (topK=0, minP=0, repeatPenalty=1) so wllama uses its own defaults', async () => {
+      const model = createLocalWllamaModel({
+        modelSource: 'https://example.test/m.gguf',
+        modelId: 'm',
+        defaultSampling: { topK: 0, minP: 0, repeatPenalty: 1 },
+      })
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      })
+      const [, opts] = createChatCompletion.mock.calls[0]
+      const sampling = (opts as { sampling: WllamaSampling }).sampling
+      expect(sampling.top_k).toBeUndefined()
+      expect(sampling.min_p).toBeUndefined()
+      expect(sampling.penalty_repeat).toBeUndefined()
+    })
+  })
 })
+
+interface WllamaSampling {
+  temp?: number
+  top_p?: number
+  top_k?: number
+  min_p?: number
+  penalty_repeat?: number
+}

@@ -112,6 +112,61 @@ describe('llm client', () => {
     expect(headers['Authorization']).toBeUndefined()
   })
 
+  describe('local-runtime sampling knobs (PR 2)', () => {
+    it('emits top_k / min_p / repeat_penalty when the configured values are non-neutral', async () => {
+      // Default config from beforeEach is missing the PR-2 fields, so
+      // they fall through to DEFAULT_LLM_RUNTIME_CONFIG (40 / 0.05 / 1.1).
+      // updateLLMRuntimeConfig leaves those defaults in place.
+      const fetchSpy = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: 'x' } }] }), { status: 200 }),
+      )
+      globalThis.fetch = fetchSpy as unknown as typeof fetch
+      await llm('hi')
+      const body = JSON.parse(
+        (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+      ) as Record<string, unknown>
+      expect(body.top_k).toBe(40)
+      expect(body.min_p).toBeCloseTo(0.05)
+      expect(body.repeat_penalty).toBeCloseTo(1.1)
+    })
+
+    it('omits the knobs when the user has set them to their neutral values', async () => {
+      await updateLLMRuntimeConfig({ topK: 0, minP: 0, repeatPenalty: 1 })
+      const fetchSpy = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: 'x' } }] }), { status: 200 }),
+      )
+      globalThis.fetch = fetchSpy as unknown as typeof fetch
+      await llm('hi')
+      const body = JSON.parse(
+        (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+      ) as Record<string, unknown>
+      // Neutral values must NOT appear in the wire payload — keeps
+      // hosted OpenAI / Anthropic / Google requests unchanged.
+      expect(body).not.toHaveProperty('top_k')
+      expect(body).not.toHaveProperty('min_p')
+      expect(body).not.toHaveProperty('repeat_penalty')
+    })
+
+    it('honours per-call overrides for the new knobs', async () => {
+      await updateLLMRuntimeConfig({ topK: 0, minP: 0, repeatPenalty: 1 })
+      const fetchSpy = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: 'x' } }] }), { status: 200 }),
+      )
+      globalThis.fetch = fetchSpy as unknown as typeof fetch
+      await llm('hi', undefined, false, {
+        topK: 50,
+        minP: 0.07,
+        repeatPenalty: 1.2,
+      })
+      const body = JSON.parse(
+        (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+      ) as Record<string, unknown>
+      expect(body.top_k).toBe(50)
+      expect(body.min_p).toBeCloseTo(0.07)
+      expect(body.repeat_penalty).toBeCloseTo(1.2)
+    })
+  })
+
   it('throws LLMRuntimeError on non-2xx responses', async () => {
     globalThis.fetch = vi
       .fn()

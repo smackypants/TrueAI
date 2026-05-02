@@ -74,6 +74,34 @@ export interface LLMRuntimeConfig {
   temperature: number
   /** Default top_p (0..1). */
   topP: number
+  /**
+   * Default top_k. `0` disables top-k filtering — treated as the
+   * "neutral" value, which is what hosted OpenAI-style endpoints
+   * expect (the `top_k` field is omitted entirely from the request
+   * when this is `<= 0`). Defaults to `40`, aligned with OfflineLLM
+   * and llama.cpp's own default.
+   */
+  topK: number
+  /**
+   * Default min_p. `0` disables min-p filtering — treated as the
+   * "neutral" value. Defaults to `0.05` (OfflineLLM-aligned). Hosted
+   * providers that don't support `min_p` (OpenAI, Anthropic, Google)
+   * see no change — the field is omitted unless `> 0`.
+   */
+  minP: number
+  /**
+   * Default repeat penalty. `1` disables the penalty — treated as the
+   * "neutral" value. Defaults to `1.1` (OfflineLLM-aligned). Emitted
+   * over the wire only when `> 1`.
+   */
+  repeatPenalty: number
+  /**
+   * Default context window size, in tokens. Used by on-device runtimes
+   * (wllama / native llama.cpp) at model-load time as `n_ctx`. Hosted
+   * HTTP providers ignore this. Defaults to `2048` (OfflineLLM-aligned
+   * and a reasonable floor for small instruct models).
+   */
+  contextSize: number
   /** Default response token cap. */
   maxTokens: number
 }
@@ -86,6 +114,10 @@ export const DEFAULT_LLM_RUNTIME_CONFIG: LLMRuntimeConfig = {
   requestTimeoutMs: 120_000,
   temperature: 0.7,
   topP: 1,
+  topK: 40,
+  minP: 0.05,
+  repeatPenalty: 1.1,
+  contextSize: 2048,
   maxTokens: 2000,
 }
 
@@ -125,6 +157,24 @@ function mergeConfig(
         ? patch.temperature
         : base.temperature,
     topP: typeof patch.topP === 'number' && patch.topP >= 0 ? patch.topP : base.topP,
+    topK:
+      typeof patch.topK === 'number' && patch.topK >= 0 && Number.isFinite(patch.topK)
+        ? patch.topK
+        : base.topK,
+    minP:
+      typeof patch.minP === 'number' && patch.minP >= 0 && patch.minP <= 1
+        ? patch.minP
+        : base.minP,
+    repeatPenalty:
+      typeof patch.repeatPenalty === 'number' &&
+      patch.repeatPenalty >= 0 &&
+      Number.isFinite(patch.repeatPenalty)
+        ? patch.repeatPenalty
+        : base.repeatPenalty,
+    contextSize:
+      typeof patch.contextSize === 'number' && patch.contextSize > 0
+        ? patch.contextSize
+        : base.contextSize,
     maxTokens:
       typeof patch.maxTokens === 'number' && patch.maxTokens > 0 ? patch.maxTokens : base.maxTokens,
   }

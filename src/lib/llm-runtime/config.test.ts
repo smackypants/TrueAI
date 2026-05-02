@@ -88,6 +88,10 @@ describe('llm-runtime/config', () => {
           defaultModel: 'gpt-test',
           temperature: 0.2,
           maxTokens: 512,
+          topK: 64,
+          minP: 0.1,
+          repeatPenalty: 1.2,
+          contextSize: 4096,
         },
       })
       const cfg = await ensureLLMRuntimeConfigLoaded()
@@ -96,6 +100,10 @@ describe('llm-runtime/config', () => {
       expect(cfg.defaultModel).toBe('gpt-test')
       expect(cfg.temperature).toBe(0.2)
       expect(cfg.maxTokens).toBe(512)
+      expect(cfg.topK).toBe(64)
+      expect(cfg.minP).toBe(0.1)
+      expect(cfg.repeatPenalty).toBe(1.2)
+      expect(cfg.contextSize).toBe(4096)
       // unchanged fields keep defaults
       expect(cfg.topP).toBe(DEFAULT_LLM_RUNTIME_CONFIG.topP)
       expect(cfg.requestTimeoutMs).toBe(DEFAULT_LLM_RUNTIME_CONFIG.requestTimeoutMs)
@@ -154,6 +162,12 @@ describe('llm-runtime/config', () => {
         maxTokens: 0,
         temperature: -5,
         defaultModel: '',
+        // Sampling knobs (PR 2): negative / out-of-range values must be
+        // rejected so a malformed stored blob can't poison the runtime.
+        topK: -1,
+        minP: 1.5,
+        repeatPenalty: -0.1,
+        contextSize: 0,
       })
       const cfg = await ensureLLMRuntimeConfigLoaded()
       expect(cfg.baseUrl).toBe(DEFAULT_LLM_RUNTIME_CONFIG.baseUrl)
@@ -162,6 +176,45 @@ describe('llm-runtime/config', () => {
       expect(cfg.maxTokens).toBe(DEFAULT_LLM_RUNTIME_CONFIG.maxTokens)
       expect(cfg.temperature).toBe(DEFAULT_LLM_RUNTIME_CONFIG.temperature)
       expect(cfg.defaultModel).toBe(DEFAULT_LLM_RUNTIME_CONFIG.defaultModel)
+      expect(cfg.topK).toBe(DEFAULT_LLM_RUNTIME_CONFIG.topK)
+      expect(cfg.minP).toBe(DEFAULT_LLM_RUNTIME_CONFIG.minP)
+      expect(cfg.repeatPenalty).toBe(DEFAULT_LLM_RUNTIME_CONFIG.repeatPenalty)
+      expect(cfg.contextSize).toBe(DEFAULT_LLM_RUNTIME_CONFIG.contextSize)
+    })
+
+    it('accepts the neutral sampling values (topK=0, minP=0, repeatPenalty=1)', async () => {
+      mockFetch(null)
+      await kvStore.set(LLM_RUNTIME_CONFIG_KEY, {
+        topK: 0,
+        minP: 0,
+        repeatPenalty: 1,
+      })
+      const cfg = await ensureLLMRuntimeConfigLoaded()
+      expect(cfg.topK).toBe(0)
+      expect(cfg.minP).toBe(0)
+      expect(cfg.repeatPenalty).toBe(1)
+    })
+
+    it('migrates a legacy stored config (missing new sampling fields) to defaults', async () => {
+      // Pre-PR-2 stored configs have only the original 7 fields. Loading
+      // them must not crash and must populate the new fields with
+      // DEFAULT_LLM_RUNTIME_CONFIG values.
+      mockFetch(null)
+      await kvStore.set(LLM_RUNTIME_CONFIG_KEY, {
+        provider: 'ollama',
+        baseUrl: 'http://localhost:11434/v1',
+        defaultModel: 'llama3.2',
+        requestTimeoutMs: 60000,
+        temperature: 0.5,
+        topP: 0.9,
+        maxTokens: 1024,
+      })
+      const cfg = await ensureLLMRuntimeConfigLoaded()
+      expect(cfg.temperature).toBe(0.5) // preserved
+      expect(cfg.topK).toBe(DEFAULT_LLM_RUNTIME_CONFIG.topK)
+      expect(cfg.minP).toBe(DEFAULT_LLM_RUNTIME_CONFIG.minP)
+      expect(cfg.repeatPenalty).toBe(DEFAULT_LLM_RUNTIME_CONFIG.repeatPenalty)
+      expect(cfg.contextSize).toBe(DEFAULT_LLM_RUNTIME_CONFIG.contextSize)
     })
 
     it('accepts topP: 0 (fully deterministic sampling) as a valid value', async () => {

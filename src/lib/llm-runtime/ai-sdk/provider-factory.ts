@@ -94,6 +94,12 @@ async function buildHandle(cfg: LLMRuntimeConfig): Promise<ProviderHandle> {
             modelSource: cfg.baseUrl,
             modelId: id,
             maxOutputTokens: cfg.maxTokens,
+            contextSize: cfg.contextSize,
+            defaultSampling: {
+              topK: cfg.topK,
+              minP: cfg.minP,
+              repeatPenalty: cfg.repeatPenalty,
+            },
           }),
       }
     }

@@ -107,6 +107,23 @@ export interface LocalWllamaOptions {
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assetsPath?: any
+  /**
+   * Default context window in tokens, forwarded to wllama as `n_ctx`
+   * at model-load time. Sourced from `LLMRuntimeConfig.contextSize`.
+   * `undefined` lets wllama pick its own default.
+   */
+  contextSize?: number
+  /**
+   * Default sampling knobs sourced from `LLMRuntimeConfig`. Per-call
+   * `LanguageModelV3CallOptions` (passed by the AI SDK / chat hook)
+   * win over these — these are only the fallback when the caller
+   * doesn't specify a value.
+   */
+  defaultSampling?: {
+    topK?: number
+    minP?: number
+    repeatPenalty?: number
+  }
 }
 
 /**
@@ -134,11 +151,18 @@ const DEFAULT_WLLAMA_ASSETS = {
 let cachedInstance: WllamaInstance | null = null
 let cachedModelSource: string | null = null
 /**
+ * The `n_ctx` value the cached model was loaded with. wllama bakes the
+ * context size into the loaded model, so a config change must
+ * invalidate the cache and reload.
+ */
+let cachedContextSize: number | undefined = undefined
+/**
  * In-flight load for a *specific* normalized model source. Keyed so that
  * a concurrent call for a different source cannot piggy-back on the
  * wrong promise (which would resolve to the wrong loaded model).
  */
 let loadInFlightSource: string | null = null
+let loadInFlightContextSize: number | undefined = undefined
 let loadInFlight: Promise<WllamaInstance> | null = null
 
 /**
@@ -148,7 +172,9 @@ let loadInFlight: Promise<WllamaInstance> | null = null
 export function __resetLocalWllamaForTests(): void {
   cachedInstance = null
   cachedModelSource = null
+  cachedContextSize = undefined
   loadInFlightSource = null
+  loadInFlightContextSize = undefined
   loadInFlight = null
 }
 
@@ -170,15 +196,21 @@ async function getOrCreateInstance(opts: LocalWllamaOptions): Promise<WllamaInst
         "(or a 'hf:owner/repo:path/to/file.gguf' shortcut).",
     )
   }
-  if (cachedInstance && cachedModelSource === src) {
+  const ctx = typeof opts.contextSize === 'number' && opts.contextSize > 0
+    ? opts.contextSize
+    : undefined
+  if (cachedInstance && cachedModelSource === src && cachedContextSize === ctx) {
     return cachedInstance
   }
   // Only piggy-back on an in-flight load when it is for the *same*
-  // normalized source. Otherwise we'd hand callers an instance loaded
-  // with the wrong model.
-  if (loadInFlight && loadInFlightSource === src) {
+  // normalized source AND the same n_ctx. Otherwise we'd hand callers
+  // an instance loaded with the wrong model or wrong context window.
+  if (loadInFlight && loadInFlightSource === src && loadInFlightContextSize === ctx) {
     return loadInFlight
   }
+
+  const loadCfg: Record<string, unknown> | undefined =
+    ctx !== undefined ? { n_ctx: ctx } : undefined
 
   const inFlight = (async (): Promise<WllamaInstance> => {
     const mod = await importWllama()
@@ -199,21 +231,30 @@ async function getOrCreateInstance(opts: LocalWllamaOptions): Promise<WllamaInst
       }
       const repo = rest.slice(0, colon)
       const file = rest.slice(colon + 1)
-      await instance.loadModelFromHF(repo, file)
+      if (loadCfg) {
+        await instance.loadModelFromHF(repo, file, loadCfg)
+      } else {
+        await instance.loadModelFromHF(repo, file)
+      }
+    } else if (loadCfg) {
+      await instance.loadModelFromUrl(src, loadCfg)
     } else {
       await instance.loadModelFromUrl(src)
     }
     cachedInstance = instance
     cachedModelSource = src
+    cachedContextSize = ctx
     return instance
   })()
 
   loadInFlightSource = src
+  loadInFlightContextSize = ctx
   loadInFlight = inFlight.finally(() => {
     // Clear only if no newer load has replaced us in the meantime.
     if (loadInFlight === inFlight) {
       loadInFlight = null
       loadInFlightSource = null
+      loadInFlightContextSize = undefined
     }
   })
   return loadInFlight
@@ -268,17 +309,33 @@ function toWllamaMessages(
   return { messages, warnings }
 }
 
-function toWllamaSampling(opts: LanguageModelV3CallOptions): WllamaSamplingConfig {
+function toWllamaSampling(
+  callOpts: LanguageModelV3CallOptions,
+  defaults?: LocalWllamaOptions['defaultSampling'],
+): WllamaSamplingConfig {
   const out: WllamaSamplingConfig = {}
-  if (typeof opts.temperature === 'number') out.temp = opts.temperature
-  if (typeof opts.topP === 'number') out.top_p = opts.topP
-  if (typeof opts.topK === 'number') out.top_k = opts.topK
+  if (typeof callOpts.temperature === 'number') out.temp = callOpts.temperature
+  if (typeof callOpts.topP === 'number') out.top_p = callOpts.topP
+  // Per-call top_k wins; otherwise fall back to the runtime-config
+  // default (`LLMRuntimeConfig.topK`). `0` is treated as "neutral"
+  // (top-k disabled) and the field is left unset.
+  const topK = typeof callOpts.topK === 'number' ? callOpts.topK : defaults?.topK
+  if (typeof topK === 'number' && topK > 0) {
+    out.top_k = topK
+  }
+  // min_p has no AI-SDK call-option, so it always comes from the
+  // runtime-config default. `0` = disabled.
+  if (typeof defaults?.minP === 'number' && defaults.minP > 0) {
+    out.min_p = defaults.minP
+  }
   // OpenAI-style frequency/presence penalty don't map cleanly to
   // llama.cpp's `penalty_repeat`. Surface frequencyPenalty as
-  // penalty_repeat when it's strictly > 0; otherwise leave undefined
-  // and wllama uses its own defaults.
-  if (typeof opts.frequencyPenalty === 'number' && opts.frequencyPenalty > 0) {
-    out.penalty_repeat = 1 + opts.frequencyPenalty
+  // penalty_repeat when it's strictly > 0; otherwise fall back to
+  // the runtime-config `repeatPenalty` (treating `<= 1` as neutral).
+  if (typeof callOpts.frequencyPenalty === 'number' && callOpts.frequencyPenalty > 0) {
+    out.penalty_repeat = 1 + callOpts.frequencyPenalty
+  } else if (typeof defaults?.repeatPenalty === 'number' && defaults.repeatPenalty > 1) {
+    out.penalty_repeat = defaults.repeatPenalty
   }
   return out
 }
@@ -319,7 +376,7 @@ export function createLocalWllamaModel(opts: LocalWllamaOptions): LanguageModelV
       const { messages, warnings } = toWllamaMessages(callOpts.prompt)
       const text = await instance.createChatCompletion(messages, {
         nPredict: callOpts.maxOutputTokens ?? opts.maxOutputTokens,
-        sampling: toWllamaSampling(callOpts),
+        sampling: toWllamaSampling(callOpts, opts.defaultSampling),
         abortSignal: callOpts.abortSignal,
         stream: false,
       })
@@ -337,7 +394,7 @@ export function createLocalWllamaModel(opts: LocalWllamaOptions): LanguageModelV
       const { messages, warnings } = toWllamaMessages(callOpts.prompt)
       const iterable = await instance.createChatCompletion(messages, {
         nPredict: callOpts.maxOutputTokens ?? opts.maxOutputTokens,
-        sampling: toWllamaSampling(callOpts),
+        sampling: toWllamaSampling(callOpts, opts.defaultSampling),
         abortSignal: callOpts.abortSignal,
         stream: true,
       })
