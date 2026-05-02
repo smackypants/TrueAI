@@ -233,6 +233,139 @@ describe('offlineQueue', () => {
     })
   })
 
+  describe('processAction failure → retry/fail bookkeeping', () => {
+    it('increments retryCount and keeps status=pending while below MAX_RETRIES', async () => {
+      vi.mocked(network.isOffline).mockReturnValue(true)
+      await offlineQueue.enqueue({ type: 'agent', action: 'create', data: {} })
+
+      // Patch the private processAction so the first attempt throws.
+      const proc = vi
+        .spyOn(
+          offlineQueue as unknown as { processAction: (a: OfflineAction) => Promise<void> },
+          'processAction',
+        )
+        .mockRejectedValueOnce(new Error('network blip'))
+
+      vi.mocked(network.isOffline).mockReturnValue(false)
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const result = await offlineQueue.sync()
+      errSpy.mockRestore()
+      proc.mockRestore()
+
+      // Item below MAX_RETRIES → still in queue, status=pending, retryCount=1
+      const after = offlineQueue.getQueue()
+      expect(after).toHaveLength(1)
+      expect(after[0].retryCount).toBe(1)
+      expect(after[0].status).toBe('pending')
+      expect(result.failedCount).toBe(0)
+      expect(result.syncedCount).toBe(0)
+    })
+
+    it('marks the action failed once retryCount reaches MAX_RETRIES (3)', async () => {
+      vi.mocked(network.isOffline).mockReturnValue(true)
+      await offlineQueue.enqueue({ type: 'agent', action: 'create', data: {} })
+      // Pre-set retryCount so the next failure trips the MAX_RETRIES branch.
+      const items = offlineQueue.getQueue()
+      items[0].retryCount = 2
+
+      const proc = vi
+        .spyOn(
+          offlineQueue as unknown as { processAction: (a: OfflineAction) => Promise<void> },
+          'processAction',
+        )
+        .mockRejectedValueOnce(new Error('still broken'))
+
+      vi.mocked(network.isOffline).mockReturnValue(false)
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const result = await offlineQueue.sync()
+      errSpy.mockRestore()
+      proc.mockRestore()
+
+      expect(result.success).toBe(false)
+      expect(result.failedCount).toBe(1)
+      expect(result.errors).toEqual([
+        { actionId: items[0].id, error: 'Error: still broken' },
+      ])
+      const after = offlineQueue.getQueue()
+      expect(after).toHaveLength(1)
+      expect(after[0].status).toBe('failed')
+      expect(after[0].error).toBe('Error: still broken')
+    })
+  })
+
+  describe('saveQueue error path', () => {
+    it('logs and continues when spark.kv.set rejects (queue still mutated in memory)', async () => {
+      vi.mocked(network.isOffline).mockReturnValue(true)
+      sparkGlobal.spark.kv.set.mockRejectedValueOnce(new Error('disk full'))
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      const id = await offlineQueue.enqueue({ type: 'agent', action: 'create', data: {} })
+
+      expect(errSpy).toHaveBeenCalledWith(
+        '[OfflineQueue] Failed to save queue:',
+        expect.any(Error),
+      )
+      // Despite the persistence failure, the in-memory queue still holds it.
+      const queue = offlineQueue.getQueue()
+      expect(queue).toHaveLength(1)
+      expect(queue[0].id).toBe(id)
+      errSpy.mockRestore()
+    })
+  })
+
+  describe('online event listener', () => {
+    it('fires a sync when the window emits "online" after initialize()', async () => {
+      // Seed a pending item while offline so there's something to sync.
+      vi.mocked(network.isOffline).mockReturnValue(true)
+      await offlineQueue.enqueue({ type: 'agent', action: 'create', data: {} })
+      expect(offlineQueue.getQueue()).toHaveLength(1)
+
+      // Re-initialize so the online listener is bound against the current
+      // (mocked) network module reference.
+      await offlineQueue.initialize()
+
+      // Spy on sync to confirm the event listener calls it.
+      const syncSpy = vi.spyOn(offlineQueue, 'sync')
+      // Go online and dispatch the event the listener is bound to.
+      vi.mocked(network.isOffline).mockReturnValue(false)
+      window.dispatchEvent(new Event('online'))
+      // Allow the microtask queued by `void this.sync()` to run.
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(syncSpy).toHaveBeenCalled()
+      syncSpy.mockRestore()
+    })
+  })
+
+  describe('setupSyncRegistration', () => {
+    it('logs availability when navigator.serviceWorker.ready resolves and ServiceWorkerRegistration.prototype has "sync"', async () => {
+      vi.stubGlobal('ServiceWorkerRegistration', { prototype: { sync: {} } })
+      const origSW = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker')
+      Object.defineProperty(navigator, 'serviceWorker', {
+        configurable: true,
+        value: { ready: Promise.resolve({ sync: { register: vi.fn() } }) },
+      })
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      try {
+        await offlineQueue.initialize()
+        // Allow the .then callback on ready to fire.
+        await new Promise((r) => setTimeout(r, 0))
+        expect(logSpy).toHaveBeenCalledWith('[OfflineQueue] Background Sync API available')
+      } finally {
+        logSpy.mockRestore()
+        vi.unstubAllGlobals()
+        if (origSW) {
+          Object.defineProperty(navigator, 'serviceWorker', origSW)
+        } else {
+          // Restore to a plain default (jsdom usually has one)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          delete (navigator as any).serviceWorker
+        }
+      }
+    })
+  })
+
   describe('registerBackgroundSync', () => {
     it('does not throw when serviceWorker.ready resolves (with stubbed SW globals)', async () => {
       vi.mocked(network.isOffline).mockReturnValue(true)
@@ -259,6 +392,39 @@ describe('offlineQueue', () => {
         // The main assertion is that no error was thrown; sync.register is
         // called asynchronously and may or may not complete in one tick.
       } finally {
+        vi.unstubAllGlobals()
+        if (origSW) {
+          Object.defineProperty(navigator, 'serviceWorker', origSW)
+        }
+      }
+    })
+
+    it('logs (but does not throw) when sync.register rejects', async () => {
+      vi.mocked(network.isOffline).mockReturnValue(true)
+
+      const syncRegisterMock = vi.fn().mockRejectedValue(new Error('register failed'))
+      const mockRegistration = { sync: { register: syncRegisterMock } }
+      vi.stubGlobal('ServiceWorkerRegistration', { prototype: { sync: {} } })
+      const origSW = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker')
+      Object.defineProperty(navigator, 'serviceWorker', {
+        configurable: true,
+        value: { ready: Promise.resolve(mockRegistration) },
+      })
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      try {
+        await offlineQueue.enqueue({ type: 'agent', action: 'create', data: {} })
+        // The register() call is awaited inside an async helper that is fire-
+        // and-forget from enqueue; flush microtasks so its catch runs.
+        await new Promise((r) => setTimeout(r, 0))
+        await new Promise((r) => setTimeout(r, 0))
+        expect(syncRegisterMock).toHaveBeenCalledWith('background-sync')
+        expect(errSpy).toHaveBeenCalledWith(
+          '[OfflineQueue] Failed to register background sync:',
+          expect.any(Error),
+        )
+      } finally {
+        errSpy.mockRestore()
         vi.unstubAllGlobals()
         if (origSW) {
           Object.defineProperty(navigator, 'serviceWorker', origSW)

@@ -348,3 +348,181 @@ describe('LearningRateTuner.getOptimalRateForTask + persistence', () => {
     expect(learningRateTuner).toBeInstanceOf(LearningRateTuner)
   })
 })
+
+describe('LearningRateTuner extra branch coverage', () => {
+  let t: LearningRateTuner
+  beforeEach(() => {
+    t = new LearningRateTuner()
+  })
+
+  describe('recommendLearningRate branches', () => {
+    it('reduces when loss is oscillating', () => {
+      // Variance > 0.01 → analyzeLoss returns 'oscillating'.
+      const losses = [1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
+      const rec = t.recommendLearningRate(0.05, losses, [], 10, 200)
+      expect(rec).not.toBeNull()
+      expect(rec!.strategy).toBe('reduce')
+      expect(rec!.reason).toMatch(/oscillating/i)
+      expect(rec!.confidence).toBeCloseTo(0.8, 5)
+    })
+
+    it('plateauing + high stability + low rate → increase to escape local min', () => {
+      // |avgDiff| < 0.001 → plateauing. Constant losses → high stabilityScore.
+      // currentRate (0.01) < maxLearningRate*0.5 (=0.05) → increase branch.
+      const losses = Array(20).fill(1)
+      const rec = t.recommendLearningRate(0.01, losses, [], 10, 200)
+      expect(rec).not.toBeNull()
+      expect(rec!.strategy).toBe('increase')
+      expect(rec!.newRate).toBeGreaterThan(rec!.oldRate)
+      expect(rec!.reason).toMatch(/plateau/i)
+    })
+
+    it('plateauing at high learning rate → reduce for fine-tuning', () => {
+      // Same plateauing setup, but currentRate (0.08) ≥ maxLearningRate*0.5.
+      const losses = Array(20).fill(1)
+      const rec = t.recommendLearningRate(0.08, losses, [], 10, 200)
+      expect(rec).not.toBeNull()
+      expect(rec!.strategy).toBe('reduce')
+      expect(rec!.reason).toMatch(/fine-tuning/i)
+    })
+
+    it('decreasing + good convergence + stability + low gradient → slight increase', () => {
+      // Steady, very small per-step decrease over a long window:
+      // - all diffs equal → variance ≈ 0 → not oscillating
+      // - |avgDiff|=0.005 > 0.001 → decreasing
+      // - convergenceRate = (0.5 - 0.405)/5 = 0.019 > 0.01
+      // - gradientNorm (last 5 diffs of −0.005) = 0.005 < 0.1
+      // - high stability (CoV near 0)
+      // - currentRate (0.01) < maxLearningRate * 0.8 (=0.08)
+      const losses = Array.from({ length: 20 }, (_, i) => 0.5 - i * 0.005)
+      const rec = t.recommendLearningRate(0.01, losses, [], 5, 200)
+      expect(rec).not.toBeNull()
+      expect(rec!.strategy).toBe('increase')
+      expect(rec!.reason).toMatch(/Good convergence/i)
+    })
+
+    it('decreasing trend with large gradients → reduce', () => {
+      // Monotonic, uniform −5/step → decreasing (variance=0), but the last-5
+      // gradient norm is 5 > 1.0 → "Large gradients detected" arm.
+      const losses = Array.from({ length: 20 }, (_, i) => 100 - i * 5)
+      const rec = t.recommendLearningRate(0.05, losses, [], 5, 200)
+      expect(rec).not.toBeNull()
+      expect(rec!.strategy).toBe('reduce')
+      expect(rec!.reason).toMatch(/Large gradients/i)
+    })
+
+    it('returns null in the decreasing branch when neither sub-condition fires', () => {
+      // Decreasing, convergenceRate>0.01 (epochs=5 keeps it above the cutoff),
+      // gradient small (<1.0) → reduce arm skipped, currentRate (0.09) ≥
+      // maxLearningRate*0.8 (=0.08) → increase arm skipped → null at line 228.
+      const losses = Array.from({ length: 20 }, (_, i) => 0.5 - i * 0.005)
+      const rec = t.recommendLearningRate(0.09, losses, [], 5, 200)
+      expect(rec).toBeNull()
+    })
+
+    it('low stability (no other trend match) → reduce', () => {
+      // Construct a series that:
+      //   - is NOT oscillating (variance ≤ 0.01),
+      //   - is decreasing with convergenceRate ≤ 0.01 (skips that arm),
+      //   - has a low stabilityScore (high coefficient of variation).
+      // Tiny monotonic decrease around a small mean → low CoV is hard;
+      // instead use a series whose variance is just under the oscillation
+      // cutoff but whose mean-relative stdev is high.
+      // Mean ≈ 0.055, decreasing by tiny amounts → trend=decreasing,
+      // convergenceRate=(0.1-0.01)/200 ≈ 0.00045 < 0.01 → falls through.
+      // stabilityScore is computed from CoV; with mean 0.055 and stdev ~0.03
+      // CoV is large → stability < 0.5.
+      const losses = [0.1, 0.09, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.02, 0.01]
+      const rec = t.recommendLearningRate(0.05, losses, [], 200, 200)
+      expect(rec).not.toBeNull()
+      expect(rec!.strategy).toBe('reduce')
+      expect(rec!.reason).toMatch(/Low stability/i)
+    })
+
+    it('caps adjustmentHistory at 100 entries', () => {
+      // Use the increasing-loss recipe so each call records an adjustment.
+      const losses = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      for (let i = 0; i < 110; i++) {
+        t.recommendLearningRate(0.05, losses, [], 10, 200)
+      }
+      const json = JSON.parse(t.exportData())
+      expect(json.adjustments.length).toBeLessThanOrEqual(100)
+    })
+  })
+
+  describe('applySchedule (adaptive)', () => {
+    it('returns initialRate for type=adaptive', () => {
+      const sched = {
+        type: 'adaptive' as const,
+        initialRate: 0.02,
+        minRate: 0.001,
+        maxRate: 0.05,
+        warmupSteps: 0,
+      }
+      expect(t.applySchedule(sched, 10, 100)).toBeCloseTo(0.02, 5)
+    })
+  })
+
+  describe('recordPerformanceMetrics history cap', () => {
+    it('caps performanceHistory at 500 entries', () => {
+      for (let i = 0; i < 510; i++) {
+        t.recordPerformanceMetrics({
+          modelId: 'm', taskType: 'chat', avgLoss: 1, lossVariance: 0,
+          avgResponseTime: 10, successRate: 90, userSatisfaction: 0.5,
+          convergenceSpeed: 0.5, stabilityIndex: 0.5, overfittingRisk: 0,
+          timestamp: i,
+        })
+      }
+      const json = JSON.parse(t.exportData())
+      expect(json.performance.length).toBeLessThanOrEqual(500)
+    })
+  })
+
+  describe('analyzePerformanceTrends stable arm', () => {
+    it('returns "stable" when neither improvement threshold is met', () => {
+      // Loss ~unchanged, success ~unchanged → neither improving nor degrading.
+      const m = (loss: number, success: number) => ({
+        modelId: 'mStable', taskType: 'chat', avgLoss: loss, lossVariance: 0,
+        avgResponseTime: 10, successRate: success, userSatisfaction: 0.5,
+        convergenceSpeed: 0.5, stabilityIndex: 0.5, overfittingRisk: 0,
+        timestamp: Date.now(),
+      })
+      for (let i = 0; i < 5; i++) t.recordPerformanceMetrics(m(1, 80))
+      for (let i = 0; i < 5; i++) t.recordPerformanceMetrics(m(0.99, 81))
+      const out = t.analyzePerformanceTrends('mStable')
+      expect(out.trend).toBe('stable')
+      expect(out.recommendation).toMatch(/Fine-tune/i)
+    })
+  })
+
+  describe('getLearningRateMetrics', () => {
+    it('returns metrics with recommendedRate falling back when no adjustment', () => {
+      // Steady decreasing series → returns null in `decreasing+convergence`
+      // branch → recommendedRate = currentRate, confidence = 0.5.
+      const losses = Array.from({ length: 30 }, (_, i) => 1 / (i + 1))
+      const out = t.getLearningRateMetrics(0.001, losses, [], 30, 1000, 0.9)
+      expect(out.currentRate).toBe(0.001)
+      expect(out.recommendedRate).toBeGreaterThan(0)
+      expect(out.confidence).toBeGreaterThan(0)
+      expect(out.gradientNorm.length).toBe(losses.length)
+      expect(out.trainingLoss).toBe(losses)
+      expect(out.epochsCompleted).toBe(30)
+      expect(out.timeElapsed).toBe(1000)
+      expect(out.successRate).toBe(0.9)
+    })
+
+    it('returns the recommended adjustment when one is produced', () => {
+      // Increasing loss → recommendation non-null. Note: `getLearningRateMetrics`
+      // calls `recommendLearningRate` without a `step` arg, so step defaults to
+      // 0 < warmupSteps=100 → warmup branch fires first. warmupRate = currentRate*0
+      // = 0, but the source uses `recommendation?.newRate || currentRate` which
+      // treats 0 as falsy and falls back to currentRate. Confidence (0.95) does
+      // pass through, so we assert via that — proving a non-null recommendation
+      // was used to populate metrics.
+      const losses = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      const out = t.getLearningRateMetrics(0.05, losses, [], 10, 500, 0.5)
+      expect(out.confidence).toBeCloseTo(0.95, 5)
+      expect(out.gradientNorm.length).toBe(losses.length)
+    })
+  })
+})

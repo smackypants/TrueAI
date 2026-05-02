@@ -10,7 +10,12 @@ import {
   shouldReduceMotion,
   useThrottle,
   useDebounce,
+  usePerformanceMonitor,
+  useDeviceCapabilities,
+  useOptimizedAnimation,
+  useIntersectionObserver,
 } from './mobile-performance'
+import { useRef } from 'react'
 
 /**
  * Round-1 lesson: jsdom returns 0 for `screen.width/height`,
@@ -405,6 +410,249 @@ describe('useDebounce', () => {
       expect(cb).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
+    }
+  })
+})
+
+describe('FPS monitoring', () => {
+  it('startFPSMonitoring is idempotent and stopFPSMonitoring is a no-op when not running', () => {
+    const o = MobilePerformanceOptimizer.getInstance()
+    o.stopFPSMonitoring()
+    const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame')
+      .mockImplementation((_cb) => 42 as unknown as number)
+    const cancelSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
+
+    try {
+      o.startFPSMonitoring()
+      expect(rafSpy).toHaveBeenCalledTimes(1)
+      // Second call short-circuits because rafHandle is set.
+      o.startFPSMonitoring()
+      expect(rafSpy).toHaveBeenCalledTimes(1)
+
+      o.stopFPSMonitoring()
+      expect(cancelSpy).toHaveBeenCalledWith(42)
+
+      // Now the no-op branch.
+      cancelSpy.mockClear()
+      o.stopFPSMonitoring()
+      expect(cancelSpy).not.toHaveBeenCalled()
+    } finally {
+      rafSpy.mockRestore()
+      cancelSpy.mockRestore()
+      o.stopFPSMonitoring()
+    }
+  })
+
+  it('measureFPS callback updates fps and notifies listeners after >= 1000 ms elapsed', () => {
+    const o = MobilePerformanceOptimizer.getInstance()
+    o.stopFPSMonitoring()
+
+    let captured: FrameRequestCallback | null = null
+    const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame')
+      .mockImplementation((cb) => {
+        captured = cb
+        return 7 as unknown as number
+      })
+    const cancelSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
+    const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(10_000)
+
+    const listener = vi.fn()
+    const unsub = o.subscribe(listener)
+    try {
+      ;(o as unknown as { lastFrameTime: number }).lastFrameTime = 9000
+      ;(o as unknown as { frameCount: number }).frameCount = 60
+      o.startFPSMonitoring()
+      expect(captured).toBeTruthy()
+      ;(captured as unknown as FrameRequestCallback)(10_000)
+      expect(o.getFPS()).toBeGreaterThan(0)
+      expect(listener).toHaveBeenCalled()
+    } finally {
+      unsub()
+      nowSpy.mockRestore()
+      rafSpy.mockRestore()
+      cancelSpy.mockRestore()
+      o.stopFPSMonitoring()
+    }
+  })
+})
+
+describe('getMemoryUsage with performance.memory present', () => {
+  it('returns a percentage when performance.memory is exposed', () => {
+    const orig = Object.getOwnPropertyDescriptor(performance, 'memory')
+    Object.defineProperty(performance, 'memory', {
+      configurable: true,
+      writable: true,
+      value: { usedJSHeapSize: 50, jsHeapSizeLimit: 200 },
+    })
+    try {
+      const o = MobilePerformanceOptimizer.getInstance()
+      expect(o.getMemoryUsage()).toBe(25)
+    } finally {
+      if (orig) {
+        Object.defineProperty(performance, 'memory', orig)
+      } else {
+        // @ts-expect-error - dynamic delete
+        delete (performance as Record<string, unknown>).memory
+      }
+    }
+  })
+})
+
+describe('usePerformanceMonitor', () => {
+  it('subscribes to the optimizer and updates on notifyListeners', () => {
+    const { result, unmount } = renderHook(() => usePerformanceMonitor())
+    expect(result.current).toMatchObject({
+      fps: expect.any(Number),
+      memory: expect.any(Number),
+    })
+    const o = MobilePerformanceOptimizer.getInstance()
+    act(() => {
+      ;(o as unknown as { notifyListeners(): void }).notifyListeners()
+    })
+    unmount()
+  })
+})
+
+describe('useDeviceCapabilities', () => {
+  it('resolves capabilities on mount', async () => {
+    const restore = stubNavigator({
+      hardwareConcurrency: 4,
+      deviceMemory: 4,
+      connection: { effectiveType: '4g' },
+    })
+    try {
+      const { result } = renderHook(() => useDeviceCapabilities())
+      expect(result.current).toBeNull()
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(result.current).toMatchObject({ tier: expect.any(String) })
+    } finally {
+      restore()
+    }
+  })
+})
+
+describe('useOptimizedAnimation', () => {
+  it('disables animation when device tier is "low"', async () => {
+    const restore = stubNavigator({
+      hardwareConcurrency: 2,
+      deviceMemory: 1,
+      connection: { effectiveType: '4g' },
+    })
+    await MobilePerformanceOptimizer.getInstance().detectDeviceCapabilities()
+    restore()
+    const { result } = renderHook(() => useOptimizedAnimation(true))
+    expect(result.current).toBe(false)
+  })
+
+  it('respects the enabled=false caller flag', async () => {
+    const restore = stubNavigator({
+      hardwareConcurrency: 8,
+      deviceMemory: 8,
+      connection: { effectiveType: '4g' },
+    })
+    await MobilePerformanceOptimizer.getInstance().detectDeviceCapabilities()
+    restore()
+    const { result } = renderHook(() => useOptimizedAnimation(false))
+    expect(result.current).toBe(false)
+  })
+
+  it('enables animation on a high-tier device when enabled=true', async () => {
+    const restore = stubNavigator({
+      hardwareConcurrency: 8,
+      deviceMemory: 8,
+      connection: { effectiveType: '4g' },
+    })
+    await MobilePerformanceOptimizer.getInstance().detectDeviceCapabilities()
+    restore()
+    const { result } = renderHook(() => useOptimizedAnimation(true))
+    expect(result.current).toBe(true)
+  })
+})
+
+describe('useIntersectionObserver', () => {
+  it('observes the element on mount and reports visibility transitions', () => {
+    let captured: IntersectionObserverCallback | null = null
+    const observe = vi.fn()
+    const disconnect = vi.fn()
+    class FakeIO {
+      constructor(cb: IntersectionObserverCallback) { captured = cb }
+      observe = observe
+      disconnect = disconnect
+      unobserve = vi.fn()
+      takeRecords = vi.fn(() => [])
+      root = null
+      rootMargin = ''
+      thresholds = [] as number[]
+    }
+    const orig = globalThis.IntersectionObserver
+    globalThis.IntersectionObserver = FakeIO as unknown as typeof IntersectionObserver
+
+    try {
+      const { result, unmount } = renderHook(() => {
+        const ref = useRef<HTMLDivElement | null>(document.createElement('div'))
+        return useIntersectionObserver(ref, { threshold: 0.5 })
+      })
+      expect(result.current).toBe(false)
+      expect(observe).toHaveBeenCalledTimes(1)
+      act(() => {
+        captured?.(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver,
+        )
+      })
+      expect(result.current).toBe(true)
+      unmount()
+      expect(disconnect).toHaveBeenCalled()
+    } finally {
+      globalThis.IntersectionObserver = orig
+    }
+  })
+
+  it('is a no-op when the ref points to null', () => {
+    const constructed = vi.fn()
+    class FakeIO {
+      constructor() { constructed() }
+      observe = vi.fn()
+      disconnect = vi.fn()
+      unobserve = vi.fn()
+      takeRecords = vi.fn(() => [])
+      root = null
+      rootMargin = ''
+      thresholds = [] as number[]
+    }
+    const orig = globalThis.IntersectionObserver
+    globalThis.IntersectionObserver = FakeIO as unknown as typeof IntersectionObserver
+    try {
+      const { result } = renderHook(() => {
+        const ref = useRef<HTMLDivElement | null>(null)
+        return useIntersectionObserver(ref)
+      })
+      expect(result.current).toBe(false)
+      expect(constructed).not.toHaveBeenCalled()
+    } finally {
+      globalThis.IntersectionObserver = orig
+    }
+  })
+})
+
+describe('prefetchImage error path', () => {
+  it('rejects when Image.onerror fires', async () => {
+    class FakeImage {
+      onload: (() => void) | null = null
+      onerror: ((e: unknown) => void) | null = null
+      set src(_v: string) {
+        queueMicrotask(() => this.onerror?.(new Error('boom')))
+      }
+    }
+    const original = globalThis.Image
+    globalThis.Image = FakeImage as unknown as typeof Image
+    try {
+      await expect(prefetchImage('y.png')).rejects.toBeTruthy()
+    } finally {
+      globalThis.Image = original
     }
   })
 })

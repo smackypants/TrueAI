@@ -1,0 +1,10 @@
+# 01 — App launch.
+#
+# Verifies the Capacitor APK boots into the React shell and reaches the
+# default Chat tab. If the WebView never mounts (blank-screen regression),
+# this flow fails fast with no "Chat" assertion.
+appId: com.trueai.localai
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Chat"

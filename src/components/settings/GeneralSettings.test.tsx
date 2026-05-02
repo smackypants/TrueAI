@@ -1,7 +1,18 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { GeneralSettings } from './GeneralSettings'
 import type { AppSettings } from '@/lib/types'
+
+beforeAll(() => {
+  if (!HTMLElement.prototype.hasPointerCapture) {
+    HTMLElement.prototype.hasPointerCapture = () => false
+    HTMLElement.prototype.setPointerCapture = () => {}
+    HTMLElement.prototype.releasePointerCapture = () => {}
+  }
+  if (!HTMLElement.prototype.scrollIntoView) {
+    HTMLElement.prototype.scrollIntoView = () => {}
+  }
+})
 
 const defaultSettings: AppSettings = {
   autoSave: true,
@@ -131,5 +142,56 @@ describe('GeneralSettings', () => {
     const input = screen.getByRole('spinbutton')
     fireEvent.change(input, { target: { value: '100' } })
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ maxHistory: 100 }))
+  })
+
+  it('language select can be opened', () => {
+    render(<GeneralSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    const trigger = screen.getByRole('combobox', { name: /language/i })
+    expect(trigger).toBeInTheDocument()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('option', { name: 'Español' })).toBeInTheDocument()
+  })
+
+  it('calls onSettingsChange with updated language when Select changes', () => {
+    const onChange = vi.fn()
+    render(<GeneralSettings settings={defaultSettings} onSettingsChange={onChange} />)
+    const trigger = screen.getByRole('combobox', { name: /language/i })
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('option', { name: 'Español' }))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ language: 'es' }))
+  })
+
+  it('timezone select can be opened', () => {
+    render(<GeneralSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    const trigger = screen.getByRole('combobox', { name: /timezone/i })
+    expect(trigger).toBeInTheDocument()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('option', { name: 'Eastern Time' })).toBeInTheDocument()
+  })
+
+  it('calls onSettingsChange with updated timezone when Select changes', () => {
+    const onChange = vi.fn()
+    render(<GeneralSettings settings={defaultSettings} onSettingsChange={onChange} />)
+    const trigger = screen.getByRole('combobox', { name: /timezone/i })
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('option', { name: 'Tokyo' }))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ timezone: 'Asia/Tokyo' }))
+  })
+
+  it('date format select can be opened', () => {
+    render(<GeneralSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    const trigger = screen.getByRole('combobox', { name: /date format/i })
+    expect(trigger).toBeInTheDocument()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('option', { name: 'DD/MM/YYYY' })).toBeInTheDocument()
+  })
+
+  it('calls onSettingsChange with updated dateFormat when Select changes', () => {
+    const onChange = vi.fn()
+    render(<GeneralSettings settings={defaultSettings} onSettingsChange={onChange} />)
+    const trigger = screen.getByRole('combobox', { name: /date format/i })
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('option', { name: 'DD/MM/YYYY' }))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ dateFormat: 'DD/MM/YYYY' }))
   })
 })

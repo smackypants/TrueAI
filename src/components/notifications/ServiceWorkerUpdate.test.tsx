@@ -140,4 +140,77 @@ describe('ServiceWorkerUpdate', () => {
     expect(screen.queryByText('Update available')).not.toBeInTheDocument()
     expect(mockSkipWaiting).not.toHaveBeenCalled()
   })
+
+  it('shows banner when updatefound fires and the new worker reaches "installed"', async () => {
+    // Capture the registration's "updatefound" listener and the installing
+    // worker's "statechange" listener so we can drive them manually.
+    let regUpdatefound: (() => void) | undefined
+    const newWorkerListeners: Array<() => void> = []
+    const newWorker = {
+      state: 'installing',
+      addEventListener: vi.fn((evt: string, cb: () => void) => {
+        if (evt === 'statechange') newWorkerListeners.push(cb)
+      }),
+    }
+    const reg = {
+      waiting: null,
+      installing: newWorker,
+      active: null,
+      addEventListener: vi.fn((evt: string, cb: () => void) => {
+        if (evt === 'updatefound') regUpdatefound = cb
+      }),
+      removeEventListener: vi.fn(),
+      update: vi.fn(),
+      unregister: vi.fn().mockResolvedValue(true),
+    } as unknown as ServiceWorkerRegistration
+
+    const readyPromise = Promise.resolve(reg)
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: { ready: readyPromise, controller: {} },
+    })
+
+    render(<ServiceWorkerUpdate />)
+    await act(async () => { await readyPromise })
+
+    // No banner yet (waiting is null and updatefound hasn't fired).
+    expect(screen.queryByText('Update available')).not.toBeInTheDocument()
+
+    // Trigger updatefound, which subscribes statechange on the new worker.
+    await act(async () => { regUpdatefound?.() })
+    expect(newWorkerListeners.length).toBeGreaterThan(0)
+
+    // Move new worker to "installed" while a controller exists, then fire statechange.
+    ;(newWorker as { state: string }).state = 'installed'
+    await act(async () => { newWorkerListeners.forEach((cb) => cb()) })
+
+    expect(screen.getByText('Update available')).toBeInTheDocument()
+  })
+
+  it('does not show the banner when updatefound fires but no installing worker exists', async () => {
+    let regUpdatefound: (() => void) | undefined
+    const reg = {
+      waiting: null,
+      installing: null, // <-- intentionally null to skip the addEventListener block
+      active: null,
+      addEventListener: vi.fn((evt: string, cb: () => void) => {
+        if (evt === 'updatefound') regUpdatefound = cb
+      }),
+      removeEventListener: vi.fn(),
+      update: vi.fn(),
+      unregister: vi.fn().mockResolvedValue(true),
+    } as unknown as ServiceWorkerRegistration
+
+    const readyPromise = Promise.resolve(reg)
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: { ready: readyPromise, controller: {} },
+    })
+
+    render(<ServiceWorkerUpdate />)
+    await act(async () => { await readyPromise })
+    await act(async () => { regUpdatefound?.() })
+
+    expect(screen.queryByText('Update available')).not.toBeInTheDocument()
+  })
 })

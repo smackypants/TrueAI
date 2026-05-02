@@ -1,0 +1,22 @@
+# 04 — Reach the LLM Runtime configuration screen.
+#
+# Opens Settings, switches to the LLM Runtime tab, and asserts the section
+# heading rendered by LLMRuntimeSettings.tsx (~L192). This is the screen
+# the user lands on to configure provider / API key / model — keeping it
+# reachable is a hard requirement for the local-first runtime.
+#
+# Note: this flow does NOT enter or persist credentials. End-to-end
+# credential flows would require seeding `__llm_runtime_api_key__` via a
+# debug-only hook and are deliberately out of scope (test data must never
+# resemble real keys).
+appId: com.trueai.localai
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Chat"
+- tapOn: "Settings"
+- assertVisible: "Settings"
+- tapOn: "LLM Runtime"
+- assertVisible:
+    text: "LLM Runtime"
+    index: 1

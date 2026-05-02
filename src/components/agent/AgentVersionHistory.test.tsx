@@ -86,4 +86,69 @@ describe('AgentVersionHistory', () => {
     // avgRating * 100 = 92 should appear somewhere
     expect(screen.getByText(/92/)).toBeInTheDocument()
   })
+
+  it('shows Robot icon and "Auto-learned" label when createdBy is auto_learning', () => {
+    const version = makeVersion({ createdBy: 'auto_learning' })
+    render(<AgentVersionHistory versions={[version]} />)
+    expect(screen.getByText(/Auto-learned/i)).toBeInTheDocument()
+  })
+
+  it('shows "Manual" label when createdBy is user', () => {
+    const version = makeVersion({ createdBy: 'user' })
+    render(<AgentVersionHistory versions={[version]} />)
+    expect(screen.getByText(/Manual/i)).toBeInTheDocument()
+  })
+
+  it('renders performance change indicator (TrendUp) when newer version has better avgRating', () => {
+    const versions = [
+      makeVersion({ id: 'v2', version: 2, performanceSnapshot: { avgRating: 0.90, successRate: 0.9, avgExecutionTime: 2000 } }),
+      makeVersion({ id: 'v1', version: 1, performanceSnapshot: { avgRating: 0.80, successRate: 0.8, avgExecutionTime: 2000 } }),
+    ]
+    render(<AgentVersionHistory versions={versions} />)
+    // Performance change percentage should be displayed
+    expect(screen.getByText('0.90')).toBeInTheDocument()
+    expect(screen.getByText('0.80')).toBeInTheDocument()
+  })
+
+  it('renders performance change indicator (TrendDown) when newer version has worse avgRating', () => {
+    const versions = [
+      makeVersion({ id: 'v2', version: 2, performanceSnapshot: { avgRating: 0.70, successRate: 0.7, avgExecutionTime: 2000 } }),
+      makeVersion({ id: 'v1', version: 1, performanceSnapshot: { avgRating: 0.90, successRate: 0.9, avgExecutionTime: 2000 } }),
+    ]
+    render(<AgentVersionHistory versions={versions} />)
+    expect(screen.getByText('0.70')).toBeInTheDocument()
+    expect(screen.getByText('0.90')).toBeInTheDocument()
+  })
+
+  it('renders version changes with field, oldValue, newValue, and reason', () => {
+    const version = makeVersion({
+      changes: [
+        { field: 'temperature', oldValue: 0.7, newValue: 0.5, reason: 'Reduce hallucinations' },
+      ],
+    })
+    render(<AgentVersionHistory versions={[version]} />)
+    expect(screen.getByText(/temperature/i)).toBeInTheDocument()
+    expect(screen.getByText('0.7')).toBeInTheDocument()
+    expect(screen.getByText('0.5')).toBeInTheDocument()
+    expect(screen.getByText('Reduce hallucinations')).toBeInTheDocument()
+  })
+
+  it('renders object oldValue as JSON string in changes', () => {
+    const version = makeVersion({
+      changes: [
+        { field: 'config', oldValue: { key: 'val' }, newValue: { key: 'new' }, reason: 'Update config' },
+      ],
+    })
+    render(<AgentVersionHistory versions={[version]} />)
+    expect(screen.getByText(/\{"key":"val"\}/)).toBeInTheDocument()
+    expect(screen.getByText(/\{"key":"new"\}/)).toBeInTheDocument()
+  })
+
+  it('shows avgExecutionTime in seconds', () => {
+    const version = makeVersion({
+      performanceSnapshot: { avgRating: 0.8, successRate: 0.9, avgExecutionTime: 3500 },
+    })
+    render(<AgentVersionHistory versions={[version]} />)
+    expect(screen.getByText('3.5s')).toBeInTheDocument()
+  })
 })

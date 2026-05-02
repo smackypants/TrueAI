@@ -190,9 +190,14 @@ describe('useDataPrefetch', () => {
       await vi.advanceTimersByTimeAsync(0)
     })
     expect(result.current.isCached).toBe(true)
+    // invalidate() is a synchronous setCache(null); assert the immediate
+    // cleared state before the background re-fetch effect runs.
     act(() => {
       result.current.invalidate()
     })
     expect(result.current.isCached).toBe(false)
+    // Flush the re-fetch effect that fires because cache is now null,
+    // so it doesn't leak an act() warning to subsequent tests.
+    await act(async () => {})
   })
 })

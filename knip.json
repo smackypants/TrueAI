@@ -1,0 +1,36 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "//": [
+    "Knip configuration for TrueAI LocalAI.",
+    "Knip is invoked via `npm run check:deps` (which calls `npx --yes knip`).",
+    "It is intentionally NOT added as a devDependency — keeps the lockfile and",
+    "CVE surface unchanged. See docs/DEV_TOOLING.md for context."
+  ],
+  "entry": [
+    "index.html",
+    "src/main.tsx",
+    "src/**/*.test.{ts,tsx}"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}"
+  ],
+  "ignore": [
+    "src/test/**",
+    "android/**",
+    "dist/**",
+    "build/**",
+    "coverage/**",
+    "node_modules/**",
+    ".maestro/**",
+    "scripts/**"
+  ],
+  "ignoreDependencies": [
+    "@github/spark"
+  ],
+  "vite": {
+    "config": ["vite.config.ts"]
+  },
+  "vitest": {
+    "config": ["vitest.config.ts"]
+  }
+}

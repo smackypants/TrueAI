@@ -1,7 +1,18 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { AISettings } from './AISettings'
 import type { AppSettings } from '@/lib/types'
+
+beforeAll(() => {
+  if (!HTMLElement.prototype.hasPointerCapture) {
+    HTMLElement.prototype.hasPointerCapture = () => false
+    HTMLElement.prototype.setPointerCapture = () => {}
+    HTMLElement.prototype.releasePointerCapture = () => {}
+  }
+  if (!HTMLElement.prototype.scrollIntoView) {
+    HTMLElement.prototype.scrollIntoView = () => {}
+  }
+})
 
 const defaultSettings: AppSettings = {
   autoSave: true,
@@ -153,5 +164,39 @@ describe('AISettings', () => {
   it('displays current max tokens value', () => {
     render(<AISettings settings={{ ...defaultSettings, defaultMaxTokens: 2000 }} onSettingsChange={vi.fn()} />)
     expect(screen.getByText('Current: 2000 tokens')).toBeInTheDocument()
+  })
+
+  it('agent timeout select can be opened', () => {
+    render(<AISettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    const trigger = screen.getByRole('combobox', { name: /agent execution timeout/i })
+    expect(trigger).toBeInTheDocument()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('option', { name: '30 seconds' })).toBeInTheDocument()
+  })
+
+  it('calls onSettingsChange with updated agentTimeout when Select changes', () => {
+    const onChange = vi.fn()
+    render(<AISettings settings={defaultSettings} onSettingsChange={onChange} />)
+    const trigger = screen.getByRole('combobox', { name: /agent execution timeout/i })
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('option', { name: '5 minutes' }))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ agentTimeout: 300000 }))
+  })
+
+  it('context window size select can be opened', () => {
+    render(<AISettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    const trigger = screen.getByRole('combobox', { name: /context window size/i })
+    expect(trigger).toBeInTheDocument()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('option', { name: 'Last 5 messages' })).toBeInTheDocument()
+  })
+
+  it('calls onSettingsChange with updated contextWindowSize when Select changes', () => {
+    const onChange = vi.fn()
+    render(<AISettings settings={defaultSettings} onSettingsChange={onChange} />)
+    const trigger = screen.getByRole('combobox', { name: /context window size/i })
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('option', { name: 'Last 50 messages' }))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ contextWindowSize: 50 }))
   })
 })
