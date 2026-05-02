@@ -1,9 +1,20 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { AdvancedSettings } from './AdvancedSettings'
 import type { AppSettings } from '@/lib/types'
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+
+beforeAll(() => {
+  if (!HTMLElement.prototype.hasPointerCapture) {
+    HTMLElement.prototype.hasPointerCapture = () => false
+    HTMLElement.prototype.setPointerCapture = () => {}
+    HTMLElement.prototype.releasePointerCapture = () => {}
+  }
+  if (!HTMLElement.prototype.scrollIntoView) {
+    HTMLElement.prototype.scrollIntoView = () => {}
+  }
+})
 
 const defaultSettings: AppSettings = {
   autoSave: true,
@@ -212,5 +223,22 @@ describe('AdvancedSettings', () => {
     const input = screen.getByRole('spinbutton', { name: /retry attempts/i })
     fireEvent.change(input, { target: { value: '5' } })
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ retryAttempts: 5 }))
+  })
+
+  it('API Endpoint select can be opened', () => {
+    render(<AdvancedSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    const trigger = screen.getByRole('combobox', { name: /api endpoint/i })
+    expect(trigger).toBeInTheDocument()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('option', { name: 'Custom' })).toBeInTheDocument()
+  })
+
+  it('calls onSettingsChange with updated apiEndpoint when Select changes', () => {
+    const onChange = vi.fn()
+    render(<AdvancedSettings settings={defaultSettings} onSettingsChange={onChange} />)
+    const trigger = screen.getByRole('combobox', { name: /api endpoint/i })
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('option', { name: 'Custom' }))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ apiEndpoint: 'custom' }))
   })
 })

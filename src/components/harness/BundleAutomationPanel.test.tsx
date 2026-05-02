@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useKV } from '@github/spark/hooks'
 import { BundleAutomationPanel } from './BundleAutomationPanel'
 import type { Message, Agent, AgentRun, HarnessManifest } from '@/lib/types'
-import type { UsagePattern, AutoExecutionRule, AutomationMetrics } from '@/lib/bundle-automation'
+import type { UsagePattern, AutoExecutionRule, AutomationMetrics, BundleExecutionResult } from '@/lib/bundle-automation'
 
 // Mock useKV hook
 const mockSetAutoExecute = vi.fn()
@@ -174,6 +175,22 @@ describe('BundleAutomationPanel', () => {
     mockGetRules.mockReturnValue([])
     mockEvaluateRules.mockReturnValue([])
     mockExecuteRule.mockResolvedValue([])
+    // Default useKV behavior
+    ;(useKV as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (key: string, defaultValue: unknown) => {
+        if (key === 'auto-execute-enabled') return [false, mockSetAutoExecute]
+        if (key === 'automation-rules') return [[], mockSetRules]
+        return [defaultValue, vi.fn()]
+      }
+    )
+    // Stub Radix Select pointer-capture and scrollIntoView for jsdom
+    if (!HTMLElement.prototype.hasPointerCapture) {
+      HTMLElement.prototype.hasPointerCapture = vi.fn(() => false)
+    }
+    if (!HTMLElement.prototype.releasePointerCapture) {
+      HTMLElement.prototype.releasePointerCapture = vi.fn()
+    }
+    HTMLElement.prototype.scrollIntoView = vi.fn()
   })
 
   it('renders bundle automation panel with title', () => {
@@ -522,5 +539,306 @@ describe('BundleAutomationPanel', () => {
       await user.hover(switchContainer.parentElement)
       // Tooltip content may not be immediately visible in test environment
     }
+  })
+
+  describe('rules tab with rules', () => {
+    beforeEach(() => {
+      ;(useKV as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (key: string, defaultValue: unknown) => {
+          if (key === 'auto-execute-enabled') return [false, mockSetAutoExecute]
+          if (key === 'automation-rules') return [[mockRule], mockSetRules]
+          return [defaultValue, vi.fn()]
+        }
+      )
+    })
+
+    it('renders rule cards in rules tab', async () => {
+      const user = userEvent.setup()
+      render(
+        <BundleAutomationPanel
+          messages={mockMessages}
+          agents={mockAgents}
+          agentRuns={mockAgentRuns}
+          harnesses={mockHarnesses}
+        />
+      )
+
+      await user.click(screen.getByRole('tab', { name: /rules/i }))
+
+      expect(screen.getByText('Morning Analysis')).toBeInTheDocument()
+      expect(screen.getByText('Auto-run analysis at 9 AM')).toBeInTheDocument()
+      expect(screen.getByText(/executed: 5x/i)).toBeInTheDocument()
+      expect(screen.getByText(/success: 80%/i)).toBeInTheDocument()
+    })
+
+    it('toggles a rule via switch', async () => {
+      const user = userEvent.setup()
+      render(
+        <BundleAutomationPanel
+          messages={mockMessages}
+          agents={mockAgents}
+          agentRuns={mockAgentRuns}
+          harnesses={mockHarnesses}
+        />
+      )
+
+      await user.click(screen.getByRole('tab', { name: /rules/i }))
+
+      // Two switches exist: auto-execute (off) and rule (on). The rule toggle is the second.
+      const switches = screen.getAllByRole('switch')
+      const ruleSwitch = switches.find((s) => s.getAttribute('aria-checked') === 'true')
+      expect(ruleSwitch).toBeTruthy()
+      await user.click(ruleSwitch!)
+      expect(mockUpdateRule).toHaveBeenCalledWith('rule-1', { enabled: false })
+    })
+
+    it('opens view rule dialog and shows rule details', async () => {
+      const user = userEvent.setup()
+      render(
+        <BundleAutomationPanel
+          messages={mockMessages}
+          agents={mockAgents}
+          agentRuns={mockAgentRuns}
+          harnesses={mockHarnesses}
+        />
+      )
+
+      await user.click(screen.getByRole('tab', { name: /rules/i }))
+
+      // The Eye and Trash buttons are icon-only ghost buttons; locate by their SVG parent button
+      const ruleCard = screen.getByText('Morning Analysis').closest('div')!
+        .parentElement!.parentElement!.parentElement!
+      const buttons = within(ruleCard).getAllByRole('button')
+      // First action button is View, second is Delete
+      await user.click(buttons[0])
+
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByText('Rule Details')).toBeInTheDocument()
+      expect(within(dialog).getByText(/conditions \(1\)/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/actions \(1\)/i)).toBeInTheDocument()
+      expect(within(dialog).getAllByText(/type:/i).length).toBeGreaterThan(0)
+    })
+
+    it('deletes a rule via trash button', async () => {
+      const user = userEvent.setup()
+      const { toast } = await import('sonner')
+      render(
+        <BundleAutomationPanel
+          messages={mockMessages}
+          agents={mockAgents}
+          agentRuns={mockAgentRuns}
+          harnesses={mockHarnesses}
+        />
+      )
+
+      await user.click(screen.getByRole('tab', { name: /rules/i }))
+
+      const ruleCard = screen.getByText('Morning Analysis').closest('div')!
+        .parentElement!.parentElement!.parentElement!
+      const buttons = within(ruleCard).getAllByRole('button')
+      // Delete is the second action button
+      await user.click(buttons[1])
+
+      expect(mockDeleteRule).toHaveBeenCalledWith('rule-1')
+      expect(toast.success).toHaveBeenCalledWith('Rule deleted')
+    })
+  })
+
+  describe('history tab with executions', () => {
+    const successExec: BundleExecutionResult = {
+      ruleId: 'rule-1',
+      harnessId: 'harness-1',
+      timestamp: Date.now(),
+      success: true,
+      duration: 1234,
+      results: [],
+    }
+    const failedExec: BundleExecutionResult = {
+      ruleId: 'rule-1',
+      harnessId: 'harness-unknown',
+      timestamp: Date.now() - 1000,
+      success: false,
+      duration: 567,
+      results: [],
+      error: 'boom',
+    }
+
+    beforeEach(() => {
+      mockGetExecutionHistory.mockReturnValue([successExec, failedExec])
+    })
+
+    it('renders execution history entries with success and failure', async () => {
+      const user = userEvent.setup()
+      render(
+        <BundleAutomationPanel
+          messages={mockMessages}
+          agents={mockAgents}
+          agentRuns={mockAgentRuns}
+          harnesses={mockHarnesses}
+        />
+      )
+
+      await user.click(screen.getByRole('tab', { name: /history/i }))
+
+      expect(screen.getByText('test-harness')).toBeInTheDocument()
+      expect(screen.getByText('Success')).toBeInTheDocument()
+      expect(screen.getByText('Failed')).toBeInTheDocument()
+      expect(screen.getByText(/duration: 1234ms/i)).toBeInTheDocument()
+      expect(screen.getByText('boom')).toBeInTheDocument()
+      // Falls back to harness id when not found in props
+      expect(screen.getByText('harness-unknown')).toBeInTheDocument()
+    })
+  })
+
+  describe('create rule dialog', () => {
+    it('cancels the create rule dialog without creating a rule', async () => {
+      const user = userEvent.setup()
+      mockAnalyzeUsagePatterns.mockReturnValue([mockPattern])
+      render(
+        <BundleAutomationPanel
+          messages={mockMessages}
+          agents={mockAgents}
+          agentRuns={mockAgentRuns}
+          harnesses={mockHarnesses}
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /analyze patterns/i }))
+      await waitFor(
+        () => expect(screen.getByText(mockPattern.description)).toBeInTheDocument(),
+        { timeout: 2000 }
+      )
+
+      const createButtons = screen.getAllByRole('button', { name: /create rule/i })
+      await user.click(createButtons[0])
+
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /cancel/i }))
+
+      expect(mockCreateRuleFromPattern).not.toHaveBeenCalled()
+    })
+
+    it('creates a rule from pattern via the dialog confirm button', async () => {
+      const user = userEvent.setup()
+      const { toast } = await import('sonner')
+      mockAnalyzeUsagePatterns.mockReturnValue([mockPattern])
+      mockCreateRuleFromPattern.mockReturnValue(mockRule)
+
+      render(
+        <BundleAutomationPanel
+          messages={mockMessages}
+          agents={mockAgents}
+          agentRuns={mockAgentRuns}
+          harnesses={mockHarnesses}
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /analyze patterns/i }))
+      await waitFor(
+        () => expect(screen.getByText(mockPattern.description)).toBeInTheDocument(),
+        { timeout: 2000 }
+      )
+
+      const createButtons = screen.getAllByRole('button', { name: /create rule/i })
+      await user.click(createButtons[0])
+
+      const dialog = await screen.findByRole('dialog')
+      // Confirm button is "Create Rule" inside the dialog footer
+      const confirmButton = within(dialog).getByRole('button', { name: /create rule/i })
+      await user.click(confirmButton)
+
+      expect(mockCreateRuleFromPattern).toHaveBeenCalledWith(
+        mockPattern,
+        mockHarnesses,
+        expect.objectContaining({ priority: 'normal', autoEnable: true })
+      )
+      expect(toast.success).toHaveBeenCalledWith(`Created automation rule: ${mockRule.name}`)
+    })
+
+    it('updates cooldown input in the create rule dialog', async () => {
+      const user = userEvent.setup()
+      mockAnalyzeUsagePatterns.mockReturnValue([mockPattern])
+      mockCreateRuleFromPattern.mockReturnValue(mockRule)
+
+      render(
+        <BundleAutomationPanel
+          messages={mockMessages}
+          agents={mockAgents}
+          agentRuns={mockAgentRuns}
+          harnesses={mockHarnesses}
+        />
+      )
+
+      await user.click(screen.getByRole('button', { name: /analyze patterns/i }))
+      await waitFor(
+        () => expect(screen.getByText(mockPattern.description)).toBeInTheDocument(),
+        { timeout: 2000 }
+      )
+
+      await user.click(screen.getAllByRole('button', { name: /create rule/i })[0])
+
+      const dialog = await screen.findByRole('dialog')
+      const cooldownInput = within(dialog).getByRole('spinbutton')
+      await user.clear(cooldownInput)
+      await user.type(cooldownInput, '15')
+
+      const confirmButton = within(dialog).getByRole('button', { name: /create rule/i })
+      await user.click(confirmButton)
+
+      expect(mockCreateRuleFromPattern).toHaveBeenCalledWith(
+        mockPattern,
+        mockHarnesses,
+        expect.objectContaining({ cooldown: 15 * 60000 })
+      )
+    })
+  })
+
+  describe('export and import rules', () => {
+    beforeEach(() => {
+      ;(useKV as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (key: string, defaultValue: unknown) => {
+          if (key === 'auto-execute-enabled') return [false, mockSetAutoExecute]
+          if (key === 'automation-rules') return [[mockRule], mockSetRules]
+          return [defaultValue, vi.fn()]
+        }
+      )
+    })
+
+    it('triggers export rules and downloads a file', async () => {
+      const user = userEvent.setup()
+      const { toast } = await import('sonner')
+      mockExportRules.mockReturnValue('{"rules":[]}')
+
+      const originalCreateObjectURL = URL.createObjectURL
+      const originalRevokeObjectURL = URL.revokeObjectURL
+      URL.createObjectURL = vi.fn(() => 'blob:mock')
+      URL.revokeObjectURL = vi.fn()
+      const clickSpy = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => {})
+
+      try {
+        render(
+          <BundleAutomationPanel
+            messages={mockMessages}
+            agents={mockAgents}
+            agentRuns={mockAgentRuns}
+            harnesses={mockHarnesses}
+          />
+        )
+
+        await user.click(screen.getByRole('tab', { name: /rules/i }))
+        await user.click(screen.getByRole('button', { name: /export/i }))
+
+        expect(mockExportRules).toHaveBeenCalled()
+        expect(URL.createObjectURL).toHaveBeenCalled()
+        expect(clickSpy).toHaveBeenCalled()
+        expect(toast.success).toHaveBeenCalledWith('Rules exported')
+      } finally {
+        URL.createObjectURL = originalCreateObjectURL
+        URL.revokeObjectURL = originalRevokeObjectURL
+        clickSpy.mockRestore()
+      }
+    })
   })
 })

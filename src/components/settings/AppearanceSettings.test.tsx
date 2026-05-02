@@ -177,4 +177,31 @@ describe('AppearanceSettings', () => {
     fireEvent.click(sw)
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ enableAnimations: false }))
   })
+
+  it('clicking System theme button calls setTheme with system', async () => {
+    const setTheme = vi.fn()
+    mockUseTheme.mockReturnValue({ theme: 'dark', setTheme, resolvedTheme: 'dark' })
+    render(<AppearanceSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    await userEvent.click(screen.getByRole('tab', { name: /display settings/i }))
+    await userEvent.click(screen.getByText('System'))
+    expect(setTheme).toHaveBeenCalledWith('system')
+  })
+
+  it('calls onSettingsChange when compactSidebar toggled', async () => {
+    const onChange = vi.fn()
+    render(<AppearanceSettings settings={defaultSettings} onSettingsChange={onChange} />)
+    await userEvent.click(screen.getByRole('tab', { name: /display settings/i }))
+    const sw = screen.getByRole('switch', { name: /compact sidebar/i })
+    fireEvent.click(sw)
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ compactSidebar: true }))
+  })
+
+  it('calls onSettingsChange when reduceMotion toggled', async () => {
+    const onChange = vi.fn()
+    render(<AppearanceSettings settings={defaultSettings} onSettingsChange={onChange} />)
+    await userEvent.click(screen.getByRole('tab', { name: /display settings/i }))
+    const sw = screen.getByRole('switch', { name: /reduce motion/i })
+    fireEvent.click(sw)
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ reduceMotion: true }))
+  })
 })

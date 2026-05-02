@@ -82,7 +82,13 @@ function mergeConfig(
   base: LLMRuntimeConfig,
   patch: Partial<LLMRuntimeConfig> | undefined | null,
 ): LLMRuntimeConfig {
-  if (!patch) return base
+  // Always return a fresh object — even when there is no patch — so the
+  // caller can safely mutate the result without aliasing into `base`. The
+  // earlier `return base` shortcut leaked a reference to
+  // DEFAULT_LLM_RUNTIME_CONFIG into `cachedConfig`, which `merged.apiKey =
+  // apiKey` below would then mutate, leaking sensitive material into the
+  // exported defaults for the lifetime of the process.
+  if (!patch) return { ...base }
   return {
     provider: typeof patch.provider === 'string' ? (patch.provider as LLMProvider) : base.provider,
     baseUrl: typeof patch.baseUrl === 'string' && patch.baseUrl.length > 0 ? patch.baseUrl : base.baseUrl,

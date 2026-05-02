@@ -110,4 +110,153 @@ describe('EnsembleManager', () => {
       expect(onDeleteEnsemble).toHaveBeenCalled()
     }
   })
+
+  it('shows strategy badge on ensemble card', () => {
+    const ensembles = [makeEnsemble({ strategy: 'majority' })]
+    render(
+      <EnsembleManager
+        ensembles={ensembles}
+        onCreateEnsemble={vi.fn()}
+        onRunEnsemble={vi.fn()}
+        onDeleteEnsemble={vi.fn()}
+      />
+    )
+    expect(screen.getByText('majority')).toBeInTheDocument()
+  })
+
+  it('shows model badges on ensemble card', () => {
+    const ensembles = [makeEnsemble({ models: ['gpt-4o', 'claude-3'] })]
+    render(
+      <EnsembleManager
+        ensembles={ensembles}
+        onCreateEnsemble={vi.fn()}
+        onRunEnsemble={vi.fn()}
+        onDeleteEnsemble={vi.fn()}
+      />
+    )
+    expect(screen.getByText('gpt-4o')).toBeInTheDocument()
+    expect(screen.getByText('claude-3')).toBeInTheDocument()
+  })
+
+  it('shows Models (2) label with correct count', () => {
+    const ensembles = [makeEnsemble({ models: ['gpt-4o', 'gpt-4o-mini'] })]
+    render(
+      <EnsembleManager
+        ensembles={ensembles}
+        onCreateEnsemble={vi.fn()}
+        onRunEnsemble={vi.fn()}
+        onDeleteEnsemble={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Models (2)')).toBeInTheDocument()
+  })
+
+  it('calls onCreateEnsemble from header button when ensembles present', () => {
+    const onCreateEnsemble = vi.fn()
+    const ensembles = [makeEnsemble()]
+    render(
+      <EnsembleManager
+        ensembles={ensembles}
+        onCreateEnsemble={onCreateEnsemble}
+        onRunEnsemble={vi.fn()}
+        onDeleteEnsemble={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /create ensemble/i }))
+    expect(onCreateEnsemble).toHaveBeenCalledOnce()
+  })
+
+  it('shows recent runs section when an ensemble has runs', () => {
+    const run = {
+      id: 'run1',
+      ensembleId: 'e1',
+      prompt: 'Test prompt',
+      responses: [{ model: 'gpt-4o', response: 'OK', latency: 100 }],
+      timestamp: Date.now(),
+    }
+    const ensembles = [makeEnsemble({ id: 'e1', runs: [run] })]
+    render(
+      <EnsembleManager
+        ensembles={ensembles}
+        onCreateEnsemble={vi.fn()}
+        onRunEnsemble={vi.fn()}
+        onDeleteEnsemble={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Recent Runs')).toBeInTheDocument()
+    expect(screen.getByText('Test prompt')).toBeInTheDocument()
+    expect(screen.getByText('1 models responded')).toBeInTheDocument()
+  })
+
+  it('shows last run date and total runs count when runs present', () => {
+    const run = {
+      id: 'run1',
+      ensembleId: 'e1',
+      prompt: 'Hello',
+      responses: [],
+      timestamp: new Date('2025-01-15').getTime(),
+    }
+    const ensembles = [makeEnsemble({ id: 'e1', runs: [run] })]
+    render(
+      <EnsembleManager
+        ensembles={ensembles}
+        onCreateEnsemble={vi.fn()}
+        onRunEnsemble={vi.fn()}
+        onDeleteEnsemble={vi.fn()}
+      />
+    )
+    expect(screen.getByText('1 total runs')).toBeInTheDocument()
+    expect(screen.getByText('Last Run')).toBeInTheDocument()
+  })
+
+  it('calls onRunEnsemble with prompt when Run Ensemble confirmed', () => {
+    const onRunEnsemble = vi.fn().mockResolvedValue(undefined)
+    vi.spyOn(window, 'prompt').mockReturnValue('My test prompt')
+    const ensembles = [makeEnsemble({ id: 'e1' })]
+    render(
+      <EnsembleManager
+        ensembles={ensembles}
+        onCreateEnsemble={vi.fn()}
+        onRunEnsemble={onRunEnsemble}
+        onDeleteEnsemble={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /run ensemble/i }))
+    expect(onRunEnsemble).toHaveBeenCalledWith('e1', 'My test prompt')
+    vi.restoreAllMocks()
+  })
+
+  it('does NOT call onRunEnsemble when prompt is cancelled', () => {
+    const onRunEnsemble = vi.fn()
+    vi.spyOn(window, 'prompt').mockReturnValue(null)
+    const ensembles = [makeEnsemble({ id: 'e1' })]
+    render(
+      <EnsembleManager
+        ensembles={ensembles}
+        onCreateEnsemble={vi.fn()}
+        onRunEnsemble={onRunEnsemble}
+        onDeleteEnsemble={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /run ensemble/i }))
+    expect(onRunEnsemble).not.toHaveBeenCalled()
+    vi.restoreAllMocks()
+  })
+
+  it('renders multiple ensemble cards', () => {
+    const ensembles = [
+      makeEnsemble({ id: 'e1', name: 'Ensemble A' }),
+      makeEnsemble({ id: 'e2', name: 'Ensemble B' }),
+    ]
+    render(
+      <EnsembleManager
+        ensembles={ensembles}
+        onCreateEnsemble={vi.fn()}
+        onRunEnsemble={vi.fn()}
+        onDeleteEnsemble={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Ensemble A')).toBeInTheDocument()
+    expect(screen.getByText('Ensemble B')).toBeInTheDocument()
+  })
 })

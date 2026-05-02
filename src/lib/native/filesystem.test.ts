@@ -79,4 +79,35 @@ describe('native/filesystem (web fallback)', () => {
       document.createElement = originalCreate
     }
   })
+
+  it('picks a sensible MIME type per extension on the web download path', async () => {
+    // Spy on Blob construction so we can assert the type passed to it for
+    // each known extension. This covers the .md/.txt/.csv/.html branches
+    // of pickMimeType() that the JSON-only test above doesn't reach.
+    const seenTypes: string[] = []
+    const OriginalBlob = globalThis.Blob
+    class CapturingBlob extends OriginalBlob {
+      constructor(parts?: BlobPart[], options?: BlobPropertyBag) {
+        super(parts, options)
+        seenTypes.push(options?.type ?? '')
+      }
+    }
+    ;(globalThis as { Blob: typeof Blob }).Blob = CapturingBlob as unknown as typeof Blob
+    try {
+      await saveTextFile('notes.md', '# hi')
+      await saveTextFile('a.txt', 'hi')
+      await saveTextFile('data.csv', 'a,b')
+      await saveTextFile('page.html', '<p/>')
+      await saveTextFile('binary.bin', '...')
+      expect(seenTypes).toEqual([
+        'text/markdown',
+        'text/plain',
+        'text/csv',
+        'text/html',
+        'application/octet-stream',
+      ])
+    } finally {
+      ;(globalThis as { Blob: typeof Blob }).Blob = OriginalBlob
+    }
+  })
 })

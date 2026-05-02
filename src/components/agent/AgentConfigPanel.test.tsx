@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi } from 'vitest'
 
 // Stub Radix Select pointer-capture/scrollIntoView for jsdom
@@ -130,5 +131,152 @@ describe('AgentConfigPanel', () => {
     )
     fireEvent.click(saveButtons[0])
     expect(onSave.mock.calls[0][0].name).toBe('Updated Agent')
+  })
+
+  it('updates goal text when textarea changes', () => {
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={mockAgent} onSave={onSave} onClose={vi.fn()} />)
+    const goal = screen.getByDisplayValue('Do something useful')
+    fireEvent.change(goal, { target: { value: 'Updated goal' } })
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].goal).toBe('Updated goal')
+  })
+
+  it('updates systemPrompt when textarea changes', () => {
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={mockAgent} onSave={onSave} onClose={vi.fn()} />)
+    const prompt = screen.getByLabelText(/system prompt/i)
+    fireEvent.change(prompt, { target: { value: 'You are great' } })
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].systemPrompt).toBe('You are great')
+  })
+
+  it('Cancel button calls onClose without saving', () => {
+    const onSave = vi.fn()
+    const onClose = vi.fn()
+    render(<AgentConfigPanel agent={mockAgent} onSave={onSave} onClose={onClose} />)
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('Advanced tab: shows temperature value and updates maxIterations input', async () => {
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={mockAgent} onSave={onSave} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /advanced/i }))
+    expect(screen.getByText('0.70')).toBeInTheDocument()
+
+    const iters = screen.getByLabelText(/max iterations/i) as HTMLInputElement
+    fireEvent.change(iters, { target: { value: '25' } })
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].maxIterations).toBe(25)
+  })
+
+  it('Advanced tab: toggling Enable Memory updates memoryEnabled', async () => {
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={mockAgent} onSave={onSave} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /advanced/i }))
+    const memCard = screen.getByText('Enable Memory').closest('div.flex.items-center.justify-between') as HTMLElement
+    fireEvent.click(memCard.querySelector('button[role="switch"]') as HTMLButtonElement)
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].memoryEnabled).toBe(true)
+  })
+
+  it('Advanced tab: toggling Collaborative Mode updates collaborativeMode', async () => {
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={mockAgent} onSave={onSave} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /advanced/i }))
+    const collabCard = screen.getByText('Collaborative Mode').closest('div.flex.items-center.justify-between') as HTMLElement
+    fireEvent.click(collabCard.querySelector('button[role="switch"]') as HTMLButtonElement)
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].collaborativeMode).toBe(true)
+  })
+
+  it('Advanced tab: defaults temperature to 0.70 when undefined', async () => {
+    const agentNoTemp = { ...mockAgent, temperature: undefined } as Agent
+    render(<AgentConfigPanel agent={agentNoTemp} onSave={vi.fn()} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /advanced/i }))
+    expect(screen.getByText('0.70')).toBeInTheDocument()
+  })
+
+  it('Advanced tab: defaults maxIterations to 10 when undefined', async () => {
+    const agentNoIters = { ...mockAgent, maxIterations: undefined } as Agent
+    render(<AgentConfigPanel agent={agentNoIters} onSave={vi.fn()} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /advanced/i }))
+    const iters = screen.getByLabelText(/max iterations/i) as HTMLInputElement
+    expect(iters.value).toBe('10')
+  })
+
+  it('Capabilities tab: clicking a capability card adds it to capabilities', async () => {
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={mockAgent} onSave={onSave} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /capabilities/i }))
+    fireEvent.click(screen.getByText('Advanced Reasoning'))
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].capabilities).toContain('reasoning')
+  })
+
+  it('Capabilities tab: clicking an enabled capability removes it', async () => {
+    const agentWithCap = { ...mockAgent, capabilities: ['planning'] } as Agent
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={agentWithCap} onSave={onSave} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /capabilities/i }))
+    fireEvent.click(screen.getByText('Multi-Step Planning'))
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].capabilities).not.toContain('planning')
+  })
+
+  it('Capabilities tab: switch toggle adds capability without clicking the card', async () => {
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={mockAgent} onSave={onSave} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /capabilities/i }))
+    // Capability Switches have no accessible name; locate via the card containing the label
+    const card = screen.getByText('Long-Term Memory').closest('div.p-4') as HTMLElement
+    const memSwitch = card.querySelector('button[role="switch"]') as HTMLButtonElement
+    fireEvent.click(memSwitch)
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].capabilities).toContain('memory')
+  })
+
+  it('Capabilities tab: switch toggle removes existing capability', async () => {
+    const agentWithCap = { ...mockAgent, capabilities: ['learning'] } as Agent
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={agentWithCap} onSave={onSave} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /capabilities/i }))
+    const card = screen.getByText('Continuous Learning').closest('div.p-4') as HTMLElement
+    const learnSwitch = card.querySelector('button[role="switch"]') as HTMLButtonElement
+    fireEvent.click(learnSwitch)
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].capabilities).not.toContain('learning')
+  })
+
+  it('Tools tab: toggling a tool adds it to tools', async () => {
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={mockAgent} onSave={onSave} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /tools/i }))
+    const checkboxes = screen.getAllByRole('checkbox')
+    const target = checkboxes.find(c => c.getAttribute('aria-checked') === 'false')
+    expect(target).toBeDefined()
+    fireEvent.click(target!)
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].tools.length).toBeGreaterThan(1)
+  })
+
+  it('Tools tab: toggling an already-selected tool removes it', async () => {
+    const onSave = vi.fn()
+    render(<AgentConfigPanel agent={mockAgent} onSave={onSave} onClose={vi.fn()} />)
+    await userEvent.setup().click(screen.getByRole('tab', { name: /tools/i }))
+    const checkboxes = screen.getAllByRole('checkbox')
+    const checked = checkboxes.find(c => c.getAttribute('aria-checked') === 'true')
+    expect(checked).toBeDefined()
+    fireEvent.click(checked!)
+    fireEvent.click(screen.getByRole('button', { name: /^save configuration$/i }))
+    expect(onSave.mock.calls[0][0].tools).not.toContain('calculator')
+  })
+
+  it('defaults priority to "normal" when agent.priority is undefined', () => {
+    const agentNoPriority = { ...mockAgent, priority: undefined } as Agent
+    render(<AgentConfigPanel agent={agentNoPriority} onSave={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.getByText(/normal/i)).toBeInTheDocument()
   })
 })

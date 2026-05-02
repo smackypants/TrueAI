@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const { mockGetCacheSize, mockClearCache } = vi.hoisted(() => ({
@@ -29,7 +29,11 @@ describe('CacheManager', () => {
   })
 
   it('renders heading and description', async () => {
-    render(<CacheManager />)
+    // getCacheSize fires async in useEffect on mount; wrap so the resulting
+    // state updates (setCacheSize) are captured inside act.
+    await act(async () => {
+      render(<CacheManager />)
+    })
     expect(screen.getByText('Cache Storage')).toBeInTheDocument()
     expect(screen.getByText(/manage offline data/i)).toBeInTheDocument()
   })

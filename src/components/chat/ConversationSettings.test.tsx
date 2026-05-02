@@ -138,4 +138,37 @@ describe('ConversationSettings', () => {
     // The streaming section has a Switch (checkbox role in Radix)
     expect(screen.getByRole('switch')).toBeInTheDocument()
   })
+
+  it('toggles streamingEnabled switch and saves the updated value', async () => {
+    const user = userEvent.setup()
+    const onUpdate = vi.fn()
+    render(<ConversationSettings {...defaultProps} onUpdate={onUpdate} conversation={makeConversation({ streamingEnabled: true })} />)
+    const toggle = screen.getByRole('switch')
+    await user.click(toggle)
+    // Save
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ streamingEnabled: false }))
+  })
+
+  it('edits systemPrompt textarea and saves the updated text', async () => {
+    const user = userEvent.setup()
+    const onUpdate = vi.fn()
+    render(<ConversationSettings {...defaultProps} onUpdate={onUpdate} />)
+    const textarea = screen.getByLabelText('System Prompt')
+    await user.clear(textarea)
+    await user.type(textarea, 'Custom prompt text')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ systemPrompt: 'Custom prompt text' }))
+  })
+
+  it('saves onUpdate with default field values when no overrides given', async () => {
+    const user = userEvent.setup()
+    const onUpdate = vi.fn()
+    render(<ConversationSettings {...defaultProps} onUpdate={onUpdate} />)
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Test Chat',
+      model: 'model-1',
+    }))
+  })
 })
