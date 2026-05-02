@@ -96,4 +96,22 @@ describe('AgentStepView', () => {
     const lines = container.querySelectorAll('.absolute.left-3')
     expect(lines.length).toBeGreaterThan(0)
   })
+
+  it('renders "error" step type (default icon / color branches)', () => {
+    const step: AgentStep = { ...baseStep, type: 'error' }
+    render(<AgentStepView step={step} index={0} />)
+    expect(screen.getByText('error')).toBeInTheDocument()
+  })
+
+  it('renders "retry" step type', () => {
+    const step: AgentStep = { ...baseStep, type: 'retry' }
+    render(<AgentStepView step={step} index={0} />)
+    expect(screen.getByText('retry')).toBeInTheDocument()
+  })
+
+  it('renders "memory_update" step type with underscores replaced by spaces', () => {
+    const step: AgentStep = { ...baseStep, type: 'memory_update' }
+    render(<AgentStepView step={step} index={0} />)
+    expect(screen.getByText('memory update')).toBeInTheDocument()
+  })
 })

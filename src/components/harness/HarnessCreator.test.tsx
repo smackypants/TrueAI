@@ -585,4 +585,109 @@ describe('HarnessCreator', () => {
     expect(screen.getByText('No Harness Selected')).toBeInTheDocument()
     expect(screen.getByText(/select a harness from the left/i)).toBeInTheDocument()
   })
+
+  it('adds a parameter via the Add Parameter dialog', async () => {
+    const user = userEvent.setup()
+    render(
+      <HarnessCreator
+        harnesses={[]}
+        onCreateHarness={mockOnCreateHarness}
+        onDeleteHarness={mockOnDeleteHarness}
+        onExportHarness={mockOnExportHarness}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /new harness/i }))
+    await waitFor(() => expect(screen.getByText('Create New Harness')).toBeInTheDocument())
+
+    // Go to Tools tab
+    await user.click(screen.getByRole('tab', { name: /tools \(0\)/i }))
+
+    // Open Add Tool dialog
+    const addToolBtn = screen.getAllByRole('button').find((b) =>
+      b.textContent === 'Add Tool' && b.className.includes('h-8')
+    )
+    if (addToolBtn) await user.click(addToolBtn)
+    await waitFor(() => expect(screen.getByText('Define a new tool function for this harness')).toBeInTheDocument())
+
+    // Fill in Returns field (line 555)
+    await user.type(screen.getByLabelText(/return type/i), 'string')
+
+    // Click Add (parameter) button to open Add Parameter dialog
+    const addParamBtn = screen.getAllByRole('button').find((b) =>
+      b.textContent === 'Add' && b.className.includes('outline')
+    )
+    if (addParamBtn) await user.click(addParamBtn)
+    await waitFor(() => expect(screen.getByText('Define a parameter for this tool function')).toBeInTheDocument())
+
+    // Fill in Add Parameter form - use placeholder since both "Name *" labels exist
+    await user.type(screen.getByPlaceholderText('url'), 'my_param')
+    const descTextarea = screen.getAllByLabelText(/description \*/i).find(
+      (el) => el.id === 'param-desc'
+    )
+    if (descTextarea) await user.type(descTextarea, 'A test parameter')
+
+    // Submit the Add Parameter dialog
+    const addParamSubmit = screen.getAllByRole('button').find((b) =>
+      b.textContent === 'Add Parameter' && !b.hasAttribute('disabled')
+    )
+    if (addParamSubmit) await user.click(addParamSubmit)
+
+    // Parameter should now be listed in the tool parameters section
+    await waitFor(() => {
+      expect(screen.getByText('my_param')).toBeInTheDocument()
+    })
+  })
+
+  it('can remove a parameter from the tool form', async () => {
+    const user = userEvent.setup()
+    render(
+      <HarnessCreator
+        harnesses={[]}
+        onCreateHarness={mockOnCreateHarness}
+        onDeleteHarness={mockOnDeleteHarness}
+        onExportHarness={mockOnExportHarness}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /new harness/i }))
+    await waitFor(() => expect(screen.getByText('Create New Harness')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('tab', { name: /tools \(0\)/i }))
+
+    const addToolBtn = screen.getAllByRole('button').find((b) =>
+      b.textContent === 'Add Tool' && b.className.includes('h-8')
+    )
+    if (addToolBtn) await user.click(addToolBtn)
+    await waitFor(() => expect(screen.getByText('Define a new tool function for this harness')).toBeInTheDocument())
+
+    // Add a parameter
+    const addParamBtn = screen.getAllByRole('button').find((b) =>
+      b.textContent === 'Add' && b.className.includes('outline')
+    )
+    if (addParamBtn) await user.click(addParamBtn)
+    await waitFor(() => expect(screen.getByText('Define a parameter for this tool function')).toBeInTheDocument())
+
+    await user.type(screen.getByPlaceholderText('url'), 'deletable')
+    const descTextarea = screen.getAllByLabelText(/description \*/i).find(
+      (el) => el.id === 'param-desc'
+    )
+    if (descTextarea) await user.type(descTextarea, 'Will be removed')
+
+    const addParamSubmit = screen.getAllByRole('button').find((b) =>
+      b.textContent === 'Add Parameter' && !b.hasAttribute('disabled')
+    )
+    if (addParamSubmit) await user.click(addParamSubmit)
+
+    await waitFor(() => expect(screen.getByText('deletable')).toBeInTheDocument())
+
+    // Remove the parameter
+    const removeBtn = screen.getAllByRole('button').find((b) =>
+      b.className.includes('ghost') && b.querySelector('svg')
+    )
+    if (removeBtn) {
+      await user.click(removeBtn)
+      await waitFor(() => expect(screen.queryByText('deletable')).not.toBeInTheDocument())
+    }
+  })
 })

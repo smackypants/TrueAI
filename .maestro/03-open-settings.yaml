@@ -1,0 +1,17 @@
+# 03 — Open Settings dialog.
+#
+# The header settings button is icon-only (Gear) with `aria-label="Settings"`
+# (src/App.tsx ~L1588). Capacitor exposes the React `aria-label` to Android
+# accessibility as the WebView node's content-description, which Maestro
+# matches via `tapOn`. Inside the dialog we assert the "Settings" title
+# (rendered by SettingsMenu DialogTitle, src/components/settings/SettingsMenu.tsx ~L36)
+# and the "LLM Runtime" tab label so this flow doubles as a smoke test that
+# the LLM-runtime panel is reachable.
+appId: com.trueai.localai
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Chat"
+- tapOn: "Settings"
+- assertVisible: "Settings"
+- assertVisible: "LLM Runtime"

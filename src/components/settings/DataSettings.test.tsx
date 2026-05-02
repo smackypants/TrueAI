@@ -183,4 +183,243 @@ describe('DataSettings', () => {
 
     expect(toast.info).toHaveBeenCalledWith('No agents to clear')
   })
+
+  it('Export All Data writes a JSON blob and shows success toast', async () => {
+    const { toast } = await import('sonner')
+    vi.mocked(spark.kv.get).mockImplementation(async (key: string) => {
+      if (key === 'conversations') return [{ id: 'c1' }]
+      return undefined
+    })
+    const createObjectURL = vi.fn(() => 'blob:test')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL })
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /export all data/i }))
+      // resolve the artificial 1s delay in handleExportData
+      await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith('Data exported successfully'), { timeout: 3000 })
+    })
+
+    expect(createObjectURL).toHaveBeenCalled()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:test')
+    expect(clickSpy).toHaveBeenCalled()
+
+    clickSpy.mockRestore()
+    vi.unstubAllGlobals()
+  }, 10000)
+
+  it('Export All Data shows error toast when spark.kv.get rejects', async () => {
+    const { toast } = await import('sonner')
+    vi.mocked(spark.kv.get).mockRejectedValue(new Error('boom'))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /export all data/i }))
+
+    await vi.waitFor(
+      () => expect(toast.error).toHaveBeenCalledWith('Failed to export data'),
+      { timeout: 3000 },
+    )
+    // After failure, button text returns from "Exporting..." back to "Export All Data"
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: /export all data/i })).not.toBeDisabled(),
+    )
+
+    errorSpy.mockRestore()
+  }, 10000)
+
+  it('Clear All Data shows error toast when spark.kv.delete rejects', async () => {
+    const { toast } = await import('sonner')
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(spark.kv.delete).mockRejectedValue(new Error('fail'))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /clear all data/i }))
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('Failed to clear data')
+    confirmSpy.mockRestore()
+    errorSpy.mockRestore()
+  })
+
+  it('Clear Conversations clears KVs and shows success when confirmed', async () => {
+    const { toast } = await import('sonner')
+    vi.mocked(spark.kv.get).mockResolvedValue([{ id: 'c1' }])
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const reload = vi.fn()
+    vi.stubGlobal('location', { reload, href: '/' })
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /clear conversations/i }))
+    })
+
+    expect(spark.kv.set).toHaveBeenCalledWith('conversations', [])
+    expect(spark.kv.set).toHaveBeenCalledWith('messages', [])
+    expect(toast.success).toHaveBeenCalledWith('Conversations cleared')
+
+    confirmSpy.mockRestore()
+    vi.unstubAllGlobals()
+  })
+
+  it('Clear Conversations does nothing when confirm is cancelled', async () => {
+    vi.mocked(spark.kv.get).mockResolvedValue([{ id: 'c1' }])
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /clear conversations/i }))
+    })
+
+    expect(spark.kv.set).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
+  })
+
+  it('Clear Agents clears KVs and shows success when confirmed', async () => {
+    const { toast } = await import('sonner')
+    vi.mocked(spark.kv.get).mockResolvedValue([{ id: 'a1' }])
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.stubGlobal('location', { reload: vi.fn(), href: '/' })
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /clear agents/i }))
+    })
+
+    expect(spark.kv.set).toHaveBeenCalledWith('agents', [])
+    expect(spark.kv.set).toHaveBeenCalledWith('agent-runs', [])
+    expect(toast.success).toHaveBeenCalledWith('Agents cleared')
+
+    confirmSpy.mockRestore()
+    vi.unstubAllGlobals()
+  })
+
+  it('Clear Analytics shows info toast when no analytics exist', async () => {
+    const { toast } = await import('sonner')
+    vi.mocked(spark.kv.get).mockResolvedValue([])
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /clear analytics/i }))
+    })
+
+    expect(toast.info).toHaveBeenCalledWith('No analytics to clear')
+  })
+
+  it('Clear Analytics clears KV and shows success when confirmed', async () => {
+    const { toast } = await import('sonner')
+    vi.mocked(spark.kv.get).mockResolvedValue([{ id: 'e1' }])
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /clear analytics/i }))
+    })
+
+    expect(spark.kv.set).toHaveBeenCalledWith('analytics-events', [])
+    expect(toast.success).toHaveBeenCalledWith('Analytics cleared')
+    confirmSpy.mockRestore()
+  })
+
+  it('Import Data: invalid JSON shows error toast', async () => {
+    const { toast } = await import('sonner')
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Capture the dynamically created input
+    const realCreate = document.createElement.bind(document)
+    let capturedInput: HTMLInputElement | null = null
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag)
+      if (tag === 'input') {
+        capturedInput = el as HTMLInputElement
+        // Stub click so jsdom doesn't actually open file dialog
+        ;(el as HTMLInputElement).click = vi.fn()
+      }
+      return el
+    })
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /import data/i }))
+    expect(capturedInput).not.toBeNull()
+
+    const file = new File(['{not valid json'], 'bad.json', { type: 'application/json' })
+    Object.defineProperty(capturedInput!, 'files', { value: [file], configurable: true })
+
+    await act(async () => {
+      capturedInput!.onchange?.({ target: capturedInput } as unknown as Event)
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to import data'))
+    createSpy.mockRestore()
+    errorSpy.mockRestore()
+  })
+
+  it('Import Data: no file selected returns early without toast', async () => {
+    const { toast } = await import('sonner')
+    const realCreate = document.createElement.bind(document)
+    let capturedInput: HTMLInputElement | null = null
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag)
+      if (tag === 'input') {
+        capturedInput = el as HTMLInputElement
+        ;(el as HTMLInputElement).click = vi.fn()
+      }
+      return el
+    })
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /import data/i }))
+
+    Object.defineProperty(capturedInput!, 'files', { value: [], configurable: true })
+    await act(async () => {
+      capturedInput!.onchange?.({ target: capturedInput } as unknown as Event)
+    })
+
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    createSpy.mockRestore()
+  })
+
+  it('Import Data: valid JSON writes each KV entry, shows success toast, and reloads', async () => {
+    const { toast } = await import('sonner')
+    const reload = vi.fn()
+    vi.stubGlobal('location', { reload, href: '/' })
+
+    const realCreate = document.createElement.bind(document)
+    let capturedInput: HTMLInputElement | null = null
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag)
+      if (tag === 'input') {
+        capturedInput = el as HTMLInputElement
+        ;(el as HTMLInputElement).click = vi.fn()
+      }
+      return el
+    })
+
+    render(<DataSettings settings={defaultSettings} onSettingsChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /import data/i }))
+
+    const payload = { conversations: [{ id: 'c1' }], agents: [{ id: 'a1' }] }
+    const file = new File([JSON.stringify(payload)], 'backup.json', {
+      type: 'application/json',
+    })
+    Object.defineProperty(capturedInput!, 'files', { value: [file], configurable: true })
+
+    await act(async () => {
+      capturedInput!.onchange?.({ target: capturedInput } as unknown as Event)
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith('Data imported successfully'))
+    expect(spark.kv.set).toHaveBeenCalledWith('conversations', [{ id: 'c1' }])
+    expect(spark.kv.set).toHaveBeenCalledWith('agents', [{ id: 'a1' }])
+    expect(reload).toHaveBeenCalled()
+
+    createSpy.mockRestore()
+    vi.unstubAllGlobals()
+  })
 })

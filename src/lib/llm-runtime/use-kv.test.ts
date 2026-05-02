@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useKV } from './use-kv'
 import { __resetKvStoreForTests, kvStore } from './kv-store'
 
@@ -68,5 +68,39 @@ describe('useKV', () => {
     await waitFor(async () => {
       expect(await kvStore.get('to-delete')).toBeUndefined()
     })
+  })
+
+  it('does not setState after unmount when getOrSet resolves late (cancelled guard)', async () => {
+    // Make getOrSet resolve only after we manually release it, so we can
+    // unmount the hook in the meantime and verify the cancelled-guard path
+    // (use-kv.ts L37) prevents the late setValue from running.
+    let release: (v: string) => void = () => {}
+    const original = kvStore.getOrSet.bind(kvStore)
+    const spy = vi
+      .spyOn(kvStore, 'getOrSet')
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            release = resolve
+          }),
+      )
+
+    const { result, unmount } = renderHook(() => useKV<string>('cancel-me', 'init'))
+    expect(result.current[0]).toBe('init')
+
+    unmount()
+    // Resolve AFTER unmount; cancelled === true so no setValue should fire.
+    // If the guard regresses, React will log a "state update on unmounted
+    // component" warning that the test setup turns into a failure.
+    await act(async () => {
+      release('late-arrival')
+      // Yield once so the .then callback runs.
+      await Promise.resolve()
+    })
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    spy.mockRestore()
+    // Sanity: real getOrSet still works after the spy is restored.
+    expect(typeof original).toBe('function')
   })
 })

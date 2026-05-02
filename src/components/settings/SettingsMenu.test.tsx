@@ -1,6 +1,10 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 
+const { mockUseIsMobile } = vi.hoisted(() => ({
+  mockUseIsMobile: vi.fn().mockReturnValue(false),
+}))
+
 // Mock all child setting panels so they render simple identifiable text
 vi.mock('./GeneralSettings', () => ({
   GeneralSettings: () => <div data-testid="panel-general">GeneralSettings</div>,
@@ -27,7 +31,7 @@ vi.mock('./AdvancedSettings', () => ({
   AdvancedSettings: () => <div data-testid="panel-advanced">AdvancedSettings</div>,
 }))
 vi.mock('@/hooks/use-mobile', () => ({
-  useIsMobile: () => false,
+  useIsMobile: () => mockUseIsMobile(),
 }))
 
 import { SettingsMenu } from './SettingsMenu'
@@ -170,5 +174,99 @@ describe('SettingsMenu', () => {
     )
     // GeneralSettings panel is rendered by default; mock just renders text
     expect(screen.getByTestId('panel-general')).toBeInTheDocument()
+  })
+
+  it('switches to notifications panel when button clicked', () => {
+    render(
+      <SettingsMenu
+        open={true}
+        onOpenChange={vi.fn()}
+        settings={defaultSettings}
+        onSettingsChange={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByText('Notifications'))
+    expect(screen.getByTestId('panel-notifications')).toBeInTheDocument()
+  })
+
+  it('switches to privacy panel when button clicked', () => {
+    render(
+      <SettingsMenu
+        open={true}
+        onOpenChange={vi.fn()}
+        settings={defaultSettings}
+        onSettingsChange={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByText('Privacy & Security'))
+    expect(screen.getByTestId('panel-privacy')).toBeInTheDocument()
+  })
+
+  it('switches to data panel when button clicked', () => {
+    render(
+      <SettingsMenu
+        open={true}
+        onOpenChange={vi.fn()}
+        settings={defaultSettings}
+        onSettingsChange={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByText('Data Management'))
+    expect(screen.getByTestId('panel-data')).toBeInTheDocument()
+  })
+
+  it('switches to advanced panel when button clicked', () => {
+    render(
+      <SettingsMenu
+        open={true}
+        onOpenChange={vi.fn()}
+        settings={defaultSettings}
+        onSettingsChange={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByText('Advanced'))
+    expect(screen.getByTestId('panel-advanced')).toBeInTheDocument()
+  })
+
+  it('switches to LLM Runtime panel when button clicked', () => {
+    render(
+      <SettingsMenu
+        open={true}
+        onOpenChange={vi.fn()}
+        settings={defaultSettings}
+        onSettingsChange={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByText('LLM Runtime'))
+    expect(screen.getByTestId('panel-llm')).toBeInTheDocument()
+  })
+
+  it('switches to AI Behavior panel when button clicked', () => {
+    render(
+      <SettingsMenu
+        open={true}
+        onOpenChange={vi.fn()}
+        settings={defaultSettings}
+        onSettingsChange={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByText('AI Behavior'))
+    expect(screen.getByTestId('panel-ai')).toBeInTheDocument()
+  })
+
+  it('renders mobile tab list when isMobile is true', () => {
+    mockUseIsMobile.mockReturnValue(true)
+    render(
+      <SettingsMenu
+        open={true}
+        onOpenChange={vi.fn()}
+        settings={defaultSettings}
+        onSettingsChange={vi.fn()}
+      />
+    )
+    // In mobile mode a tablist is rendered with 4 triggers
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs.length).toBeGreaterThanOrEqual(4)
+    mockUseIsMobile.mockReturnValue(false)
   })
 })

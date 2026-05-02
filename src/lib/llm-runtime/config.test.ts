@@ -295,5 +295,67 @@ describe('llm-runtime/config', () => {
       unsub1()
       unsub2()
     })
+
+    it('isolates subscriber errors during the post-load broadcast as well', async () => {
+      clearFetch()
+      const bad = vi.fn(() => {
+        throw new Error('post-load boom')
+      })
+      const good = vi.fn()
+      subscribeToLLMRuntimeConfig(bad)
+      subscribeToLLMRuntimeConfig(good)
+      await expect(ensureLLMRuntimeConfigLoaded()).resolves.toBeDefined()
+      expect(bad).toHaveBeenCalledTimes(1)
+      expect(good).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('storage error fallback paths', () => {
+    it('returns defaults when kvStore.get throws (loadStoredConfig catch branch)', async () => {
+      clearFetch()
+      vi.spyOn(kvStore, 'get').mockRejectedValueOnce(new Error('idb explosion'))
+      const cfg = await ensureLLMRuntimeConfigLoaded()
+      expect(cfg).toEqual(DEFAULT_LLM_RUNTIME_CONFIG)
+    })
+
+    it('returns empty apiKey when secureStorage.get throws (loadStoredApiKey catch branch)', async () => {
+      clearFetch()
+      // Belt-and-braces cleanup: prior tests in this file may have written a
+      // value via secureStorage.set; wipe all relevant state so the catch
+      // branch is exercised against a known-empty baseline.
+      await secureStorage.remove(LLM_RUNTIME_API_KEY_KEY)
+      await kvStore.delete(LLM_RUNTIME_CONFIG_KEY)
+      __resetKvStoreForTests()
+      __resetLLMRuntimeConfigForTests()
+
+      const getSpy = vi
+        .spyOn(secureStorage, 'get')
+        .mockRejectedValue(new Error('keystore down'))
+
+      const cfg = await ensureLLMRuntimeConfigLoaded()
+
+      expect(getSpy).toHaveBeenCalledWith(LLM_RUNTIME_API_KEY_KEY)
+      // Default apiKey is the empty string; the catch path must NOT apply
+      // anything, leaving the merged value untouched.
+      expect(cfg.apiKey).toBe('')
+    })
+
+    it('does NOT mutate DEFAULT_LLM_RUNTIME_CONFIG when an apiKey is loaded with no fileCfg/storedCfg (regression)', async () => {
+      // Regression for a real privacy bug: `mergeConfig(base, null)` used to
+      // return `base` by reference, then `merged.apiKey = apiKey` would
+      // mutate DEFAULT_LLM_RUNTIME_CONFIG — leaking the user's apiKey into
+      // every consumer that imports the defaults (e.g. LLMRuntimeSettings's
+      // useState initial value) for the rest of the process.
+      clearFetch()
+      await kvStore.delete(LLM_RUNTIME_CONFIG_KEY)
+      __resetKvStoreForTests()
+      __resetLLMRuntimeConfigForTests()
+      await secureStorage.set(LLM_RUNTIME_API_KEY_KEY, 'sk-mutation-canary')
+
+      const cfg = await ensureLLMRuntimeConfigLoaded()
+      expect(cfg.apiKey).toBe('sk-mutation-canary')
+      // The exported defaults must remain pristine.
+      expect(DEFAULT_LLM_RUNTIME_CONFIG.apiKey).toBe('')
+    })
   })
 })

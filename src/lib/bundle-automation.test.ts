@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { BundleAutomationEngine, bundleAutomation } from './bundle-automation'
+import { BundleAutomationEngine, bundleAutomation, type BundleExecutionResult } from './bundle-automation'
 import type { Message, Agent, AgentRun, HarnessManifest } from './types'
 
 const message = (id: string, content: string, ts: number): Message => ({
@@ -451,5 +451,354 @@ describe('Rule management + import/export', () => {
 
   it('exports a singleton', () => {
     expect(bundleAutomation).toBeInstanceOf(BundleAutomationEngine)
+  })
+})
+
+describe('Pattern-detection branch coverage', () => {
+  it('frequency pattern incorporates agent.createdAt timestamps', () => {
+    const e = new BundleAutomationEngine()
+    const ts = new Date('2024-01-01T12:00:00Z').getTime()
+    // 0 messages but 6 agents — exercises ..._agents.map(a => a.createdAt).
+    const agents = Array.from({ length: 6 }, (_, i) => ({
+      ...agent(`a${i}`),
+      createdAt: ts + i,
+    }))
+    const patterns = e.analyzeUsagePatterns([], agents, [], [])
+    expect(patterns.find(p => p.id === 'frequency-high-usage')).toBeDefined()
+  })
+
+  it('temporal pattern at 18:00 suggests research_agent', () => {
+    const e = new BundleAutomationEngine()
+    const ts = new Date('2024-01-01T20:00:00Z').getTime()
+    const messages = Array.from({ length: 6 }, (_, i) =>
+      message(`m${i}`, 'hi', ts + i),
+    )
+    const patterns = e.analyzeUsagePatterns(messages, [], [], [])
+    const temporal = patterns.find(p => p.patternType === 'temporal')
+    expect(temporal).toBeDefined()
+    expect(temporal!.suggestedHarness).toContain('research_agent')
+  })
+
+  it('temporal pattern outside 9-22 window has no suggested harness', () => {
+    const e = new BundleAutomationEngine()
+    // 03:00 UTC — outside both windows. Use timestamps that map to local hour 3.
+    const baseTs = new Date('2024-01-01T03:00:00Z').getTime()
+    // Build 5 events at the same local hour as baseTs.
+    const messages = Array.from({ length: 6 }, (_, i) =>
+      message(`m${i}`, 'hi', baseTs + i),
+    )
+    const patterns = e.analyzeUsagePatterns(messages, [], [], [])
+    const temporal = patterns.find(p => p.patternType === 'temporal')
+    if (temporal) {
+      // Either not in 9-17 nor 18-22: empty array.
+      const localHour = new Date(baseTs).getHours()
+      if (!(localHour >= 9 && localHour <= 22)) {
+        expect(temporal.suggestedHarness).toEqual([])
+      }
+    }
+  })
+
+  it('sequential pattern with web_search/memory suggests research_agent', () => {
+    const e = new BundleAutomationEngine()
+    const runs = [
+      run('r1', 0, ['web_search', 'memory']),
+      run('r2', 1, ['web_search', 'memory']),
+    ]
+    const patterns = e.analyzeUsagePatterns([], [], runs, [])
+    const seq = patterns.find(p => p.patternType === 'sequential')
+    expect(seq).toBeDefined()
+    expect(seq!.suggestedHarness).toContain('research_agent')
+  })
+
+  it('sequential pattern with code_interpreter/file_reader suggests code_assistant', () => {
+    const e = new BundleAutomationEngine()
+    const runs = [
+      run('r1', 0, ['code_interpreter', 'file_reader']),
+      run('r2', 1, ['code_interpreter', 'file_reader']),
+    ]
+    const patterns = e.analyzeUsagePatterns([], [], runs, [])
+    const seq = patterns.find(p => p.patternType === 'sequential')
+    expect(seq).toBeDefined()
+    expect(seq!.suggestedHarness).toContain('code_assistant')
+  })
+
+  it('sequential pattern with unknown tools yields empty suggested harness', () => {
+    const e = new BundleAutomationEngine()
+    const runs = [
+      run('r1', 0, ['mystery_tool']),
+      run('r2', 1, ['mystery_tool']),
+    ]
+    const patterns = e.analyzeUsagePatterns([], [], runs, [])
+    const seq = patterns.find(p => p.patternType === 'sequential')
+    expect(seq).toBeDefined()
+    expect(seq!.suggestedHarness).toEqual([])
+  })
+
+  it('getPatterns returns the most recently analyzed patterns', () => {
+    const e = new BundleAutomationEngine()
+    const ts = new Date('2024-01-01T13:00:00Z').getTime()
+    const messages = Array.from({ length: 6 }, (_, i) => message(`m${i}`, 'hi', ts + i))
+    e.analyzeUsagePatterns(messages, [], [], [])
+    expect(e.getPatterns().length).toBeGreaterThan(0)
+  })
+})
+
+describe('createRuleFromPattern trigger-type branches', () => {
+  const baseHarness = harness('h1', 'code_assistant')
+
+  it('creates a keyword_match condition from a keyword trigger', () => {
+    const e = new BundleAutomationEngine()
+    const rule = e.createRuleFromPattern(
+      {
+        id: 'p',
+        patternType: 'contextual',
+        description: 'd',
+        detectedAt: 0,
+        confidence: 0.5,
+        triggers: [{ type: 'keyword', value: 'debug', weight: 1 }],
+        suggestedHarness: ['code_assistant'],
+        metadata: {},
+      },
+      [baseHarness],
+    )
+    expect(rule.conditions[0]).toMatchObject({
+      type: 'keyword_match',
+      operator: 'contains',
+      value: 'debug',
+    })
+    // confidence 0.5 -> not enabled (autoEnable defaults to confidence > 0.7)
+    expect(rule.enabled).toBe(false)
+    // confidence <= 0.8 -> normal priority
+    expect(rule.priority).toBe('normal')
+  })
+
+  it('creates a tool_used condition from a tool_sequence trigger', () => {
+    const e = new BundleAutomationEngine()
+    const rule = e.createRuleFromPattern(
+      {
+        id: 'p',
+        patternType: 'sequential',
+        description: 'd',
+        detectedAt: 0,
+        confidence: 0.9,
+        triggers: [{ type: 'tool_sequence', value: ['calculator'], weight: 1 }],
+        suggestedHarness: ['data_analyst'],
+        metadata: {},
+      },
+      [harness('h2', 'data_analyst')],
+    )
+    expect(rule.conditions[0]).toMatchObject({
+      type: 'tool_used',
+      operator: 'equals',
+    })
+    // confidence 0.9 -> high priority by default
+    expect(rule.priority).toBe('high')
+    expect(rule.enabled).toBe(true)
+  })
+
+  it('creates a message_count condition from a frequency_threshold trigger', () => {
+    const e = new BundleAutomationEngine()
+    const rule = e.createRuleFromPattern(
+      {
+        id: 'p',
+        patternType: 'frequency',
+        description: 'd',
+        detectedAt: 0,
+        confidence: 0.8,
+        triggers: [{ type: 'frequency_threshold', value: 7, weight: 1 }],
+        suggestedHarness: ['code_assistant'],
+        metadata: {},
+      },
+      [baseHarness],
+      { cooldown: 1000 },
+    )
+    expect(rule.conditions[0]).toMatchObject({
+      type: 'message_count',
+      operator: 'greater_than',
+      value: 7,
+    })
+    expect(rule.cooldown).toBe(1000)
+  })
+})
+
+describe('evaluateRules sorting and remaining condition types', () => {
+  it('sorts triggered rules by priority (critical > high > normal > low)', () => {
+    const e = new BundleAutomationEngine()
+    const mkRule = (id: string, priority: 'critical' | 'high' | 'normal' | 'low') => ({
+      id,
+      name: id,
+      description: '',
+      enabled: true,
+      pattern: {
+        id: '',
+        patternType: 'temporal' as const,
+        description: '',
+        detectedAt: 0,
+        confidence: 1,
+        triggers: [],
+        suggestedHarness: [],
+        metadata: {},
+      },
+      harnessIds: [],
+      conditions: [],
+      actions: [],
+      cooldown: 0,
+      executionCount: 0,
+      successRate: 1,
+      createdAt: 0,
+      priority,
+    })
+    e.addRule(mkRule('r-low', 'low'))
+    e.addRule(mkRule('r-crit', 'critical'))
+    e.addRule(mkRule('r-norm', 'normal'))
+    e.addRule(mkRule('r-high', 'high'))
+    const triggered = e.evaluateRules({
+      currentTime: 0,
+      recentMessages: [],
+      activeAgents: [],
+      recentRuns: [],
+    })
+    expect(triggered.map(r => r.id)).toEqual(['r-crit', 'r-high', 'r-norm', 'r-low'])
+  })
+
+  it('tool_used equals condition matches when a recent run used the tool', () => {
+    const e = new BundleAutomationEngine()
+    e.addRule({
+      id: 'r-tool',
+      name: '',
+      description: '',
+      enabled: true,
+      pattern: {
+        id: '', patternType: 'sequential', description: '', detectedAt: 0,
+        confidence: 1, triggers: [], suggestedHarness: [], metadata: {},
+      },
+      harnessIds: [],
+      conditions: [{ type: 'tool_used', operator: 'equals', value: 'calculator' }],
+      actions: [],
+      cooldown: 0,
+      executionCount: 0,
+      successRate: 1,
+      createdAt: 0,
+      priority: 'normal',
+    })
+    const triggered = e.evaluateRules({
+      currentTime: 0,
+      recentMessages: [],
+      activeAgents: [],
+      recentRuns: [run('r1', 0, ['calculator'])],
+    })
+    expect(triggered).toHaveLength(1)
+  })
+
+  it('message_count less_than evaluates correctly', () => {
+    const e = new BundleAutomationEngine()
+    e.addRule({
+      id: 'r-cnt-lt',
+      name: '',
+      description: '',
+      enabled: true,
+      pattern: {
+        id: '', patternType: 'frequency', description: '', detectedAt: 0,
+        confidence: 1, triggers: [], suggestedHarness: [], metadata: {},
+      },
+      harnessIds: [],
+      conditions: [{ type: 'message_count', operator: 'less_than', value: 5 }],
+      actions: [],
+      cooldown: 0,
+      executionCount: 0,
+      successRate: 1,
+      createdAt: 0,
+      priority: 'normal',
+    })
+    const triggered = e.evaluateRules({
+      currentTime: 0,
+      recentMessages: [message('1', '', 0)],
+      activeAgents: [],
+      recentRuns: [],
+    })
+    expect(triggered).toHaveLength(1)
+  })
+
+  it('model_type contains operator matches recent message models', () => {
+    const e = new BundleAutomationEngine()
+    e.addRule({
+      id: 'r-model',
+      name: '',
+      description: '',
+      enabled: true,
+      pattern: {
+        id: '', patternType: 'contextual', description: '', detectedAt: 0,
+        confidence: 1, triggers: [], suggestedHarness: [], metadata: {},
+      },
+      harnessIds: [],
+      conditions: [{ type: 'model_type', operator: 'contains', value: 'gpt-4' }],
+      actions: [],
+      cooldown: 0,
+      executionCount: 0,
+      successRate: 1,
+      createdAt: 0,
+      priority: 'normal',
+    })
+    const triggered = e.evaluateRules({
+      currentTime: 0,
+      recentMessages: [{ ...message('1', '', 0), model: 'gpt-4o' }],
+      activeAgents: [],
+      recentRuns: [],
+    })
+    expect(triggered).toHaveLength(1)
+  })
+
+  it('honors the negate flag on a matched condition', () => {
+    const e = new BundleAutomationEngine()
+    e.addRule({
+      id: 'r-neg',
+      name: '',
+      description: '',
+      enabled: true,
+      pattern: {
+        id: '', patternType: 'frequency', description: '', detectedAt: 0,
+        confidence: 1, triggers: [], suggestedHarness: [], metadata: {},
+      },
+      harnessIds: [],
+      conditions: [{ type: 'message_count', operator: 'greater_than', value: 0, negate: true }],
+      actions: [],
+      cooldown: 0,
+      executionCount: 0,
+      successRate: 1,
+      createdAt: 0,
+      priority: 'normal',
+    })
+    const triggered = e.evaluateRules({
+      currentTime: 0,
+      recentMessages: [message('1', '', 0)],
+      activeAgents: [],
+      recentRuns: [],
+    })
+    expect(triggered).toHaveLength(0)
+  })
+
+  it('getMetrics sort comparator fires with multiple distinct rule/harness history entries', () => {
+    const e = new BundleAutomationEngine()
+    // Inject two distinct execution-history entries so the sort comparators
+    // on ruleCounts / harnessCounts execute.
+    type WithHistory = { executionHistory: BundleExecutionResult[] }
+    ;(e as unknown as WithHistory).executionHistory = [
+      {
+        ruleId: 'r-a', harnessId: 'h-a', success: true,
+        timestamp: 0, duration: 10, contextCaptured: {},
+      },
+      {
+        ruleId: 'r-a', harnessId: 'h-a', success: true,
+        timestamp: 1, duration: 20, contextCaptured: {},
+      },
+      {
+        ruleId: 'r-b', harnessId: 'h-b', success: true,
+        timestamp: 2, duration: 30, contextCaptured: {},
+      },
+    ]
+    const m = e.getMetrics()
+    expect(m.mostTriggeredRule).toBe('r-a')
+    expect(m.mostUsedHarness).toBe('h-a')
+    expect(m.averageDuration).toBe(20)
   })
 })

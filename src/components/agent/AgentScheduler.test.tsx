@@ -88,4 +88,54 @@ describe('AgentScheduler', () => {
     fireEvent.click(switchEl)
     expect(screen.getByRole('combobox')).toBeInTheDocument()
   })
+
+  it('initializes time from agent.schedule.nextRun when present', () => {
+    const future = new Date()
+    future.setHours(14, 30, 0, 0)
+    const agentWithSchedule: Agent = {
+      ...mockAgent,
+      schedule: { enabled: true, frequency: 'weekly', nextRun: future.getTime() },
+    }
+    render(<AgentScheduler agent={agentWithSchedule} onUpdateSchedule={vi.fn()} />)
+    // With enabled=true from existing schedule, time input should be visible
+    expect(screen.getByDisplayValue('14:30')).toBeInTheDocument()
+  })
+
+  it('initializes as enabled when agent.schedule.enabled is true', () => {
+    const agentWithSchedule: Agent = {
+      ...mockAgent,
+      schedule: { enabled: true, frequency: 'daily', nextRun: Date.now() + 86400000 },
+    }
+    render(<AgentScheduler agent={agentWithSchedule} onUpdateSchedule={vi.fn()} />)
+    // enabled=true means schedule controls are visible
+    expect(screen.getByRole('button', { name: /save schedule/i })).toBeInTheDocument()
+  })
+
+  it('shows "Last run" when agent.schedule.lastRun is set', () => {
+    const now = Date.now()
+    const agentWithSchedule: Agent = {
+      ...mockAgent,
+      schedule: { enabled: true, frequency: 'daily', nextRun: now + 86400000, lastRun: now - 3600000 },
+    }
+    render(<AgentScheduler agent={agentWithSchedule} onUpdateSchedule={vi.fn()} />)
+    expect(screen.getByText(/Last run:/i)).toBeInTheDocument()
+  })
+
+  it('shows schedule preview text when enabled', () => {
+    render(<AgentScheduler agent={mockAgent} onUpdateSchedule={vi.fn()} />)
+    const switchEl = document.querySelector('[data-slot="switch"]')!
+    fireEvent.click(switchEl)
+    // Should show "Next run in Xh Ym" or "Next run: ... at ..."
+    expect(screen.getByText(/Next run/i)).toBeInTheDocument()
+  })
+
+  it('shows "Scheduling disabled" preview text in schedule preview when disabled', () => {
+    render(<AgentScheduler agent={mockAgent} onUpdateSchedule={vi.fn()} />)
+    // Schedule is not enabled, but when we enable then disable, preview shows
+    const switchEl = document.querySelector('[data-slot="switch"]')!
+    fireEvent.click(switchEl)  // enable
+    fireEvent.click(switchEl)  // disable again
+    // The component renders {!enabled && ...} disabled section
+    expect(screen.getByText(/enable scheduling to configure/i)).toBeInTheDocument()
+  })
 })

@@ -172,4 +172,68 @@ describe('OfflineQueuePanel', () => {
     render(<OfflineQueuePanel />)
     expect(screen.getByRole('button', { name: /sync now/i })).toBeDisabled()
   })
+
+  // Phase 6 — branch coverage additions
+
+  it('shows error toast when retryFailed fails', async () => {
+    const retryMock = vi.fn().mockResolvedValue({ success: false, syncedCount: 0, failedCount: 4 })
+    const hook = makeHook({ isOnline: true, failedCount: 4 })
+    hook.retryFailed = retryMock
+    mockUseOfflineQueue.mockReturnValue(hook)
+    render(<OfflineQueuePanel />)
+    fireEvent.click(screen.getByRole('button', { name: /retry failed/i }))
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Retry failed for 4 actions')
+    )
+  })
+
+  it('renders failed and syncing status badges for queue items', () => {
+    const queue = [
+      {
+        id: 'qf',
+        action: 'create',
+        type: 'message',
+        status: 'failed',
+        timestamp: Date.now(),
+        retryCount: 2,
+        error: 'Network timeout',
+      },
+      {
+        id: 'qs',
+        action: 'update',
+        type: 'conversation',
+        status: 'syncing',
+        timestamp: Date.now(),
+        retryCount: 0,
+      },
+    ]
+    mockUseOfflineQueue.mockReturnValue(makeHook({ queue, failedCount: 1 }))
+    render(<OfflineQueuePanel />)
+    // Status badges are rendered via getStatusBadge with capitalize class.
+    // "failed" also appears as the "Failed" counter card label, so use getAllByText.
+    const failedHits = screen.getAllByText(/^failed$/i)
+    expect(failedHits.length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText(/^syncing$/i)).toBeInTheDocument()
+    // retryCount and error rendering paths
+    expect(screen.getByText(/Retry attempt:\s*2\/3/)).toBeInTheDocument()
+    expect(screen.getByText(/Error:\s*Network timeout/)).toBeInTheDocument()
+  })
+
+  it('falls back to outline badge variant for unknown status values', () => {
+    const queue = [
+      {
+        id: 'qu',
+        action: 'noop',
+        type: 'unknown-type',
+        status: 'mystery',
+        timestamp: Date.now(),
+        retryCount: 0,
+      },
+    ]
+    mockUseOfflineQueue.mockReturnValue(makeHook({ queue }))
+    render(<OfflineQueuePanel />)
+    // The status text still renders inside the badge, exercising the
+    // `variants[status] || 'outline'` fallback branch in getStatusBadge.
+    expect(screen.getByText(/^mystery$/i)).toBeInTheDocument()
+  })
 })

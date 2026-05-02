@@ -142,3 +142,221 @@ describe('llm client', () => {
     expect(result.error).toMatch(/network error/)
   })
 })
+
+/**
+ * Targeted coverage for the error/abort/edge branches in client.ts that the
+ * happy-path tests above don't reach.
+ */
+describe('llm — error & abort paths', () => {
+  let originalFetch: typeof fetch
+
+  beforeEach(async () => {
+    __resetKvStoreForTests()
+    __resetLLMRuntimeConfigForTests()
+    try {
+      window.localStorage.clear()
+    } catch {
+      // ignore
+    }
+    originalFetch = globalThis.fetch
+    await updateLLMRuntimeConfig({
+      provider: 'openai-compatible',
+      baseUrl: 'http://test.local/v1',
+      apiKey: '',
+      defaultModel: 'test-model',
+      requestTimeoutMs: 5000,
+      temperature: 0.5,
+      topP: 0.9,
+      maxTokens: 100,
+    })
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('rejects immediately when an already-aborted external signal is passed', async () => {
+    let captured: AbortSignal | undefined
+    globalThis.fetch = vi.fn(async (_url: string, init?: RequestInit) => {
+      captured = init?.signal ?? undefined
+      // Simulate the platform throwing an AbortError because the controller
+      // signal is already aborted by the time fetch is invoked.
+      throw new DOMException('aborted', 'AbortError')
+    }) as unknown as typeof fetch
+
+    const ext = new AbortController()
+    ext.abort()
+    await expect(llm('hi', undefined, false, { signal: ext.signal })).rejects.toThrow(
+      /timed out after/,
+    )
+    expect(captured?.aborted).toBe(true)
+  })
+
+  it('forwards a later external abort to the inner controller (signal listener path)', async () => {
+    const ext = new AbortController()
+    let innerSignal: AbortSignal | undefined
+    globalThis.fetch = vi.fn(async (_url: string, init?: RequestInit) => {
+      innerSignal = init?.signal ?? undefined
+      // Trigger the external abort *after* fetch is invoked but before it
+      // resolves, so the addEventListener('abort', ...) path runs.
+      ext.abort()
+      // Yield once so the listener fires on the inner controller.
+      await new Promise((r) => setTimeout(r, 0))
+      throw new DOMException('aborted', 'AbortError')
+    }) as unknown as typeof fetch
+
+    await expect(llm('hi', undefined, false, { signal: ext.signal })).rejects.toThrow(
+      /timed out after/,
+    )
+    expect(innerSignal?.aborted).toBe(true)
+  })
+
+  it('falls back to defaults when ensureLLMRuntimeConfigLoaded rejects', async () => {
+    // Mock the resolved config so the explicit call throws but the cached
+    // values from getLLMRuntimeConfig still work.
+    const cfgModule = await import('./config')
+    const ensureSpy = vi
+      .spyOn(cfgModule, 'ensureLLMRuntimeConfigLoaded')
+      .mockRejectedValueOnce(new Error('config blew up'))
+
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: 'recovered' } }] }), {
+        status: 200,
+      }),
+    ) as unknown as typeof fetch
+
+    const out = await llm('hi')
+    expect(out).toBe('recovered')
+    expect(ensureSpy).toHaveBeenCalled()
+  })
+
+  it('wraps a generic fetch rejection in LLMRuntimeError with the URL and message', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(new Error('ECONNREFUSED')) as unknown as typeof fetch
+
+    await expect(llm('hi')).rejects.toThrow(/could not reach .*ECONNREFUSED/)
+  })
+
+  it('wraps a non-Error rejection by stringifying it', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue('weird-thrown-value') as unknown as typeof fetch
+
+    await expect(llm('hi')).rejects.toThrow(/could not reach .*weird-thrown-value/)
+  })
+
+  it('throws LLMRuntimeError when the response body is not valid JSON', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('not-json-at-all', { status: 200 })) as unknown as typeof fetch
+
+    await expect(llm('hi')).rejects.toThrow(/not valid JSON/)
+  })
+
+  it('uses string `error` field as the missing-content message', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: 'string-error-shape' }), { status: 200 }),
+    ) as unknown as typeof fetch
+
+    await expect(llm('hi')).rejects.toThrow(/missing content: string-error-shape/)
+  })
+
+  it('uses default message when neither error nor choices are present', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 })) as unknown as typeof fetch
+
+    await expect(llm('hi')).rejects.toThrow(/no completion choices returned/)
+  })
+
+  it('prepends a system message when options.system is provided', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 }),
+    )
+    globalThis.fetch = fetchSpy as unknown as typeof fetch
+
+    await llm('user prompt', undefined, false, { system: 'you are helpful' })
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string) as {
+      messages: Array<{ role: string; content: string }>
+    }
+    expect(body.messages).toEqual([
+      { role: 'system', content: 'you are helpful' },
+      { role: 'user', content: 'user prompt' },
+    ])
+  })
+})
+
+describe('testLLMRuntimeConnection — edge paths', () => {
+  let originalFetch: typeof fetch
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('attaches Authorization header when apiKey is non-empty', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), { status: 200 }),
+    )
+    globalThis.fetch = fetchSpy as unknown as typeof fetch
+
+    await testLLMRuntimeConnection('http://test.local/v1', 'sk-abc')
+    const headers = (fetchSpy.mock.calls[0][1] as RequestInit).headers as Record<string, string>
+    expect(headers['Authorization']).toBe('Bearer sk-abc')
+  })
+
+  it('returns ok:false with status text on non-OK responses', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('nope', { status: 404, statusText: 'Not Found' })) as unknown as typeof fetch
+
+    const result = await testLLMRuntimeConnection('http://test.local/v1', '')
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(404)
+    expect(result.error).toBe('404 Not Found')
+  })
+
+  it('returns ok:true with undefined models when payload is not the standard shape', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ unrelated: true }), { status: 200 })) as unknown as typeof fetch
+
+    const result = await testLLMRuntimeConnection('http://test.local/v1', '')
+    expect(result.ok).toBe(true)
+    expect(result.models).toBeUndefined()
+  })
+
+  it('returns ok:true with undefined models when JSON parsing fails', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('not-json', { status: 200 })) as unknown as typeof fetch
+
+    const result = await testLLMRuntimeConnection('http://test.local/v1', '')
+    expect(result.ok).toBe(true)
+    expect(result.models).toBeUndefined()
+  })
+
+  it('reports timeout when fetch rejects with AbortError', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(new DOMException('aborted', 'AbortError')) as unknown as typeof fetch
+
+    const result = await testLLMRuntimeConnection('http://test.local/v1', '', 1234)
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('Timed out after 1234ms')
+  })
+
+  it('stringifies non-Error rejections', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue('plain-string-failure') as unknown as typeof fetch
+
+    const result = await testLLMRuntimeConnection('http://test.local/v1', '')
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('plain-string-failure')
+  })
+})

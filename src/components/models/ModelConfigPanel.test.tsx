@@ -86,4 +86,28 @@ describe('ModelConfigPanel', () => {
     render(<ModelConfigPanel model={mockModel} onSave={vi.fn()} onClose={vi.fn()} />)
     expect(screen.queryByLabelText(/api endpoint/i)).not.toBeInTheDocument()
   })
+
+  it('updates endpoint value via Input onChange and saves it', () => {
+    const onSave = vi.fn()
+    const customModel = { ...mockModel, provider: 'custom' as const, endpoint: '' }
+    render(<ModelConfigPanel model={customModel} onSave={onSave} onClose={vi.fn()} />)
+    const endpointInput = screen.getByLabelText(/api endpoint/i) as HTMLInputElement
+    fireEvent.change(endpointInput, { target: { value: 'https://my-api.example.com/v1' } })
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: 'https://my-api.example.com/v1' })
+    )
+  })
+
+  it('saves existing endpoint value when endpoint already set', () => {
+    const onSave = vi.fn()
+    const customModel = { ...mockModel, provider: 'custom' as const, endpoint: 'https://existing.com' }
+    render(<ModelConfigPanel model={customModel} onSave={onSave} onClose={vi.fn()} />)
+    const endpointInput = screen.getByLabelText(/api endpoint/i) as HTMLInputElement
+    expect(endpointInput.value).toBe('https://existing.com')
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: 'https://existing.com' })
+    )
+  })
 })
