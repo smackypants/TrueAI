@@ -32,6 +32,7 @@ import {
   type LLMRuntimeConfig,
 } from '@/lib/llm-runtime/config'
 import { testLLMRuntimeConnection } from '@/lib/llm-runtime/client'
+import { GGUFPicker } from './GGUFPicker'
 
 interface ProviderPreset {
   label: string
@@ -169,6 +170,7 @@ export function LLMRuntimeSettings() {
   const [draft, setDraft] = useState<LLMRuntimeConfig>(DEFAULT_LLM_RUNTIME_CONFIG)
   const [loaded, setLoaded] = useState(false)
   const [status, setStatus] = useState<ConnectionStatus>({ state: 'idle' })
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
   // Hydrate from persisted config on mount and subscribe to external updates
@@ -302,10 +304,32 @@ export function LLMRuntimeSettings() {
             autoCapitalize="off"
             autoCorrect="off"
           />
+          {draft.provider === 'local-wasm' && (
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPickerOpen(true)}
+              >
+                Browse Hugging Face…
+              </Button>
+              <p className="text-xs text-muted-foreground mt-1">
+                Search the Hub for a <code>.gguf</code> file and fill in the
+                Base URL automatically as <code>hf:&lt;owner&gt;/&lt;repo&gt;:&lt;file&gt;</code>.
+              </p>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
             The app will POST to <code>{draft.baseUrl.replace(/\/+$/, '')}/chat/completions</code>.
           </p>
         </div>
+
+        <GGUFPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onSelect={(shortcut) => setDraft((prev) => ({ ...prev, baseUrl: shortcut }))}
+        />
 
         <div className="space-y-2">
           <Label htmlFor="llm-api-key">API key (optional)</Label>
