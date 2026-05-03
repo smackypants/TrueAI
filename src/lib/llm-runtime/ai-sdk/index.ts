@@ -31,3 +31,8 @@ export {
   getLanguageModelSync,
   __resetProviderFactoryForTests,
 } from './provider-factory'
+
+export {
+  getRuntimeProviderOptions,
+  OPENAI_COMPATIBLE_PROVIDER_OPTIONS_KEY,
+} from './runtime-provider-options'
