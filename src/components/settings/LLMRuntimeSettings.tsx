@@ -8,7 +8,7 @@
  * apply immediately to subsequent `spark.llm` / agent / benchmark calls.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -32,6 +32,10 @@ import {
   type LLMRuntimeConfig,
 } from '@/lib/llm-runtime/config'
 import { testLLMRuntimeConnection } from '@/lib/llm-runtime/client'
+import {
+  subscribeToLocalWllamaProgress,
+  type LocalWllamaProgressEvent,
+} from '@/lib/llm-runtime/ai-sdk/local-wllama-provider'
 import { GGUFPicker } from './GGUFPicker'
 
 interface ProviderPreset {
@@ -165,13 +169,98 @@ function clampNumber(
   return parsed
 }
 
+/**
+ * Tiny status panel for the on-device runtime, mounted only when the
+ * selected provider is `local-wasm`. Subscribes to
+ * `subscribeToLocalWllamaProgress` so the user can see *why* the first
+ * chat send is slow (multi-GB GGUF download) instead of a bare spinner.
+ */
+function formatBytesShort(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)))
+  return `${(n / Math.pow(1024, i)).toFixed(2)} ${units[i]}`
+}
+
+function LocalRuntimeStatusPanel({ event }: { event: LocalWllamaProgressEvent }) {
+
+  let body: ReactNode
+  let title: string
+  if (event.state === 'idle') {
+    title = 'On-device model: not loaded yet'
+    body = (
+      <p className="text-xs text-muted-foreground">
+        The GGUF model is downloaded once on the first chat send and cached
+        in your browser's storage. After that all inference runs locally.
+      </p>
+    )
+  } else if (event.state === 'downloading') {
+    const total = event.total ?? 0
+    const loaded = event.loaded ?? 0
+    const pct = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0
+    title = total > 0 ? `Downloading model… ${pct}%` : 'Preparing model download…'
+    body = (
+      <>
+        <div
+          className="h-2 w-full bg-muted rounded overflow-hidden"
+          role="progressbar"
+          aria-label="Model download progress"
+          aria-valuemin={0}
+          aria-valuemax={total > 0 ? 100 : undefined}
+          aria-valuenow={total > 0 ? pct : undefined}
+        >
+          <div
+            className="h-full bg-primary transition-[width] duration-200"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          {total > 0
+            ? `${formatBytesShort(loaded)} / ${formatBytesShort(total)}`
+            : 'Waiting for the first byte from the model host…'}
+        </p>
+      </>
+    )
+  } else if (event.state === 'ready') {
+    title = 'On-device model loaded'
+    body = (
+      <p className="text-xs text-muted-foreground">
+        The model is in the browser cache. Subsequent chats run instantly
+        without re-downloading.
+      </p>
+    )
+  } else {
+    title = 'On-device model failed to load'
+    body = (
+      <p className="text-xs text-destructive" role="alert">
+        {event.error ?? 'Unknown error'}
+      </p>
+    )
+  }
+
+  return (
+    <div
+      className="space-y-2 rounded-md border p-3"
+      aria-label="On-device runtime status"
+    >
+      <p className="text-sm font-medium">{title}</p>
+      {body}
+    </div>
+  )
+}
+
 export function LLMRuntimeSettings() {
   const [config, setConfig] = useState<LLMRuntimeConfig>(DEFAULT_LLM_RUNTIME_CONFIG)
   const [draft, setDraft] = useState<LLMRuntimeConfig>(DEFAULT_LLM_RUNTIME_CONFIG)
   const [loaded, setLoaded] = useState(false)
   const [status, setStatus] = useState<ConnectionStatus>({ state: 'idle' })
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [localProgress, setLocalProgress] = useState<LocalWllamaProgressEvent>({ state: 'idle' })
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    return subscribeToLocalWllamaProgress(setLocalProgress)
+  }, [])
 
   // Hydrate from persisted config on mount and subscribe to external updates
   // so that two open Settings dialogs stay in sync.
@@ -330,6 +419,10 @@ export function LLMRuntimeSettings() {
           onOpenChange={setPickerOpen}
           onSelect={(shortcut) => setDraft((prev) => ({ ...prev, baseUrl: shortcut }))}
         />
+
+        {draft.provider === 'local-wasm' && (
+          <LocalRuntimeStatusPanel event={localProgress} />
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="llm-api-key">API key (optional)</Label>

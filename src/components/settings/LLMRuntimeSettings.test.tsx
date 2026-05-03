@@ -36,6 +36,14 @@ vi.mock('@/lib/llm-runtime/client', () => ({
   testLLMRuntimeConnection: mockTestConnection,
 }))
 
+const { mockSubscribeProgress } = vi.hoisted(() => ({
+  mockSubscribeProgress: vi.fn(() => () => {}),
+}))
+
+vi.mock('@/lib/llm-runtime/ai-sdk/local-wllama-provider', () => ({
+  subscribeToLocalWllamaProgress: mockSubscribeProgress,
+}))
+
 import { LLMRuntimeSettings } from './LLMRuntimeSettings'
 
 const defaultConfig = {
@@ -59,6 +67,11 @@ describe('LLMRuntimeSettings', () => {
     mockEnsureLoaded.mockResolvedValue(defaultConfig)
     mockSubscribe.mockReturnValue(vi.fn())
     mockUpdate.mockResolvedValue(defaultConfig)
+    // Default: idle replay only.
+    mockSubscribeProgress.mockImplementation((listener) => {
+      listener({ state: 'idle' })
+      return () => {}
+    })
   })
 
   it('renders the LLM Runtime section heading', async () => {
@@ -483,6 +496,86 @@ describe('LLMRuntimeSettings', () => {
       fireEvent.change(screen.getByLabelText('Top-K'), { target: { value: '20' } })
 
       expect(screen.getByRole('button', { name: /^Save$/i })).not.toBeDisabled()
+    })
+  })
+
+  describe('PR 6 — local-wasm download progress panel', () => {
+    const localWasmConfig = { ...defaultConfig, provider: 'local-wasm' as const }
+
+    it('does not render the on-device status panel when provider is hosted', async () => {
+      render(<LLMRuntimeSettings />)
+      await act(async () => {})
+      expect(screen.queryByLabelText('On-device runtime status')).not.toBeInTheDocument()
+    })
+
+    it('renders the idle status panel when provider is local-wasm', async () => {
+      mockEnsureLoaded.mockResolvedValue(localWasmConfig)
+      render(<LLMRuntimeSettings />)
+      await act(async () => {})
+      const panel = await screen.findByLabelText('On-device runtime status')
+      expect(panel).toBeInTheDocument()
+      expect(panel).toHaveTextContent(/not loaded yet/i)
+    })
+
+    it('renders a progressbar with percent and MB/MB while downloading', async () => {
+      mockEnsureLoaded.mockResolvedValue(localWasmConfig)
+      // Synchronously deliver a downloading event during subscribe so
+      // it's visible by the time render flushes.
+      mockSubscribeProgress.mockImplementation((listener) => {
+        listener({
+          state: 'downloading',
+          loaded: 250 * 1024 * 1024,
+          total: 1000 * 1024 * 1024,
+          source: 'hf:owner/repo:m.gguf',
+        })
+        return () => {}
+      })
+      render(<LLMRuntimeSettings />)
+      await act(async () => {})
+      expect(await screen.findByText(/Downloading model… 25%/)).toBeInTheDocument()
+      const bar = screen.getByRole('progressbar', { name: /Model download progress/i })
+      expect(bar).toHaveAttribute('aria-valuenow', '25')
+      expect(screen.getByText(/250\.00 MB \/ 1000\.00 MB|250\.00 MB \/ 1\.00 GB/)).toBeInTheDocument()
+    })
+
+    it('shows "ready" copy when the model has finished loading', async () => {
+      mockEnsureLoaded.mockResolvedValue(localWasmConfig)
+      mockSubscribeProgress.mockImplementation((listener) => {
+        listener({ state: 'ready', source: 'hf:owner/repo:m.gguf' })
+        return () => {}
+      })
+      render(<LLMRuntimeSettings />)
+      await act(async () => {})
+      expect(await screen.findByText(/On-device model loaded/i)).toBeInTheDocument()
+    })
+
+    it('shows the error message in an alert when the load fails', async () => {
+      mockEnsureLoaded.mockResolvedValue(localWasmConfig)
+      mockSubscribeProgress.mockImplementation((listener) => {
+        listener({
+          state: 'error',
+          source: 'https://example.test/missing.gguf',
+          error: 'HTTP 404 Not Found',
+        })
+        return () => {}
+      })
+      render(<LLMRuntimeSettings />)
+      await act(async () => {})
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/HTTP 404 Not Found/)
+    })
+
+    it('unsubscribes from the progress feed on unmount', async () => {
+      mockEnsureLoaded.mockResolvedValue(localWasmConfig)
+      const unsubscribe = vi.fn()
+      mockSubscribeProgress.mockImplementation((listener) => {
+        listener({ state: 'idle' })
+        return unsubscribe
+      })
+      const { unmount } = render(<LLMRuntimeSettings />)
+      await act(async () => {})
+      unmount()
+      expect(unsubscribe).toHaveBeenCalled()
     })
   })
 })

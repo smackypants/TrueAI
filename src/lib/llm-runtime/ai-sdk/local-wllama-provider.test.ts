@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   __resetLocalWllamaForTests,
   createLocalWllamaModel,
+  getLocalWllamaProgressSnapshot,
+  subscribeToLocalWllamaProgress,
+  type LocalWllamaProgressEvent,
 } from './local-wllama-provider'
 
 interface FakeChunk {
@@ -85,7 +88,10 @@ describe('local-wllama-provider', () => {
         { role: 'user', content: [{ type: 'text', text: 'hi' }] },
       ],
     })
-    expect(loadModelFromUrl).toHaveBeenCalledWith('https://example.test/m.gguf')
+    expect(loadModelFromUrl).toHaveBeenCalledWith(
+      'https://example.test/m.gguf',
+      expect.objectContaining({ progressCallback: expect.any(Function) }),
+    )
     expect(loadModelFromHF).not.toHaveBeenCalled()
     expect(result.content).toEqual([{ type: 'text', text: 'hello world' }])
     expect(result.finishReason).toEqual({ unified: 'stop', raw: undefined })
@@ -108,6 +114,7 @@ describe('local-wllama-provider', () => {
     expect(loadModelFromHF).toHaveBeenCalledWith(
       'Mozilla/Llama-3.2-1B-Instruct-llamafile',
       'Llama-3.2-1B-Instruct.Q4_K_M.gguf',
+      expect.objectContaining({ progressCallback: expect.any(Function) }),
     )
     expect(loadModelFromUrl).not.toHaveBeenCalled()
   })
@@ -354,7 +361,7 @@ describe('local-wllama-provider', () => {
       })
       expect(loadModelFromUrl).toHaveBeenCalledWith(
         'https://example.test/m.gguf',
-        { n_ctx: 4096 },
+        expect.objectContaining({ n_ctx: 4096, progressCallback: expect.any(Function) }),
       )
     })
 
@@ -370,11 +377,11 @@ describe('local-wllama-provider', () => {
       expect(loadModelFromHF).toHaveBeenCalledWith(
         'owner/repo',
         'file.gguf',
-        { n_ctx: 8192 },
+        expect.objectContaining({ n_ctx: 8192, progressCallback: expect.any(Function) }),
       )
     })
 
-    it('omits the load-config arg entirely when contextSize is unset (back-compat)', async () => {
+    it('passes a progressCallback even when contextSize is unset (PR 6)', async () => {
       const model = createLocalWllamaModel({
         modelSource: 'https://example.test/m.gguf',
         modelId: 'm',
@@ -382,7 +389,14 @@ describe('local-wllama-provider', () => {
       await model.doGenerate({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
       })
-      expect(loadModelFromUrl).toHaveBeenCalledWith('https://example.test/m.gguf')
+      expect(loadModelFromUrl).toHaveBeenCalledWith(
+        'https://example.test/m.gguf',
+        expect.objectContaining({ progressCallback: expect.any(Function) }),
+      )
+      // n_ctx must NOT be set when contextSize is unspecified — let
+      // wllama pick its own default.
+      const cfg = loadModelFromUrl.mock.calls[0][1] as Record<string, unknown>
+      expect(cfg).not.toHaveProperty('n_ctx')
     })
 
     it('reloads when contextSize changes between calls', async () => {
@@ -406,12 +420,12 @@ describe('local-wllama-provider', () => {
       expect(loadModelFromUrl).toHaveBeenNthCalledWith(
         1,
         'https://example.test/m.gguf',
-        { n_ctx: 2048 },
+        expect.objectContaining({ n_ctx: 2048, progressCallback: expect.any(Function) }),
       )
       expect(loadModelFromUrl).toHaveBeenNthCalledWith(
         2,
         'https://example.test/m.gguf',
-        { n_ctx: 8192 },
+        expect.objectContaining({ n_ctx: 8192, progressCallback: expect.any(Function) }),
       )
     })
 
@@ -476,6 +490,133 @@ describe('local-wllama-provider', () => {
       expect(sampling.min_p).toBeUndefined()
       expect(sampling.penalty_repeat).toBeUndefined()
     })
+  })
+})
+
+describe('PR 6 — local-wllama download progress pub-sub', () => {
+  beforeEach(() => {
+    __resetLocalWllamaForTests()
+    loadModelFromUrl.mockClear()
+    loadModelFromHF.mockClear()
+    createChatCompletion.mockClear()
+  })
+
+  afterEach(() => {
+    __resetLocalWllamaForTests()
+  })
+
+  it('replays the current state synchronously on subscribe (idle initially)', () => {
+    const events: LocalWllamaProgressEvent[] = []
+    const unsub = subscribeToLocalWllamaProgress((e) => events.push(e))
+    expect(events).toEqual([{ state: 'idle' }])
+    expect(getLocalWllamaProgressSnapshot()).toEqual({ state: 'idle' })
+    unsub()
+  })
+
+  it('emits downloading → ready around a successful load and forwards loaded/total bytes', async () => {
+    // Make loadModelFromUrl simulate wllama invoking progressCallback
+    // partway through the download.
+    loadModelFromUrl.mockImplementationOnce(
+      async (_url: string, opts: { progressCallback?: (p: { loaded: number; total: number }) => void }) => {
+        opts.progressCallback?.({ loaded: 100, total: 1000 })
+        opts.progressCallback?.({ loaded: 1000, total: 1000 })
+      },
+    )
+    const events: LocalWllamaProgressEvent[] = []
+    const unsub = subscribeToLocalWllamaProgress((e) => events.push(e))
+    const model = createLocalWllamaModel({
+      modelSource: 'https://example.test/m.gguf',
+      modelId: 'm',
+    })
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+    })
+    unsub()
+    // Sequence: initial idle replay → seeded 0/0 downloading → wllama
+    // 100/1000 → wllama 1000/1000 → ready.
+    expect(events[0]).toEqual({ state: 'idle' })
+    expect(events[1]).toEqual({
+      state: 'downloading',
+      loaded: 0,
+      total: 0,
+      source: 'https://example.test/m.gguf',
+    })
+    expect(events[2]).toEqual({
+      state: 'downloading',
+      loaded: 100,
+      total: 1000,
+      source: 'https://example.test/m.gguf',
+    })
+    expect(events[3]).toEqual({
+      state: 'downloading',
+      loaded: 1000,
+      total: 1000,
+      source: 'https://example.test/m.gguf',
+    })
+    expect(events[events.length - 1]).toEqual({
+      state: 'ready',
+      source: 'https://example.test/m.gguf',
+    })
+  })
+
+  it('emits an error event when the load throws and propagates the error', async () => {
+    loadModelFromUrl.mockImplementationOnce(async () => {
+      throw new Error('boom: 404 not found')
+    })
+    const events: LocalWllamaProgressEvent[] = []
+    const unsub = subscribeToLocalWllamaProgress((e) => events.push(e))
+    const model = createLocalWllamaModel({
+      modelSource: 'https://example.test/missing.gguf',
+      modelId: 'm',
+    })
+    await expect(
+      model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      }),
+    ).rejects.toThrow(/boom: 404 not found/)
+    unsub()
+    const last = events[events.length - 1]
+    expect(last.state).toBe('error')
+    expect(last.error).toMatch(/boom: 404 not found/)
+    expect(last.source).toBe('https://example.test/missing.gguf')
+  })
+
+  it('stops invoking listeners after unsubscribe', async () => {
+    const seen: LocalWllamaProgressEvent[] = []
+    const unsub = subscribeToLocalWllamaProgress((e) => seen.push(e))
+    expect(seen).toHaveLength(1) // idle replay
+    unsub()
+    const model = createLocalWllamaModel({
+      modelSource: 'https://example.test/m.gguf',
+      modelId: 'm',
+    })
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+    })
+    // No more events delivered after unsubscribe.
+    expect(seen).toHaveLength(1)
+    // But the snapshot still reflects the latest state for newcomers.
+    expect(getLocalWllamaProgressSnapshot().state).toBe('ready')
+  })
+
+  it('isolates listener errors so one bad subscriber cannot break the load', async () => {
+    const good: LocalWllamaProgressEvent[] = []
+    const unsubBad = subscribeToLocalWllamaProgress(() => {
+      throw new Error('listener exploded')
+    })
+    const unsubGood = subscribeToLocalWllamaProgress((e) => good.push(e))
+    const model = createLocalWllamaModel({
+      modelSource: 'https://example.test/m.gguf',
+      modelId: 'm',
+    })
+    await expect(
+      model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      }),
+    ).resolves.toBeDefined()
+    unsubBad()
+    unsubGood()
+    expect(good[good.length - 1].state).toBe('ready')
   })
 })
 

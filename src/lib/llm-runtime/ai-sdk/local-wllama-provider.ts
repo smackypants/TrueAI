@@ -148,6 +148,76 @@ const DEFAULT_WLLAMA_ASSETS = {
   'multi-thread/wllama.wasm': `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_PINNED_VERSION}/esm/multi-thread/wllama.wasm`,
 }
 
+/**
+ * Lifecycle / download-progress event for the on-device runtime.
+ *
+ * Emitted to subscribers from `subscribeToLocalWllamaProgress()`. The
+ * Settings → LLM Runtime panel renders the latest event so users can
+ * see *why* the first chat send is slow (one-shot multi-GB GGUF
+ * download) instead of staring at a spinner.
+ */
+export interface LocalWllamaProgressEvent {
+  /** Coarse state machine. */
+  state: 'idle' | 'downloading' | 'ready' | 'error'
+  /** Bytes downloaded so far across all model shards (downloading). */
+  loaded?: number
+  /** Total bytes across all model shards (downloading). */
+  total?: number
+  /**
+   * The resolved model source (`https://…` URL or `hf:owner/repo:file`
+   * shortcut) the lifecycle event refers to. Helps the UI ignore stale
+   * events after the user reconfigures the runtime.
+   */
+  source?: string
+  /** Human-readable error message, present only when state is 'error'. */
+  error?: string
+}
+
+type ProgressListener = (event: LocalWllamaProgressEvent) => void
+
+const progressListeners = new Set<ProgressListener>()
+let lastProgressEvent: LocalWllamaProgressEvent = { state: 'idle' }
+
+function emitProgress(event: LocalWllamaProgressEvent): void {
+  lastProgressEvent = event
+  for (const listener of progressListeners) {
+    try {
+      listener(event)
+    } catch {
+      // Swallow listener errors so one bad subscriber can't break the
+      // load. Keeps the runtime decoupled from any UI-side bugs.
+    }
+  }
+}
+
+/**
+ * Subscribe to download / lifecycle events from the on-device runtime.
+ * Listeners are invoked synchronously when the provider hits a load,
+ * download-progress, ready, or error transition. Returns an unsubscribe
+ * function. The current state is delivered immediately on subscribe so
+ * the UI can render the right initial status without racing.
+ */
+export function subscribeToLocalWllamaProgress(
+  listener: ProgressListener,
+): () => void {
+  progressListeners.add(listener)
+  // Replay current state synchronously so a freshly mounted Settings
+  // panel doesn't flash an "idle" frame mid-download.
+  try {
+    listener(lastProgressEvent)
+  } catch {
+    /* see emitProgress */
+  }
+  return () => {
+    progressListeners.delete(listener)
+  }
+}
+
+/** Read the most recent lifecycle event without subscribing. */
+export function getLocalWllamaProgressSnapshot(): LocalWllamaProgressEvent {
+  return lastProgressEvent
+}
+
 let cachedInstance: WllamaInstance | null = null
 let cachedModelSource: string | null = null
 /**
@@ -176,6 +246,8 @@ export function __resetLocalWllamaForTests(): void {
   loadInFlightSource = null
   loadInFlightContextSize = undefined
   loadInFlight = null
+  progressListeners.clear()
+  lastProgressEvent = { state: 'idle' }
 }
 
 async function importWllama(): Promise<WllamaModule> {
@@ -209,8 +281,15 @@ async function getOrCreateInstance(opts: LocalWllamaOptions): Promise<WllamaInst
     return loadInFlight
   }
 
-  const loadCfg: Record<string, unknown> | undefined =
-    ctx !== undefined ? { n_ctx: ctx } : undefined
+  // Build the load config: n_ctx (when explicit) plus a wllama
+  // `progressCallback` that fans out to the pub-sub. Always present —
+  // the only cost when nothing is subscribed is a single Set iteration
+  // per shard chunk, which wllama already invokes sparingly.
+  const loadCfg: Record<string, unknown> = {}
+  if (ctx !== undefined) loadCfg.n_ctx = ctx
+  loadCfg.progressCallback = ({ loaded, total }: { loaded: number; total: number }) => {
+    emitProgress({ state: 'downloading', loaded, total, source: src })
+  }
 
   const inFlight = (async (): Promise<WllamaInstance> => {
     const mod = await importWllama()
@@ -220,30 +299,38 @@ async function getOrCreateInstance(opts: LocalWllamaOptions): Promise<WllamaInst
     }
     const assets = opts.assetsPath ?? DEFAULT_WLLAMA_ASSETS
     const instance = new Ctor(assets)
-    if (src.startsWith('hf:')) {
-      // Format: hf:<owner>/<repo>:<path>
-      const rest = src.slice(3)
-      const colon = rest.lastIndexOf(':')
-      if (colon < 0) {
-        throw new Error(
-          `Invalid hf: shortcut '${src}'. Expected 'hf:<owner>/<repo>:<path/to/file.gguf>'.`,
-        )
-      }
-      const repo = rest.slice(0, colon)
-      const file = rest.slice(colon + 1)
-      if (loadCfg) {
+    // Seed a 0/0 downloading event so the UI can show a panel
+    // immediately even before wllama emits its first progress tick
+    // (which only fires once the HTTP response starts streaming).
+    emitProgress({ state: 'downloading', loaded: 0, total: 0, source: src })
+    try {
+      if (src.startsWith('hf:')) {
+        // Format: hf:<owner>/<repo>:<path>
+        const rest = src.slice(3)
+        const colon = rest.lastIndexOf(':')
+        if (colon < 0) {
+          throw new Error(
+            `Invalid hf: shortcut '${src}'. Expected 'hf:<owner>/<repo>:<path/to/file.gguf>'.`,
+          )
+        }
+        const repo = rest.slice(0, colon)
+        const file = rest.slice(colon + 1)
         await instance.loadModelFromHF(repo, file, loadCfg)
       } else {
-        await instance.loadModelFromHF(repo, file)
+        await instance.loadModelFromUrl(src, loadCfg)
       }
-    } else if (loadCfg) {
-      await instance.loadModelFromUrl(src, loadCfg)
-    } else {
-      await instance.loadModelFromUrl(src)
+    } catch (err) {
+      emitProgress({
+        state: 'error',
+        source: src,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      throw err
     }
     cachedInstance = instance
     cachedModelSource = src
     cachedContextSize = ctx
+    emitProgress({ state: 'ready', source: src })
     return instance
   })()
 
