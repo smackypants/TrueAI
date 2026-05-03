@@ -20,7 +20,12 @@ import { SettingsMenu } from '@/components/settings/SettingsMenu'
 import { PerformanceMonitor } from '@/components/PerformanceMonitor'
 import { ConversationItem } from '@/components/chat/ConversationItem'
 import { ConversationSettings } from '@/components/chat/ConversationSettings'
-import { llm as llmRuntimeCall } from '@/lib/llm-runtime/client'
+import { useStreamingChat } from '@/hooks/use-streaming-chat'
+import {
+  getRuntimeProviderOptions,
+} from '@/lib/llm-runtime/ai-sdk'
+import { getLLMRuntimeConfig } from '@/lib/llm-runtime/config'
+import type { ModelMessage } from '@/lib/llm-runtime/ai-sdk'
 import { ConversationFilters, type ConversationSortOption, type ConversationFilterOption } from '@/components/chat/ConversationFilters'
 import { ChatSearch } from '@/components/chat/ChatSearch'
 import { ChatExportDialog } from '@/components/chat/ChatExportDialog'
@@ -294,7 +299,6 @@ function App() {
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false)
   const [selectedRunForFeedback, setSelectedRunForFeedback] = useState<AgentRun | null>(null)
   const [isLearning, setIsLearning] = useState(false)
-  const [isStreaming, setIsStreaming] = useState(false)
   const [newAgentDialog, setNewAgentDialog] = useState(false)
   const [newConversationDialog, setNewConversationDialog] = useState(false)
   const [editingModelId, setEditingModelId] = useState<string | null>(null)
@@ -330,6 +334,36 @@ function App() {
     conversations?.find(c => c.id === activeConversationId), 
     [conversations, activeConversationId]
   )
+
+  // PR 9: route chat sends through the AI-SDK streaming path. The
+  // hook reads its options from a ref on every send, so per-render
+  // values for the active conversation (model / system prompt /
+  // sampling overrides) are picked up automatically. Per-conversation
+  // `topK` / `minP` / `repeatPenalty` overrides are folded into the
+  // runtime-config snapshot fed to `getRuntimeProviderOptions` so the
+  // OpenAI-extension fields (`top_k` / `min_p` / `repeat_penalty`)
+  // ride through `providerOptions` for openai-compatible providers
+  // (and are correctly suppressed for hosted providers + local-wasm).
+  const chatProviderOptions = useMemo(() => {
+    const cfg = getLLMRuntimeConfig()
+    return getRuntimeProviderOptions({
+      ...cfg,
+      topK: activeConversation?.topK ?? cfg.topK,
+      minP: activeConversation?.minP ?? cfg.minP,
+      repeatPenalty: activeConversation?.repeatPenalty ?? cfg.repeatPenalty,
+    })
+  }, [activeConversation?.topK, activeConversation?.minP, activeConversation?.repeatPenalty])
+
+  const chat = useStreamingChat({
+    model: activeConversation?.model,
+    system: activeConversation?.systemPrompt,
+    temperature: activeConversation?.temperature,
+    topP: activeConversation?.topP,
+    topK: activeConversation?.topK,
+    maxOutputTokens: activeConversation?.maxTokens,
+    providerOptions: chatProviderOptions,
+  })
+  const isStreaming = chat.status === 'streaming'
   
   const conversationMessages = useMemo(() => {
     if (!messages || !activeConversationId) return []
@@ -572,7 +606,6 @@ function App() {
     }
 
     setMessages(prev => [...(prev || []), userMessage])
-    setIsStreaming(true)
 
     analytics.track('chat_message_sent', 'chat', 'send_message', {
       metadata: { conversationId: activeConversationId, messageLength: content.length }
@@ -583,43 +616,21 @@ function App() {
       if (!conversation) {
         throw new Error('Conversation not found')
       }
-      
+
+      // Build a real ModelMessage[] history (PR 9). Replaces the prior
+      // `spark.llmPrompt` text-wrapper hack which concatenated the
+      // entire transcript into one user prompt; the AI-SDK path
+      // accepts proper role-tagged messages, so the model now sees
+      // its own prior turns as `assistant` messages and the
+      // configured `systemPrompt` rides through `useStreamingChat`'s
+      // `system` option (set at hook construction above).
       const currentMessages = messages?.filter(m => m.conversationId === activeConversationId) || []
-      const contextMessages = currentMessages.map(m => ({
+      const history: ModelMessage[] = currentMessages.map(m => ({
         role: m.role,
-        content: m.content
-      }))
-      
-      if (conversation.systemPrompt) {
-        contextMessages.unshift({ role: 'system', content: conversation.systemPrompt })
-      }
-      
-      contextMessages.push({ role: 'user', content })
+        content: m.content,
+      } as ModelMessage))
 
-      const prompt = spark.llmPrompt`You are a helpful AI assistant. Respond to the following conversation:
-
-${contextMessages.map(m => `${m.role}: ${m.content}`).join('\n')}
-
-assistant:`
-
-      // Route through `llm()` directly (instead of the `spark.llm` shim)
-      // so per-conversation sampling overrides actually reach the runtime.
-      // Undefined fields fall back to the LLM-runtime defaults inside
-      // `llm()`; neutral values for top_k/min_p/repeat_penalty are
-      // already filtered out of the wire request there.
-      const response = await llmRuntimeCall(
-        prompt,
-        conversation.model || 'gpt-4o-mini',
-        false,
-        {
-          temperature: conversation.temperature,
-          maxTokens: conversation.maxTokens,
-          topP: conversation.topP,
-          topK: conversation.topK,
-          minP: conversation.minP,
-          repeatPenalty: conversation.repeatPenalty,
-        },
-      )
+      const response = await chat.send(content, history)
 
       const assistantMessage: Message = {
         id: `msg-${crypto.randomUUID()}`,
@@ -631,7 +642,11 @@ assistant:`
       }
 
       setMessages(prev => [...(prev || []), assistantMessage])
-      
+      // Drop the in-flight streaming-text overlay now that the final
+      // assistant message is persisted, otherwise it would render
+      // duplicated alongside the new bubble until the next send.
+      chat.reset()
+
       setConversations(prev => (prev || []).map(c => 
         c.id === activeConversationId 
           ? { ...c, updatedAt: Date.now() }
@@ -639,7 +654,15 @@ assistant:`
       ))
 
       const responseTime = Date.now() - startTime
-      const tokensIn = Math.ceil(prompt.length / 4)
+      // Approximate token counts (4 chars/token) — same heuristic as
+      // before. `messages`+`system` are the inputs; `response` is
+      // the output. We don't have provider-reported usage on the
+      // current AI-SDK call surface yet.
+      const promptApproxLen =
+        (conversation.systemPrompt?.length ?? 0) +
+        history.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : 0), 0) +
+        content.length
+      const tokensIn = Math.ceil(promptApproxLen / 4)
       const tokensOut = Math.ceil(response.length / 4)
       const modelId = conversation?.model || 'gpt-4o-mini'
       trackCost(tokensIn, tokensOut, modelId, 'conversation', activeConversationId, conversation?.title || 'Conversation')
@@ -658,10 +681,9 @@ assistant:`
       analytics.track('error_occurred', 'chat', 'send_message_failed', {
         metadata: { error: String(error), conversationId: activeConversationId }
       })
-    } finally {
-      setIsStreaming(false)
+      chat.reset()
     }
-  }, [activeConversationId, conversations, messages, setMessages, setConversations, trackCost])
+  }, [activeConversationId, conversations, messages, setMessages, setConversations, trackCost, chat])
 
   const createAgent = useCallback(() => {
     const now = Date.now()
@@ -1883,7 +1905,14 @@ Describe what input you would give to the ${tool} tool (one sentence).`
                       {isStreaming && (
                         <div className="flex gap-2 sm:gap-3 my-2 sm:my-3">
                           <div className="h-6 w-6 sm:h-8 sm:w-8" />
-                          <div className="text-muted-foreground text-xs sm:text-sm">Thinking...</div>
+                          {chat.text.length > 0 ? (
+                            <div className="text-foreground text-xs sm:text-sm whitespace-pre-wrap break-words">
+                              {chat.text}
+                              <span className="ml-0.5 inline-block h-3 w-1 align-middle bg-foreground/70 animate-pulse" aria-hidden="true" />
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground text-xs sm:text-sm">Thinking...</div>
+                          )}
                         </div>
                       )}
                     </ScrollArea>
