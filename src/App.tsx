@@ -363,6 +363,11 @@ function App() {
     maxOutputTokens: activeConversation?.maxTokens,
     providerOptions: chatProviderOptions,
   })
+  // `chat.send` / `chat.reset` are stable (useCallback w/ empty deps
+  // inside `useStreamingChat`); destructure them so `sendMessage`'s
+  // useCallback isn't invalidated on every render by the new `chat`
+  // object literal returned from the hook.
+  const { send: chatSend, reset: chatReset } = chat
   const isStreaming = chat.status === 'streaming'
   
   const conversationMessages = useMemo(() => {
@@ -630,7 +635,7 @@ function App() {
         content: m.content,
       } as ModelMessage))
 
-      const response = await chat.send(content, history)
+      const response = await chatSend(content, history)
 
       const assistantMessage: Message = {
         id: `msg-${crypto.randomUUID()}`,
@@ -645,7 +650,7 @@ function App() {
       // Drop the in-flight streaming-text overlay now that the final
       // assistant message is persisted, otherwise it would render
       // duplicated alongside the new bubble until the next send.
-      chat.reset()
+      chatReset()
 
       setConversations(prev => (prev || []).map(c => 
         c.id === activeConversationId 
@@ -681,9 +686,9 @@ function App() {
       analytics.track('error_occurred', 'chat', 'send_message_failed', {
         metadata: { error: String(error), conversationId: activeConversationId }
       })
-      chat.reset()
+      chatReset()
     }
-  }, [activeConversationId, conversations, messages, setMessages, setConversations, trackCost, chat])
+  }, [activeConversationId, conversations, messages, setMessages, setConversations, trackCost, chatSend, chatReset])
 
   const createAgent = useCallback(() => {
     const now = Date.now()
