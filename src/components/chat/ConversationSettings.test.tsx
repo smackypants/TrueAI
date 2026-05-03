@@ -171,4 +171,73 @@ describe('ConversationSettings', () => {
       model: 'model-1',
     }))
   })
+
+  describe('PR 4 — per-conversation sampling overrides (Top-P / Top-K / Min-P / Repeat Penalty)', () => {
+    it('renders Top-P with the conversation value', () => {
+      render(
+        <ConversationSettings
+          {...defaultProps}
+          conversation={makeConversation({ topP: 0.85 })}
+        />,
+      )
+      expect(screen.getByText(/Top-P: 0\.85/)).toBeInTheDocument()
+    })
+
+    it('falls back to OfflineLLM-aligned defaults (Top-P=1, Top-K=40, Min-P=0.05, Repeat=1.1) when fields are undefined', () => {
+      render(<ConversationSettings {...defaultProps} />)
+      expect(screen.getByText(/Top-P: 1\.00/)).toBeInTheDocument()
+      expect(screen.getByText(/Top-K: 40/)).toBeInTheDocument()
+      expect(screen.getByText(/Min-P: 0\.05/)).toBeInTheDocument()
+      expect(screen.getByText(/Repeat Penalty: 1\.10/)).toBeInTheDocument()
+    })
+
+    it('shows the "disabled" hint when Top-K / Min-P / Repeat Penalty are at their neutral values', () => {
+      render(
+        <ConversationSettings
+          {...defaultProps}
+          conversation={makeConversation({ topK: 0, minP: 0, repeatPenalty: 1 })}
+        />,
+      )
+      expect(screen.getByText(/Top-K: disabled/)).toBeInTheDocument()
+      expect(screen.getByText(/Min-P: disabled/)).toBeInTheDocument()
+      expect(screen.getByText(/Repeat Penalty: disabled/)).toBeInTheDocument()
+    })
+
+    it('saves the four new sampling fields on Save Changes', async () => {
+      const user = userEvent.setup()
+      const onUpdate = vi.fn()
+      render(
+        <ConversationSettings
+          {...defaultProps}
+          onUpdate={onUpdate}
+          conversation={makeConversation({
+            topP: 0.9,
+            topK: 80,
+            minP: 0.1,
+            repeatPenalty: 1.2,
+          })}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: /save changes/i }))
+      expect(onUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          topP: 0.9,
+          topK: 80,
+          minP: 0.1,
+          repeatPenalty: 1.2,
+        }),
+      )
+    })
+
+    it('renders the "Local-runtime sampling" group heading and explanatory copy', () => {
+      render(<ConversationSettings {...defaultProps} />)
+      expect(screen.getByText('Local-runtime sampling')).toBeInTheDocument()
+      // Sanity: the explanatory blurb mentions the hosted providers that
+      // ignore these knobs, so a future copy edit doesn't quietly drop
+      // the user-facing rationale.
+      expect(
+        screen.getByText(/Hosted providers \(OpenAI, Anthropic, Google\)/i),
+      ).toBeInTheDocument()
+    })
+  })
 })

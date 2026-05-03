@@ -20,6 +20,7 @@ import { SettingsMenu } from '@/components/settings/SettingsMenu'
 import { PerformanceMonitor } from '@/components/PerformanceMonitor'
 import { ConversationItem } from '@/components/chat/ConversationItem'
 import { ConversationSettings } from '@/components/chat/ConversationSettings'
+import { llm as llmRuntimeCall } from '@/lib/llm-runtime/client'
 import { ConversationFilters, type ConversationSortOption, type ConversationFilterOption } from '@/components/chat/ConversationFilters'
 import { ChatSearch } from '@/components/chat/ChatSearch'
 import { ChatExportDialog } from '@/components/chat/ChatExportDialog'
@@ -601,7 +602,24 @@ ${contextMessages.map(m => `${m.role}: ${m.content}`).join('\n')}
 
 assistant:`
 
-      const response = await spark.llm(prompt, conversation?.model || 'gpt-4o-mini')
+      // Route through `llm()` directly (instead of the `spark.llm` shim)
+      // so per-conversation sampling overrides actually reach the runtime.
+      // Undefined fields fall back to the LLM-runtime defaults inside
+      // `llm()`; neutral values for top_k/min_p/repeat_penalty are
+      // already filtered out of the wire request there.
+      const response = await llmRuntimeCall(
+        prompt,
+        conversation?.model || 'gpt-4o-mini',
+        false,
+        {
+          temperature: conversation.temperature,
+          maxTokens: conversation.maxTokens,
+          topP: conversation.topP,
+          topK: conversation.topK,
+          minP: conversation.minP,
+          repeatPenalty: conversation.repeatPenalty,
+        },
+      )
 
       const assistantMessage: Message = {
         id: `msg-${crypto.randomUUID()}`,

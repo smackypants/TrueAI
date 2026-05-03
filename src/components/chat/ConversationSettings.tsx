@@ -34,6 +34,15 @@ export function ConversationSettings({
     model: conversation.model,
     temperature: conversation.temperature ?? 0.7,
     maxTokens: conversation.maxTokens ?? 2000,
+    // Per-conversation sampling overrides. Defaults are OfflineLLM-aligned
+    // and match `DEFAULT_LLM_RUNTIME_CONFIG`. Top-P always applies; Top-K
+    // / Min-P / Repeat Penalty are llama.cpp-family knobs and are only
+    // emitted on the wire when non-neutral, so leaving them at their
+    // neutral value is equivalent to "inherit from runtime defaults".
+    topP: conversation.topP ?? 1,
+    topK: conversation.topK ?? 40,
+    minP: conversation.minP ?? 0.05,
+    repeatPenalty: conversation.repeatPenalty ?? 1.1,
     streamingEnabled: conversation.streamingEnabled ?? true,
     contextWindow: conversation.contextWindow ?? 10,
   })
@@ -190,6 +199,154 @@ export function ConversationSettings({
                 min={1}
                 max={50}
                 step={1}
+                className="py-2"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="conv-settings-top-p" className="flex items-center gap-2">
+                  Top-P: {localSettings.topP.toFixed(2)}
+                </Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <Info size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      Nucleus sampling. Keeps the smallest set of tokens whose
+                      cumulative probability ≥ Top-P. <code>1</code> disables
+                      truncation.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Slider
+                id="conv-settings-top-p"
+                aria-label="Top-P slider"
+                value={[localSettings.topP]}
+                onValueChange={([value]) => setLocalSettings(prev => ({ ...prev, topP: value }))}
+                min={0}
+                max={1}
+                step={0.01}
+                className="py-2"
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-1">
+            <h4 className="text-sm font-medium">Local-runtime sampling</h4>
+            <p className="text-xs text-muted-foreground">
+              Extra knobs honoured by llama.cpp / wllama / Ollama and other
+              local OpenAI-compatible servers. Hosted providers (OpenAI,
+              Anthropic, Google) ignore these — set a knob to its neutral
+              value (Top-K = 0, Min-P = 0, Repeat Penalty = 1) to omit it
+              from outgoing requests entirely.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="conv-settings-top-k">
+                  Top-K: {localSettings.topK === 0 ? 'disabled' : localSettings.topK}
+                </Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <Info size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      Limits sampling to the K most probable tokens.{' '}
+                      <code>0</code> disables top-k filtering.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Slider
+                id="conv-settings-top-k"
+                aria-label="Top-K slider"
+                value={[localSettings.topK]}
+                onValueChange={([value]) => setLocalSettings(prev => ({ ...prev, topK: value }))}
+                min={0}
+                max={200}
+                step={1}
+                className="py-2"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="conv-settings-min-p">
+                  Min-P:{' '}
+                  {localSettings.minP === 0 ? 'disabled' : localSettings.minP.toFixed(2)}
+                </Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <Info size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      Drops tokens whose probability is less than{' '}
+                      <code>min_p × max-token-probability</code>.{' '}
+                      <code>0</code> disables it.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Slider
+                id="conv-settings-min-p"
+                aria-label="Min-P slider"
+                value={[localSettings.minP]}
+                onValueChange={([value]) => setLocalSettings(prev => ({ ...prev, minP: value }))}
+                min={0}
+                max={1}
+                step={0.01}
+                className="py-2"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="conv-settings-repeat-penalty">
+                  Repeat Penalty:{' '}
+                  {localSettings.repeatPenalty <= 1
+                    ? 'disabled'
+                    : localSettings.repeatPenalty.toFixed(2)}
+                </Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <Info size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      Penalises tokens already present in the context to
+                      reduce repetition loops. <code>1</code> disables the
+                      penalty; <code>1.1</code> is the OfflineLLM default.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Slider
+                id="conv-settings-repeat-penalty"
+                aria-label="Repeat penalty slider"
+                value={[localSettings.repeatPenalty]}
+                onValueChange={([value]) =>
+                  setLocalSettings(prev => ({ ...prev, repeatPenalty: value }))
+                }
+                min={1}
+                max={2}
+                step={0.01}
                 className="py-2"
               />
             </div>

@@ -18,6 +18,19 @@ export interface Conversation {
   tags?: string[]
   temperature?: number
   maxTokens?: number
+  /** Per-conversation overrides for the LLM-runtime sampling defaults.
+   *  When undefined, the runtime config defaults apply.  See PR 4 of
+   *  the OfflineLLM-parity plan and `LLMRequestOptions` in
+   *  `src/lib/llm-runtime/client.ts`. */
+  topP?: number
+  /** Per-conversation top-k override.  `0` is the neutral value and
+   *  causes the field to be omitted from outgoing requests. */
+  topK?: number
+  /** Per-conversation min-p override.  `0` is the neutral value. */
+  minP?: number
+  /** Per-conversation repeat-penalty override.  Values `<= 1` are
+   *  neutral and cause the field to be omitted. */
+  repeatPenalty?: number
   streamingEnabled?: boolean
   contextWindow?: number
   pinned?: boolean
