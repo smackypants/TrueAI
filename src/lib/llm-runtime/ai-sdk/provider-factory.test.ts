@@ -146,6 +146,43 @@ describe('ai-sdk provider-factory', () => {
     expect(model.provider.startsWith('google')).toBe(true)
   })
 
+  it('switches to local-wasm and reports the configured modelId without loading a model', async () => {
+    await updateLLMRuntimeConfig({
+      provider: 'local-wasm',
+      baseUrl: '',
+      apiKey: '',
+      defaultModel: 'local-test',
+      requestTimeoutMs: 5000,
+      temperature: 0.5,
+      topP: 0.9,
+      maxTokens: 100,
+    })
+    // Building the LanguageModel adapter must not require wllama or
+    // a network round-trip — those are deferred until the first
+    // doGenerate/doStream call. (Behaviour of the adapter itself,
+    // including the helpful "no model source configured" error, is
+    // covered exhaustively in local-wllama-provider.test.ts with the
+    // wllama module mocked.)
+    const model = await getLanguageModel()
+    expect(model.modelId).toBe('local-test')
+    expect(model.provider).toBe('local-wasm')
+    expect(model.specificationVersion).toBe('v3')
+  })
+
+  it('getLanguageModelSync rejects local-wasm too', async () => {
+    await updateLLMRuntimeConfig({
+      provider: 'local-wasm',
+      baseUrl: 'https://example.test/m.gguf',
+      apiKey: '',
+      defaultModel: 'm',
+      requestTimeoutMs: 5000,
+      temperature: 0.5,
+      topP: 0.9,
+      maxTokens: 100,
+    })
+    expect(() => getLanguageModelSync()).toThrow(/local-wasm/i)
+  })
+
   it('does not read the api key from process.env (security: only LLMRuntimeConfig)', async () => {
     const prev = process.env.OPENAI_API_KEY
     process.env.OPENAI_API_KEY = 'should-not-be-used'

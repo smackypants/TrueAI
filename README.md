@@ -364,6 +364,16 @@ edit the base URL directly. Suggested setups:
 | llama.cpp `llama-server` | `http://localhost:8080/v1` | (server-loaded model) |
 | LM Studio | `http://localhost:1234/v1` | (server-loaded model) |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| **Local (on-device, WASM)** | `hf:<owner>/<repo>:<file.gguf>` or `https://…/<file>.gguf` URL | logical id (display only) |
+
+The **Local (on-device, WASM)** option runs GGUF models entirely in the
+browser via [`@wllama/wllama`](https://github.com/ngxson/wllama) (a WASM
+build of llama.cpp, MIT). On first use the wllama WASM runtime assets
+(currently fetched from jsDelivr) and the GGUF model are downloaded
+once into the browser's cache; after that all inference happens
+on-device with no further network calls — and no API key. The
+`@wllama/wllama` module is dynamically imported so users on the
+HTTP-server providers don't pay for it in the initial bundle.
 
 The "Test connection" button probes `{baseUrl}/models` and lists the models
 your server reports — handy on Android, where `localhost` is the device

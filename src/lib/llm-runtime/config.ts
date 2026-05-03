@@ -32,6 +32,25 @@ export type LLMProvider =
   | 'openai-compatible'
   | 'anthropic'
   | 'google'
+  /**
+   * Truly on-device inference via `@wllama/wllama` (WASM build of
+   * llama.cpp). For this provider the `LLMRuntimeConfig` fields are
+   * reinterpreted:
+   *   - `baseUrl`: URL to a `.gguf` file (e.g. a HuggingFace
+   *     `resolve/main/<file>.gguf` URL), **OR** a `hf:owner/repo:path`
+   *     shortcut handed straight to wllama's `loadModelFromHF`.
+   *   - `defaultModel`: the logical model id reported back as
+   *     `LanguageModel.modelId`. Used only for display / cost-tracking.
+   *   - `apiKey`: ignored. On first use, the wllama WASM runtime
+   *     assets and the GGUF model are downloaded once (the user
+   *     explicitly authorises this by saving the URL). After that,
+   *     all inference runs on-device with no further network calls.
+   *
+   * The `@wllama/wllama` module is dynamically imported so that the
+   * initial JS bundle for users who stay on the HTTP-server providers
+   * (Ollama, LM Studio, etc.) is unaffected.
+   */
+  | 'local-wasm'
 
 export interface LLMRuntimeConfig {
   /** Logical provider type (used for sensible default base URLs in the UI). */

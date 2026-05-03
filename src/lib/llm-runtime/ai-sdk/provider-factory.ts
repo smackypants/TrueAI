@@ -10,6 +10,10 @@
  *   - `provider: 'openai'`     → `createOpenAI({ apiKey, baseURL })`.
  *   - `provider: 'anthropic'`  → `createAnthropic({ apiKey, baseURL })`.
  *   - `provider: 'google'`     → `createGoogleGenerativeAI({ apiKey, baseURL })`.
+ *   - `provider: 'local-wasm'` → `createLocalWllamaModel({...})`. True
+ *     on-device inference via `@wllama/wllama` (WASM llama.cpp). For
+ *     this provider, `baseUrl` is reinterpreted as a `.gguf` URL
+ *     (or `hf:owner/repo:path` shortcut) and `apiKey` is ignored.
  *
  * The provider singleton is invalidated automatically when
  * `subscribeToLLMRuntimeConfig` fires, so the next call sees the new
@@ -78,6 +82,21 @@ async function buildHandle(cfg: LLMRuntimeConfig): Promise<ProviderHandle> {
       })
       return { cfgKey: cacheKey(cfg), build: (id) => p(id) }
     }
+    case 'local-wasm': {
+      // Lazy-load the wllama adapter so the WASM-build of llama.cpp
+      // and its loader are only fetched when a user actually opts
+      // into the on-device runtime.
+      const { createLocalWllamaModel } = await import('./local-wllama-provider')
+      return {
+        cfgKey: cacheKey(cfg),
+        build: (id) =>
+          createLocalWllamaModel({
+            modelSource: cfg.baseUrl,
+            modelId: id,
+            maxOutputTokens: cfg.maxTokens,
+          }),
+      }
+    }
     case 'ollama':
     case 'llama-cpp':
     case 'lm-studio':
@@ -126,9 +145,14 @@ export function getLanguageModelSync(modelId?: string): LanguageModel {
   ensureSubscribed()
   const cfg = getLLMRuntimeConfig()
   const id = modelId && modelId.trim().length > 0 ? modelId.trim() : cfg.defaultModel
-  if (cfg.provider === 'openai' || cfg.provider === 'anthropic' || cfg.provider === 'google') {
+  if (
+    cfg.provider === 'openai' ||
+    cfg.provider === 'anthropic' ||
+    cfg.provider === 'google' ||
+    cfg.provider === 'local-wasm'
+  ) {
     throw new Error(
-      `getLanguageModelSync does not support hosted provider '${cfg.provider}'. Use the async getLanguageModel() instead.`,
+      `getLanguageModelSync does not support provider '${cfg.provider}'. Use the async getLanguageModel() instead.`,
     )
   }
   if (!cachedHandle || cachedHandle.cfgKey !== cacheKey(cfg)) {
